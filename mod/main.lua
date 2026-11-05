@@ -1,0 +1,8 @@
+#version 2
+#include "scripts/common.lua"
+#include "scripts/strings.lua"
+#include "scripts/server.lua"
+#include "scripts/ui.lua"
+
+if server then OSP.installServer() end
+if client then OSP.installClient() end

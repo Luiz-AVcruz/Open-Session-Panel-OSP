@@ -1,0 +1,5 @@
+name = Open Session Panel
+version = 2
+author = Luiz-AVcruz
+description = Compact independent session administration for solo and multiplayer. Host choices for each player persist between missions: tools, effects, speed and admin access. Vanilla/Mods filters, weather, announcements and activity. Personal health indicator off by default. English / Portugues. Open with P or the pause menu. AGPLv3 or later with an additional Teardown runtime permission. Readable source included.
+tags = Gameplay, Tool
