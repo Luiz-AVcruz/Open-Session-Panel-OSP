@@ -3,9 +3,12 @@
 -- The Mod Manager runs this legacy draw entry point without a map or server.
 #include "scripts/common.lua"
 #include "scripts/strings.lua"
+#include "scripts/theme.lua"
 
 local root = "savegame.mod.osp."
 local capturing = false
+local appearance = false
+local colors = OSP.Theme.colors()
 local confirming = false
 local message = nil
 local pressed, consumed = false, false
@@ -16,18 +19,19 @@ end
 local function text(key, ...)
     return OSP.L(key, ...)
 end
-local function label(x, y, value, size, width)
+local function label(x, y, value, size, width, color)
     UiPush()
     UiTranslate(x, y)
     UiAlign("left top")
     UiFont("regular.ttf", size or 20)
-    UiColor(0.94, 0.93, 0.90)
+    color = color or colors.text
+    UiColor(unpack(color))
     UiTextDisableWildcards(true)
     if width then UiWordWrap(width) end
     UiText(value)
     UiPop()
 end
-local function button(x, y, width, caption, selected, modal)
+local function button(x, y, width, caption, selected, modal, recovery)
     UiPush()
     UiTranslate(x, y)
     local mx, my = UiGetMousePos()
@@ -35,11 +39,11 @@ local function button(x, y, width, caption, selected, modal)
     local hovered = enabled and mx >= 0 and my >= 0 and mx < width and my < 40
     local clicked = hovered and pressed and not consumed
     if clicked then consumed = true end
-    if selected then UiColor(0.24, 0.22, 0.16)
-    elseif hovered then UiColor(0.23, 0.23, 0.21)
-    else UiColor(0.16, 0.16, 0.15) end
+    local color = selected and colors.selected or hovered and colors.hover or colors.surface
+    if recovery then color={.08,.08,.08,1} end
+    UiColor(unpack(color))
     UiRect(width, 40)
-    label(12, 9, caption, 20)
+    label(12, 9, caption, 20, nil, recovery and {1,1,1,1} or colors.text)
     UiPop()
     return clicked
 end
@@ -63,6 +67,7 @@ local function captureKey()
     InputClear()
 end
 function draw()
+    colors = OSP.Theme.colors()
     pressed, consumed = InputPressed("lmb"), false
     captureKey()
     local width, height = 800, 720
@@ -71,9 +76,29 @@ function draw()
     UiTranslate((UiWidth() - width * scale) / 2, (UiHeight() - height * scale) / 2)
     UiScale(scale)
     UiAlign("left top")
-    UiColor(0.075, 0.075, 0.072, 0.98)
+    UiColor(unpack(colors.back))
     UiRect(width, height)
     label(28, 22, text("app_title"), 30)
+    if appearance then
+        OSP.Theme.draw({
+            label=label,
+            button=function(id,x,y,width,height,value,kind)
+                return button(x,y,width,value,kind=="active",false,kind=="recovery")
+            end,
+            rect=function(x,y,width,height,color)
+                UiPush();UiTranslate(x,y);UiColor(unpack(color));UiRect(width,height);UiPop()
+            end,
+            mouse=function() return UiGetMousePos() end,
+            visible=function() return not confirming end,
+            pressed=function() return pressed and not consumed end,
+            down=function() return InputDown("lmb") end,
+            consume=function() consumed=true end,
+        },28,90,744)
+        if button(28,658,220,text("back")) then appearance=false;OSP.Theme.cancelDrag() end
+        UiPop()
+        return
+    end
+    OSP.Theme.cancelDrag()
     label(28, 67, text("main_options_help"), 17, 744)
     label(28, 115, text("language"), 20)
     if button(28, 146, 230, text("english"), OSP.getLanguage() == "en") then
@@ -94,11 +119,12 @@ function draw()
         SetBool(root .. "health_hud", not health)
     end
     label(28, 349, text("health_indicator_description"), 17, 744)
-    if button(28, 403, 744, text("reset_personal")) then
+    if button(28, 403, 744, text("reset_personal"), false, false, true) then
         SetString(root .. "language", "en")
         SetString(root .. "menu_key", "p")
         SetBool(root .. "health_hud", false)
         capturing = false
+        OSP.Theme.reset()
         message = text("preferences_reset")
     end
     if button(28, 464, 744, text("reset_saved_host")) then
@@ -109,13 +135,14 @@ function draw()
     label(28, 518, text("reset_saved_host_help"), 17, 744)
     if message then label(28, 598, message, 17, 744) end
     if button(28, 658, 170, text("back")) then Menu() end
+    if button(210,658,350,text("palette")) then appearance=true;capturing=false end
     label(610, 668, text("version", OSP.version), 16)
     if confirming then
         UiColor(0, 0, 0, 0.82)
         UiRect(width, height)
         UiPush()
         UiTranslate(30, 200)
-        UiColor(0.105, 0.105, 0.099)
+        UiColor(unpack(colors.side))
         UiRect(740, 280)
         label(22, 20, text("confirmation"), 26)
         label(22, 68, text("reset_saved_host_confirm"), 20, 696)

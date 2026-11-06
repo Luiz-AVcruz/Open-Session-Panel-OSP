@@ -40,6 +40,7 @@ local function world(width, height)
     for _,name in ipairs({'UiColor','UiRect','UiAlign','UiFont','UiText','UiWordWrap','UiTextDisableWildcards'}) do env[name]=function() end end
     env.InputPressed=function(k) return k=='lmb' and w.pressed end
     env.InputLastPressedKey=function() return w.key end
+    env.InputDown=function(k) return k=='lmb' and w.pressed end
     env.InputClear=function() w.key='';w.pressed=false end
     env.Menu=function() w.back=true end
     env.GetLocalPlayer=function() error('Options must not need a loaded map') end
@@ -76,6 +77,13 @@ for _,size in ipairs({{840,760},{1280,720},{1024,768},{1920,1080}}) do
     check(w.registry[r..'players.p3.exists']==true and w.registry[r..'identity.host']=='p3','identities survive recovery')
     check(w.registry[r..'hostid']=='keep' and w.registry[r..'nextprofile']==3,'host identity and allocator survive')
     check(w.registry['savegame.tool.gun.enabled']==true,'native unlock data untouched')
+    w.click(212,660);w.click(282,126)
+    check(w.registry[r..'theme.mode']=='ocean','preset from main-menu options')
+    w.click(532,170);w.click(694,272)
+    check(w.registry[r..'theme.mode']=='custom','custom from main-menu options')
+    check(w.registry[r..'theme.custom.back']~=nil,'RGB control without a map')
+    w.click(30,660)
+    w.click(30,405);check(w.registry[r..'theme.mode']=='classic','personal reset restores palette')
     w.click(30,660);check(w.back,'back to Mod Manager')
 end
 print('PASS main-menu options without a map: '..assertions..' assertions')

@@ -1,6 +1,6 @@
 # Open Session Panel
 
-An independently written Teardown administration panel for solo and multiplayer. Version **1.3.0**, by **Luiz-AVcruz**, uses Lua 5.1 and multiplayer scripting version 2. English is the default; Brazilian Portuguese is available.
+An independently written Teardown administration panel for solo and multiplayer. Version **1.4.0**, by **Luiz-AVcruz**, uses Lua 5.1 and multiplayer scripting version 2. English is the default; Brazilian Portuguese is available.
 
 ## Panel and controls
 
@@ -38,13 +38,19 @@ Select **Open Session Panel → Options** in the Mod Manager. This separate menu
 
 The install archive uses the folder **Open Session Panel**, with spaces, for the local Mod Manager entry. Keep a single local copy enabled. Renaming an older local folder changes its settings namespace, so existing local preferences must be transferred with the game closed. Workshop updates keep their existing item identity. The Workshop ID remains in the installed `id.txt`; do not delete it when updating.
 
+## Color palettes
+
+In the in-game **Settings**, choose Classic, Ocean, Forest, Violet, Light or Custom. Before loading a map, open **Options → Color palette** in the Mod Manager. Both screens share the same personal preference, applied immediately and saved between missions.
+
+Custom lets you choose each interface color with the previous/next role arrows, drag its RGB bars or use the +/- buttons for exact one-step adjustments. The hex value and color swatch are shown alongside the role. Background, header/sidebar, buttons, hover, selection, dividers, primary/secondary/disabled text, accent, danger and success are editable. Switching presets keeps the custom colors. A low-contrast warning helps identify hard-to-read combinations. **Restore default palette** has fixed contrast, and the main Options page also keeps **Restore personal preferences** readable regardless of the palette; both return to Classic without deleting your custom colors.
+
 ## Optional health indicator
 
 The additional bar is an individual preference in Settings, **off by default**, saved between missions. Enabling it shows real player health and a percentage alongside the native HUD. Disabling it leaves the game's HUD alone. It neither replaces the native bar nor modifies health, regeneration or global HUD flags.
 
 ## Install and develop
 
-Players do not need Python or LuaJIT. Extract `dist/OpenSessionPanel-1.3.0.zip` as its own folder in Teardown's local mods directory and enable **Open Session Panel**. After updating an already loaded mod, reload the map to load the new scripts. Keep only one administration panel active while testing conflicting gameplay controls.
+Players do not need Python or LuaJIT. Extract `dist/OpenSessionPanel-1.4.0.zip` as its own folder in Teardown's local mods directory and enable **Open Session Panel**. After updating an already loaded mod, reload the map to load the new scripts. Keep only one administration panel active while testing conflicting gameplay controls.
 
 Before disabling or removing the mod, restore session/tool defaults as desired, then reload the map to clear temporary effects. A global mod's `server.destroy` callback is not guaranteed cleanup. Remove only this mod's folder; no game files or campaign saves are included.
 

@@ -6,8 +6,12 @@ OSP = OSP or {}
 
 OSP.languages = {
 	en = {
+        palette="Color palette", palette_classic="Classic", palette_ocean="Ocean", palette_forest="Forest", palette_violet="Violet", palette_light="Light", palette_custom="Custom",
+        palette_restore="Restore default palette", palette_contrast="Low text contrast. Adjust the colors or restore the default.",
+        color_back="Background", color_side="Sidebar / header", color_surface="Buttons", color_hover="Hover", color_selected="Selection", color_line="Dividers",
+        color_text="Text", color_muted="Secondary text", color_accent="Accent", color_danger="Danger", color_disabled="Disabled text", color_success="Success",
         main_options_help="Personal settings and recovery. Changes apply when you next load a map.",
-        reset_personal="Restore personal preferences", preferences_reset="Preferences restored: English, P, health indicator off.",
+        reset_personal="Restore personal preferences", preferences_reset="Defaults restored: English, P, health indicator off, classic palette.",
         reset_saved_host="Reset saved host options on this computer",
         reset_saved_host_help="Clears this computer's saved session rules, tool policies and player options. Other hosts are unaffected.",
         reset_saved_host_confirm="Clear saved session rules, tool policies and player options, including admin roles? Player identity references and personal preferences are kept.",
@@ -164,8 +168,12 @@ OSP.languages = {
 		read_only = "Settings and source information are available to every player.",
 	},
 	pt = {
+        palette="Paleta de cores", palette_classic="Clássica", palette_ocean="Oceano", palette_forest="Floresta", palette_violet="Violeta", palette_light="Clara", palette_custom="Personalizada",
+        palette_restore="Restaurar paleta padrão", palette_contrast="Texto com pouco contraste. Ajuste as cores ou restaure o padrão.",
+        color_back="Fundo", color_side="Lateral / cabeçalho", color_surface="Botões", color_hover="Mouse sobre", color_selected="Seleção", color_line="Divisórias",
+        color_text="Texto", color_muted="Texto secundário", color_accent="Destaque", color_danger="Perigo", color_disabled="Texto desativado", color_success="Sucesso",
         main_options_help="Preferências pessoais e recuperação. As mudanças valem ao carregar o próximo mapa.",
-        reset_personal="Restaurar preferências pessoais", preferences_reset="Preferências restauradas: inglês, P e indicador de vida desligado.",
+        reset_personal="Restaurar preferências pessoais", preferences_reset="Padrões restaurados: inglês, P, indicador desligado e paleta clássica.",
         reset_saved_host="Restaurar opções de host salvas neste computador",
         reset_saved_host_help="Limpa regras de sessão, políticas de ferramentas e opções de jogadores salvas neste computador. Não altera outros hosts.",
         reset_saved_host_confirm="Limpar regras de sessão, políticas de ferramentas e opções de jogadores, incluindo acesso de admin? Identidades dos jogadores e preferências pessoais serão preservadas.",

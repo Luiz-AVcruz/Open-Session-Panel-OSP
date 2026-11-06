@@ -6,7 +6,7 @@ Painel independente de administração de Teardown, modificável e redistribuív
 
 A v1.0 foi implementada e copiada para mods locais. O log confirma seu carregamento; o usuário observou que o menu era grande, pouco adaptável e visualmente insatisfatório. O layout anterior de 1400×880 era redimensionado inteiro. A revisão 1.1 trata esses problemas sem alegar que os testes anteriores demonstraram usabilidade.
 
-## Escopo da versão 1.3.0
+## Escopo da versão 1.4.0
 
 - Jogadores: cura, morte confirmada, respawn, ir até/trazer jogador, retirada de veículo, congelamento, invencibilidade, voo e velocidade.
 - Sessão: cura coletiva, trazer participantes, regeneração nativa, tempo, chuva, neblina, restauração de padrões, reinício confirmado e anúncios.
@@ -40,7 +40,7 @@ Antes de remover o mod, restaurar regras conforme desejado e recarregar o mapa. 
 
 ## Organização e comandos
 
-Lua 5.1, scripting version 2 do Teardown, sem dependências no runtime. Código jogável em `mod/`, teste do contrato do servidor/cliente em `tests/`, ferramentas locais em `tools/`. A versão de produto é **1.3.0**; `version = 2` no manifesto continua significando a geração do scripting.
+Lua 5.1, scripting version 2 do Teardown, sem dependências no runtime. Código jogável em `mod/`, teste do contrato do servidor/cliente em `tests/`, ferramentas locais em `tools/`. A versão de produto é **1.4.0**; `version = 2` no manifesto continua significando a geração do scripting.
 
 ```sh
 python3 tools/check.py
@@ -114,3 +114,11 @@ O checker compila as duas entradas e executa o teste específico do menu em cont
 Verificação da 1.3.0: sintaxe das entradas principal e Options, 8.066 asserções do cliente simulado, 184 do menu sem mapa e 182 do servidor passaram. A árvore extraída de fontes reproduziu os dois ZIPs byte a byte. O usuário abriu Options sem carregar um mapa e gravou a alteração temporária do indicador; não houve erro de Lua no log consultado. A posição e os textos também foram inspecionados em uma prévia sintetizada a partir das chamadas reais de desenho, sem apresentá-la como captura do jogo. A migração do namespace deve ser registrada no recibo central, separadamente dos arquivos distribuídos.
 
 A migração local foi concluída com o processo do jogo encerrado: somente a subárvore OSP foi transferida para o identificador confirmado, incluindo identidade do host, perfis, referências e contadores. O indicador temporariamente ativado no teste foi restaurado ao valor anterior, desligado. O namespace antigo foi removido depois de provar igualdade do conteúdo no destino e igualdade byte a byte de todo o conteúdo fora desses dois nós. Backups comprimidos e recibo com hashes ficam na pasta central de backups, fora do mod, Git e pacotes. O id.txt do Workshop foi preservado.
+
+### Versão 1.4.0: paletas pessoais
+
+`scripts/theme.lua` concentra presets, validação/persistência de RGB hexadecimal, contraste e o editor compartilhado. Não altera servidor nem regras de jogo. Clássica preserva o visual anterior; Oceano, Floresta, Violeta e Clara são alternativas. Personalizada permite as doze funções visuais por barras RGB arrastáveis, ajustes unitários, amostra e código hexadecimal. A seleção e as cores ficam em savegame.mod.osp.theme, compartilhadas entre Settings da partida e Options do gerenciador. Trocar presets não remove as cores personalizadas; restaurar preferências/paleta volta à Clássica sem apagar essas cores.
+
+O cliente fornece coordenadas, recorte do viewport e consumo do mouse ao editor; a tela de Options fornece seu contexto sem mapa. Ambos usam o mesmo editor e respeitam soltura do mouse, bloqueio por modal e cancelamento de arrasto ao sair. Avisos de contraste e o botão de recuperação têm cores fixas para permitir recuperar uma paleta ilegível. Cores salvas inválidas usam o padrão, e valores RGB inválidos são rejeitados. Não há editor de transparência nesta entrega.
+
+Verificação: testes de presets/contraste, RGB, persistência entre instâncias, dados inválidos, arrastar/soltar, recorte, recuperação e integração com as duas telas. Prévias sintéticas das chamadas reais de desenho foram inspecionadas em Oceano, Clara e Personalizada. O resultado visual e o arrasto no motor ainda precisam ser observados no Teardown.

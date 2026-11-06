@@ -19,11 +19,7 @@ function OSP.installClient()
     local clickConsumed=false
     local lmbPressed=false
     local clip=nil
-    local C={back={0.075,0.075,0.072,0.98}, side={0.105,0.105,0.099,1},
-        line={0.27,0.27,0.25,1},surface={0.16,0.16,0.15,1},hover={0.21,0.21,0.19,1},
-        selected={0.24,0.22,0.16,1},text={0.95,0.94,0.91,1},muted={0.69,0.69,0.65,1},
-        accent={0.96,0.78,0.37,1},danger={0.96,0.62,0.55,1},disabled={0.39,0.39,0.36,1},
-        success={0.59,0.80,0.61,1}}
+    local C=OSP.Theme.colors()
     local tabs={"players","session","tools","activity","settings","about"}
     local function lang() return GetString(ROOT.."language")=="pt" and "pt" or "en" end
     OSP.getLanguage=lang
@@ -97,9 +93,11 @@ function OSP.installClient()
         local col=kind=="active" and C.selected or (hover and C.hover or C.surface)
         if kind=="plain" then col=hover and C.hover or C.side end
         if clicked then col=C.selected end
+        if kind=="recovery" then col={.08,.08,.08,1} end
         rect(x,y,w,h,col)
         if kind=="active" then rect(x,y,3,h,C.accent) end
         local textColor=controlDisabled and C.disabled or (kind=="danger" and C.danger or C.text)
+        if kind=="recovery" then textColor={1,1,1,1} end
         label(x+10,y+(h-17)/2,value,17,textColor,w-20)
         local x0,y0,x1,y1=x,y,x+w,y+h
         if clip then x0=math.max(x0,clip.x);y0=math.max(y0,clip.y);x1=math.min(x1,clip.x+clip.w);y1=math.min(y1,clip.y+clip.h) end
@@ -415,7 +413,18 @@ function OSP.installClient()
         if button("health_toggle",w-145,y,145,38,T(enabled and "on" or "off"),enabled and "active" or "plain",false) then
             SetBool(ROOT.."health_hud",not enabled);setStatus(T("preference_saved"))
         end
-        return y+65
+        y=y+75
+        local height=OSP.Theme.draw({
+            label=function(x,py,value,size,width,color) label(x,py,value,size,color or C.text,width) end,
+            button=function(id,x,py,width,height,value,kind) return button(id,x,py,width,height,value,kind,false) end,
+            rect=rect,
+            mouse=function() return mouseX,mouseY end,
+            visible=function() return not confirm and (not clip or inside(clip.x,clip.y,clip.w,clip.h,mouseX,mouseY)) end,
+            pressed=function() return not clickConsumed and (lmbPressed or InputPressed("lmb")) end,
+            down=function() return InputDown("lmb") end,
+            consume=function() clickConsumed=true end,
+        },0,y,w)
+        return y+height
     end
     local function drawAbout()
         local w=layout.contentW;title(T("about_title"),T("about_subtitle"))
@@ -572,6 +581,8 @@ function OSP.installClient()
         if not admin() and tab~="settings" and tab~="about" then setTab("settings") end
     end
     function client.draw()
+        C=OSP.Theme.colors()
+        if not menu or tab~="settings" then OSP.Theme.cancelDrag() end
         clickConsumed=false
         if menu then UiMakeInteractive();render();lmbPressed=false;return end
         lmbPressed=false

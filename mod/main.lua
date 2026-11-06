@@ -1,6 +1,7 @@
 #version 2
 #include "scripts/common.lua"
 #include "scripts/strings.lua"
+#include "scripts/theme.lua"
 #include "scripts/server.lua"
 #include "scripts/ui.lua"
 

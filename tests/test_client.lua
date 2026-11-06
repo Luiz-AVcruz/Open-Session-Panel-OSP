@@ -7,7 +7,7 @@ local function eq(a,b,msg) check(a==b,(msg or 'equality')..': '..tostring(a)..' 
 local function world(width,height,previousRegistry)
     local w={reg=previousRegistry or {},sent={},texts={},now=0,input='',wheel=0,mouse={x=0,y=0},click=false,held=false,released=false,armed={},
         width=width,height=height,t={x=0,y=0,s=1},stack={},drawn=false,hp=1}
-    local env=setmetatable({client={},shared={osp={ready=true,version='1.3.0',rules={},log={},
+    local env=setmetatable({client={},shared={osp={ready=true,version='1.4.0',rules={},log={},
         tools={{id='gun',name='gun',nameKey='TOOL_NAME_GUN',origin='vanilla',policy='default'},
                {id='sledge',name='Sledge',origin='vanilla',policy='enabled'},
                {id='mytool',name=string.rep('X',90),origin='mod',policy='disabled'}},
@@ -234,6 +234,10 @@ for _,size in ipairs({{1280,720},{1920,1080},{2560,1440},{1024,768},{2560,1080}}
     w:clickControl('tools_disable_everyone');eq(e.OSP.UI.getState().confirm.action,'tools_filtered_all');w:clickControl('confirm_cancel')
     w:clickControl('tab_settings');eq(w.reg['savegame.mod.osp.health_hud'],nil,'HUD starts disabled')
     w:clickControl('health_toggle');eq(w.reg['savegame.mod.osp.health_hud'],true)
+    w:clickControl('palette_ocean');eq(w.reg['savegame.mod.osp.theme.mode'],'ocean')
+    w:clickControl('palette_custom');w:clickControl('palette_R_plus')
+    check(w.reg['savegame.mod.osp.theme.custom.back']~=nil,'custom RGB control saves')
+    w:clickControl('palette_restore');eq(w.reg['savegame.mod.osp.theme.mode'],'classic')
     w:clickControl('rebind');w:tick('w');eq(e.OSP.UI.getState().keyCapture,true);w:tick('f8');eq(e.OSP.UI.getState().menuKey,'f8')
     local oldStatus=e.OSP.UI.getState().status;e.client.ospResult(false,'error',{},nil)
     eq(e.OSP.UI.getState().status,oldStatus,'unsolicited nil ACK ignored')

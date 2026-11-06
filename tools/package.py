@@ -39,6 +39,7 @@ def required_install_files() -> list[Path]:
         MOD / "scripts" / "server.lua",
         MOD / "scripts" / "ui.lua",
         MOD / "scripts" / "strings.lua",
+        MOD / "scripts" / "theme.lua",
         MOD / "SOURCE.md",
         ROOT / "LICENSE",
         ROOT / "ADDITIONAL-PERMISSION",
