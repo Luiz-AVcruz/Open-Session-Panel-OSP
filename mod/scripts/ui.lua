@@ -203,8 +203,7 @@ function OSP.installClient()
         for i,item in ipairs(buttons) do
             local x=ax+((i-1)%cols)*(bw+gap);local y=by+math.floor((i-1)/cols)*43
             local verb=item[2];local cap=T(verb=="god" and "god_short" or item[1])
-            if verb=="fly" then cap=cap.."  ·  "..T(p.fly and (p.flying and "fly_active" or "fly_ready") or "off_short")
-            elseif verb=="god" or verb=="noclip" or verb=="freeze" then cap=cap.."  ·  "..T(p[verb] and "on_short" or "off_short") end
+            if verb=="god" or verb=="fly" or verb=="noclip" or verb=="freeze" then cap=cap.."  ·  "..T(p[verb] and "on_short" or "off_short") end
             local persistent=verb=="god" or verb=="fly" or verb=="noclip" or verb=="freeze"
             local dis=(blocked and verb~="goto") or (waiting and persistent) or (verb=="eject" and not p.vehicle)
             if button("player_action_"..verb,x,y,bw,37,cap,item[4],dis) then actionForPlayer(p,verb,cap,item[3],item[4]) end
