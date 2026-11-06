@@ -47,7 +47,9 @@ python3 tools/check.py
 python3 tools/package.py
 ```
 
-Packaging creates an install ZIP, complete matching source ZIP and `SHA256SUMS`. Both contain readable source and licensing notices; there is no compilation or minification. No public repository URL is advertised until one exists.
+Packaging creates an install ZIP, complete matching source ZIP and `SHA256SUMS`. Both contain readable source and licensing notices; there is no compilation or minification. Source repository: [Luiz-AVcruz/Open-Session-Panel-OSP](https://github.com/Luiz-AVcruz/Open-Session-Panel-OSP).
+
+Workshop previews are included in both archives: `preview.jpg` is a temporary thumbnail made from the user's Tools screenshot, below 1 MB; `preview-menu.png` is the Players screenshot fitted to 512 × 292 and referenced by `info.txt`. The full screenshot is preserved within each image using padding. To replace the Workshop thumbnail later, replace `preview.jpg` in the local mod and use **Publish update**, keeping the `id.txt` created by the first upload. Packaging checks the JPEG signature/size and the PNG header/dimensions. The publisher's final acceptance still needs to be checked in the game.
 
 ## Verification and limits
 

@@ -53,7 +53,7 @@ O empacotador produz ZIP instalável, ZIP de fontes e hashes determinísticos. O
 
 AGPLv3 ou posterior para o código próprio, com permissão adicional restrita ao runtime/API do Teardown. Manter o texto GNU e sua atribuição original; a identificação de autoria do projeto é Luiz-AVcruz. Código independente, sem copiar scripts ou assets do Admin Panel.
 
-O pedido de Git autoriza versionamento local desta entrega. Não há remoto configurado nem publicação autorizada para um destino definido. A aceitação multiplayer normal depende de publicação autorizada e arquivos idênticos entre participantes.
+O usuário indicou `https://github.com/Luiz-AVcruz/Open-Session-Panel-OSP.git` como destino Git. Esse é o remoto `origin`, com branch `main` e autoria Luiz-AVcruz. O envio ao repositório é autorizado; publicar no Workshop é uma operação separada. A aceitação multiplayer normal depende dos mesmos arquivos entre participantes e de testes no jogo.
 
 ## Verificação e próximo ponto de retomada
 
@@ -92,3 +92,9 @@ Evidência local da 1.2.0: sintaxe Lua 5.1, 7.906 asserções do cliente com UI 
 O backup central anterior à revisão contém a árvore de projeto e a instalação 1.1, compactadas, comparadas e verificadas por hash. A atualização local preserva os nove arquivos de distribuição correspondentes ao ZIP; a sessão aberta não é reiniciada. O recibo de instalação e a verificação dos pacotes ficam junto do backup central. Os pacotes de instalação e fonte são reproduzíveis pela árvore extraída de fontes. Git registra a entrega localmente com autoria Luiz-AVcruz, sem remoto, push ou publicação.
 
 Limites da prova: o motor precisa confirmar armazenamento local do cliente, resposta dos cliques, posição do congelamento após spawn e ordenação real de remoção/reentrada. O mock de remoção cobre o frame corrente, e o de velocidade/input respeita valores imediatos por frame conforme a API; não reproduz todas as ordens possíveis do jogo. Não houve teste solo ou multiplayer observado desta versão. Recarregar o mapa é necessário para carregar os scripts atualizados.
+
+### Preparação das imagens do Workshop
+
+O usuário forneceu capturas reais de Jogadores e Ferramentas da versão 1.2.0. Elas demonstram a apresentação dessas telas no jogo, sem provar os comportamentos de persistência/multiplayer. A captura de Ferramentas foi convertida para `mod/preview.jpg` (1024×1024 com margens, abaixo de 1 MB); Jogadores foi ajustada para `mod/preview-menu.png` (512×292 com margens), referenciada em `info.txt`. As capturas originais em Downloads foram preservadas. Não houve geração de logo nem alteração do conteúdo da interface capturada.
+
+O empacotador inclui as duas imagens nos ZIPs de instalação e fontes e recusa imagens ausentes, JPEG acima de 1 MB ou PNG com dimensões incorretas. A versão de código permanece 1.2.0. A miniatura é provisória e pode ser substituída em uma atualização do Workshop, preservando `id.txt`. A preparação das imagens não executou publicação no Workshop. Posteriormente, o usuário forneceu o destino Git; as prévias e a referência ao repositório são versionadas juntas.
