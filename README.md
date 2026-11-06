@@ -1,6 +1,6 @@
 # Open Session Panel
 
-An independently written Teardown administration panel for solo and multiplayer. Version **1.5.0**, by **Luiz-AVcruz**, uses Lua 5.1 and multiplayer scripting version 2. English is the default; Brazilian Portuguese is available.
+An independently written Teardown administration panel for solo and multiplayer. Version **1.6.0**, by **Luiz-AVcruz**, uses Lua 5.1 and multiplayer scripting version 2. English is the default; Brazilian Portuguese is available.
 
 ## Panel and controls
 
@@ -12,15 +12,23 @@ Flight uses the player's logical movement bindings and camera direction; jump as
 
 Buttons use their full visible rectangle and react on press. Holding or releasing does not repeat an action. Gameplay commands show immediate pending feedback and still wait for the server's acknowledgement.
 
+## Panel permissions
+
+The host's **Permissions** tab assigns a template to each player. Built-in templates are Guest, Self only, Helper, Moderator and Administrator. **Self only** offers healing, respawning, leaving vehicles, invincibility, flight, speed and tools for the caller; going to another player moves only the caller. Other players and the host are protected from changes by that template.
+
+Copy a template to create one of up to **16 custom templates**, give it an ASCII name of up to 40 characters, and edit its capabilities. Targeted actions allow **Blocked / Self only / Any player**. Bulk actions, announcements, each session rule and resetting all session rules have separate on/off permissions. Built-ins are read-only; save a custom copy before assigning it.
+
+Assignments and custom templates are saved on the host across missions and restarts. Editing a template changes access for all linked players on their next command. Deleting it revokes those assignments, including offline profiles. Guests retain Settings and About. Existing full-admin grants remain Administrator grants; the quick admin button still grants full delegated access or revokes panel access.
+
+Granting access, managing templates, resetting saved player options, restarting the map, changing the host and setting global tool policies remain host-only. A template cannot grant those powers. These permissions govern panel commands; they do not restrict ordinary actions in the game world.
+
 ## Player options between missions
 
-The host's choices for a player are saved automatically: tool access, invincibility, flight, freeze, speed and admin access. They are restored on a new map or reconnect. Freeze uses the player's new spawn position. Healing, killing, respawning and teleporting remain one-time actions. Changes made by a delegated admin are temporary and do not overwrite the host's saved choices.
+The host's choices for a player are saved automatically: tool access, invincibility, flight, freeze, speed and permission template. They are restored on a new map or reconnect. Freeze uses the player's new spawn position. Healing, killing, respawning and teleporting remain one-time actions. Player changes made by a delegate are temporary and do not overwrite the host's saved choices. Granted session-rule changes are saved separately and persist.
 
 The public game API does not expose a persistent account identity to mods. This panel assigns its own profile and stores its reference on the client, separately for each host. It does not identify players by their name or recyclable session number. A new or missing client profile starts without saved permissions; copied profiles are not authenticated identities. Keeping both the host's saved mod data and the client's profile reference is required. This mechanism supports normal clients, not anti-cheat enforcement.
 
-**Players → Reset player options** removes that player's saved effects, speed, admin role and tool overrides. It restores the captured defaults on this map and preserves the host's global rules. Persistent controls wait for the client profile to connect, so a host change is not silently treated as temporary.
-
-**Players → Mod tools** offers direct blocks for the selected player or everyone. The host's selected-player block is saved in that player's profile; the everyone shortcut creates a global rule including the host. A delegate's shortcut is temporary and excludes the host. Vanilla tools are preserved. Use Tools to enable tools again or restore their global defaults.
+**Players → Reset player options** removes that player's saved effects, speed, permission assignment and tool overrides. It restores the captured defaults on this map and preserves the host's global rules. Persistent controls wait for the client profile to connect, so a host change is not silently treated as temporary. Tool controls are grouped in **Tools**.
 
 ## Tools between missions
 
@@ -34,7 +42,7 @@ The host's **Global rules** are saved per tool: game default, enabled or blocked
 
 Select **Open Session Panel → Options** in the Mod Manager. This separate menu runs without a map, player or server. It changes language, the panel shortcut and the color palette using the same saved preferences as the in-game panel. **Restore personal preferences** returns to English, P and the Classic palette.
 
-**Reset saved host options on this computer** requires confirmation and removes this computer's saved session rules, tool policies and player choices, including admin grants. It keeps personal preferences, the host identity, profile identity references and profile slots. It does not modify another host or native campaign unlocks. Changes take effect on the next map load.
+**Reset saved host options on this computer** requires confirmation and removes this computer's saved session rules, tool policies and player choices, including permission assignments. It keeps custom template definitions, personal preferences, the host identity, profile identity references and profile slots. It does not modify another host or native campaign unlocks. Changes take effect on the next map load.
 
 The install archive uses the folder **Open Session Panel**, with spaces, for the local Mod Manager entry. Keep a single local copy enabled. Renaming an older local folder changes its settings namespace, so existing local preferences must be transferred with the game closed. Workshop updates keep their existing item identity. The Workshop ID remains in the installed `id.txt`; do not delete it when updating.
 
@@ -46,7 +54,7 @@ Custom lets you choose each interface color with the previous/next role arrows, 
 
 ## Install and develop
 
-Players do not need Python or LuaJIT. Extract `dist/OpenSessionPanel-1.5.0.zip` as its own folder in Teardown's local mods directory and enable **Open Session Panel**. After updating an already loaded mod, reload the map to load the new scripts. Keep only one administration panel active while testing conflicting gameplay controls.
+Players do not need Python or LuaJIT. Extract `dist/OpenSessionPanel-1.6.0.zip` as its own folder in Teardown's local mods directory and enable **Open Session Panel**. After updating an already loaded mod, reload the map to load the new scripts. Keep only one administration panel active while testing conflicting gameplay controls.
 
 Before disabling or removing the mod, restore session/tool defaults as desired, then reload the map to clear temporary effects. A global mod's `server.destroy` callback is not guaranteed cleanup. Remove only this mod's folder; no game files or campaign saves are included.
 
@@ -75,6 +83,8 @@ Original code is **AGPL-3.0-or-later**, with a narrow additional permission for 
 
 Painel de administração por **Luiz-AVcruz**, com inglês padrão e opção de português brasileiro. Abra com **P** ou pelo menu de pausa. Configurações e Sobre são áreas separadas. O mod usa o HUD nativo do jogo.
 
-As escolhas do host por jogador persistem entre missões: ferramentas, invencibilidade, voo, congelamento, velocidade e admin. O perfil é atribuído pelo mod e guardado no cliente para aquele host; não depende do nome ou número temporário da sessão. Alterações de admins nomeados continuam temporárias. **Jogadores → Restaurar opções do jogador** limpa as escolhas pessoais e mantém as regras gerais.
+As escolhas do host por jogador persistem entre missões: ferramentas, invencibilidade, voo, congelamento, velocidade e template de permissões. O perfil é atribuído pelo mod e guardado no cliente para aquele host; não depende do nome ou número temporário da sessão. Alterações individuais de delegados continuam temporárias; regras de sessão autorizadas podem persistir. **Jogadores → Restaurar opções do jogador** limpa as escolhas pessoais e mantém as regras gerais.
 
-Em **Jogadores → Ferramentas de mods**, há atalhos para bloquear ferramentas do alvo ou de todos. No host, o bloqueio coletivo inclui o próprio host e persiste. Em Ferramentas, os filtros separam Vanilla e Mods; ações de categoria abrangem os IDs registrados naquele momento. Restaurar padrões não muda os desbloqueios da campanha. Recarregue o mapa após atualizar. Persistência dos perfis e multiplayer real ainda precisam ser observados no jogo com os mesmos arquivos em todos os participantes.
+Em **Permissões**, o host pode usar Convidado, Apenas em si, Ajudante, Moderador e Administrador, ou criar até 16 templates personalizados. Cada ação individual aceita bloqueio, apenas em si ou qualquer jogador; ações coletivas, anúncios e regras têm permissões próprias. Editar um template altera todos os vinculados; excluí-lo revoga o acesso inclusive de perfis offline. Os vínculos persistem entre missões. Gerenciar acesso/templates, alterar o host, restaurar perfis, reiniciar mapas e definir políticas gerais de ferramentas continua exclusivo do host.
+
+Os controles de ferramentas ficam em **Ferramentas**, com filtros Vanilla e Mods; ações de categoria abrangem os IDs registrados naquele momento. Restaurar padrões não muda os desbloqueios da campanha. Recarregue o mapa após atualizar. Persistência dos perfis e multiplayer real ainda precisam ser observados no jogo com os mesmos arquivos em todos os participantes.

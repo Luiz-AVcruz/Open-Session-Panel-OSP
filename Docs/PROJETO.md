@@ -2,16 +2,17 @@
 
 ## Objetivo e prioridades
 
-Painel independente de administração de Teardown, modificável e redistribuível, por **Luiz-AVcruz**. Público: host, administradores nomeados e jogadores de sessões cooperativas. Prioridades desta revisão: cliques responsivos em todo o botão, atalhos de ferramentas de mods e persistência das escolhas do host por jogador.
+Painel independente de administração de Teardown, modificável e redistribuível, por **Luiz-AVcruz**. Público: host, administradores nomeados e jogadores de sessões cooperativas. Prioridades desta revisão: permissões granulares do painel, templates gerenciados pelo host e persistência das escolhas por jogador.
 
 A v1.0 foi implementada e copiada para mods locais. O log confirma seu carregamento; o usuário observou que o menu era grande, pouco adaptável e visualmente insatisfatório. O layout anterior de 1400×880 era redimensionado inteiro. A revisão 1.1 trata esses problemas sem alegar que os testes anteriores demonstraram usabilidade.
 
-## Escopo da versão 1.5.0
+## Escopo da versão 1.6.0
 
 - Jogadores: cura, morte confirmada, respawn, ir até/trazer jogador, retirada de veículo, congelamento, invencibilidade, voo e velocidade.
 - Sessão: cura coletiva, trazer participantes, regeneração nativa, tempo, chuva, neblina, restauração de padrões, reinício confirmado e anúncios.
-- Ferramentas: filtros Todas/Vanilla/Mods; regras gerais e escolhas por jogador persistentes quando feitas pelo host; alterações de delegados temporárias. Atalhos de bloqueio de ferramentas de mods por jogador e para todos, com confirmação do alcance.
-- Perfis por jogador: ferramentas, invencibilidade, voo, congelamento, velocidade e admin salvos pelo host; restauração dos padrões pessoais sem remover regras gerais.
+- Ferramentas: filtros Todas/Vanilla/Mods; regras gerais e escolhas por jogador persistentes quando feitas pelo host; alterações de delegados temporárias. Controles concentrados em Ferramentas, com confirmação do alcance.
+- Permissões: templates prontos e até 16 personalizados; capacidades por ação e alvo, atribuição por jogador, edição e exclusão pelo host.
+- Perfis por jogador: ferramentas, invencibilidade, voo, congelamento, velocidade e template de acesso salvos pelo host; restauração dos padrões pessoais sem remover regras gerais.
 - Atividade: até cem ações, autor, alvo, resultado e contagem de afetados/ignorados.
 - Interface: janela central limitada a 1120×720 unidades e a 85% da largura/82% da altura disponíveis; colunas e linhas adaptadas à área, navegação superior em telas estreitas; paginação/rolagem conforme o conteúdo.
 - Configurações: idioma, atalho e paleta de cores, também acessíveis antes de carregar um mapa pelo botão Options do gerenciador, com recuperação de preferências/regras locais. Sobre: versão, autoria, licença e código. Ambas são acessíveis aos convidados. Anúncios ficam na seção Sessão.
@@ -21,7 +22,7 @@ Permanecem fora da entrega: armadura, vida ampliada, dano de queda próprio, min
 
 ## Autoridade, dados e recuperação
 
-Lógica de jogo no servidor, apresentação no cliente e dados serializáveis em `shared`. Somente o host nomeia administradores, altera diretamente o host, reinicia o mapa ou grava escolhas persistentes por jogador e políticas gerais de ferramentas. Regras de sessão (tempo, chuva, neblina e regeneração) podem ser alteradas e persistidas também por administradores nomeados. Comandos temporários de administradores protegem o host também nas operações coletivas e não sobrescrevem as escolhas salvas do host.
+Lógica de jogo no servidor, apresentação no cliente e dados serializáveis em `shared`. Somente o host atribui acesso, cria/edita/exclui templates, restaura perfis, altera diretamente o host, reinicia o mapa ou grava escolhas persistentes por jogador e políticas gerais de ferramentas. Regras de sessão (tempo, chuva, neblina e regeneração) podem ser alteradas e persistidas também por delegados que tenham a capacidade correspondente. Comandos temporários de delegados protegem o host também nas operações coletivas e não sobrescrevem as escolhas salvas do host.
 
 A identidade de remetente do `ServerCall` não é autenticada pela API documentada: o modelo pressupõe clientes normais e não é anunciado como anticheat. Cada ação valida papel, alvo e argumento no momento de execução; respostas são correlacionadas por identificador. Após oito segundos sem resposta, o cliente indica resultado desconhecido, permite nova ação e ignora respostas antigas; nunca repete comandos automaticamente.
 
@@ -31,7 +32,7 @@ Políticas de ferramentas são indexadas por ID codificado, sem depender do ID t
 
 A classificação Vanilla usa os 17 IDs do catálogo base e camera/minigunmall/snowball, confirmados na instalação. Não usa grupos de inventário e não incorpora código do jogo. Outros IDs são Mods, inclusive exemplos opcionais fornecidos pelo jogo. Reutilizar um ID vanilla implica compartilhar sua classificação.
 
-O host salva ferramentas e opções pessoais por perfil: invencibilidade, voo, congelamento, velocidade e admin. Ações pontuais, como cura e teleporte, não são repetidas ao carregar uma missão. Congelamento usa a posição de entrada do novo mapa. Restaurar um jogador limpa suas escolhas e retorna às bases capturadas neste mapa, mantendo as regras gerais. Alterações temporárias de delegados terminam na saída/recarga; IDs reutilizados não herdam permissões.
+O host salva ferramentas e opções pessoais por perfil: invencibilidade, voo, congelamento, velocidade e template de acesso. Ações pontuais, como cura e teleporte, não são repetidas ao carregar uma missão. Congelamento usa a posição de entrada do novo mapa. Restaurar um jogador limpa suas escolhas e retorna às bases capturadas neste mapa, mantendo as regras gerais. Alterações temporárias de delegados terminam na saída/recarga; IDs reutilizados não herdam permissões.
 
 A [API pública 2.2.0](https://teardowngame.com/modding/api.html#GetPlayerName) expõe nomes e IDs de sessão, sem vínculo documentado com uma conta estável. O mod mantém um namespace persistente no host, emite um perfil por contador e guarda sua referência no cliente para aquele host. O handshake ocorre antes de liberar alterações persistentes do host; repetições retornam a mesma identidade na sessão. Cada entrada recebe um marcador sequencial do servidor, mantido entre contextos Lua: pedido e resposta precisam corresponder à entrada atual, evitando vinculação ou escrita por mensagens antigas. Perfil ausente/desconhecido recebe um perfil novo sem permissões; uma referência já em uso por outro participante recebe um perfil separado. Referências pessoais de perfil não ficam em `shared` nem no histórico; namespace e marcador de entrada são públicos. Eles não são credenciais criptográficas e o perfil enviado pelo cliente não é autenticado. Copiar/apagar dados locais, mudar de instalação ou trocar host pode perder ou copiar a referência; não é identidade de conta. A persistência real do armazenamento do cliente e a ordenação do handshake precisam de confirmação no motor.
 
@@ -39,7 +40,7 @@ Antes de remover o mod, restaurar regras conforme desejado e recarregar o mapa. 
 
 ## Organização e comandos
 
-Lua 5.1, scripting version 2 do Teardown, sem dependências no runtime. Código jogável em `mod/`, teste do contrato do servidor/cliente em `tests/`, ferramentas locais em `tools/`. A versão de produto é **1.5.0**; `version = 2` no manifesto continua significando a geração do scripting.
+Lua 5.1, scripting version 2 do Teardown, sem dependências no runtime. Código jogável em `mod/`, teste do contrato do servidor/cliente em `tests/`, ferramentas locais em `tools/`. A versão de produto é **1.6.0**; `version = 2` no manifesto continua significando a geração do scripting.
 
 ```sh
 python3 tools/check.py
@@ -58,7 +59,7 @@ O usuário indicou `https://github.com/Luiz-AVcruz/Open-Session-Panel-OSP.git` c
 
 Registrar a seguir a evidência efetivamente obtida nesta revisão, distinguindo testes locais, prévia ilustrativa, instalação e observação dentro do jogo. O backup central da árvore de projeto e da cópia instalada da v1.0 foi compactado e validado antes das alterações.
 
-Para testar no jogo: carregar sandbox somente com este painel administrativo; conferir Players/Session/Tools/Activity/Settings/About em EN/PT, foco de anúncio, modais, navegação e rolagem. Testar dano, cura, morte e respawn. Alternar políticas de Vanilla/Mods, trocar missão, entrar outro jogador e registrar ferramentas tardiamente. Restaurar padrões e confirmar que a próxima missão segue o jogo. Repetir com host/admin/convidado antes de afirmar suporte multiplayer observado.
+Para testar no jogo: carregar sandbox somente com este painel administrativo; conferir Players/Session/Tools/Permissions/Activity/Settings/About em EN/PT, foco de texto, modais, navegação e rolagem. Atribuir um template limitado, testar ações permitidas/bloqueadas, editar/revogar e trocar missão. Testar dano, cura, morte e respawn. Alternar políticas de Vanilla/Mods, entrar outro jogador e registrar ferramentas tardiamente. Restaurar padrões e confirmar que a próxima missão segue o jogo. Repetir com host/delegado/convidado antes de afirmar suporte multiplayer observado.
 
 ### Evidência obtida na revisão 1.1
 
@@ -127,3 +128,15 @@ Verificação: testes de presets/contraste, RGB, persistência entre instâncias
 O HUD adicional foi retirado por não fazer parte da proposta administrativa. Foram removidos sua renderização, os controles de Settings e Options e as referências na descrição distribuída. O HUD nativo não é alterado. O campo de vida na ficha do jogador, cura e regeneração continuam existindo como controles administrativos. A chave antiga health_hud não é lida nem escrita pelo mod; pode permanecer inerte no save, sem migração ou alteração de dados do jogo. Testes ligam essa chave antiga e confirmam que não há HUD extra, inclusive em uma nova instância. Os registros de versões anteriores acima são históricos.
 
 Permissões verificadas: o host e os administradores nomeados têm acesso às funções administrativas. Convidados têm Settings e Sobre. Nomeação/revogação de admin, reinício de mapa, alterações diretas no host, persistência de escolhas por jogador e políticas gerais de ferramentas são exclusivos do host. Alterações individuais de delegados são temporárias; regras de sessão como clima, tempo e regeneração podem ser alteradas e persistidas também por eles. Não houve mudança de permissões nesta versão.
+
+### Versão 1.6.0: permissões por ação e templates do host
+
+A nova aba Permissões é exclusiva do host. Convidado, Apenas em si, Ajudante, Moderador e Administrador são templates prontos, somente leitura. O host cria uma cópia editável, com nome ASCII de até 40 caracteres, salva e atribui a um participante. A biblioteca admite 16 templates personalizados. Ações com alvo usam bloqueado/apenas em si/qualquer jogador; ações coletivas, anúncios, tempo, chuva, neblina, regeneração e restauração de todas as regras têm capacidades separadas. O template Apenas em si permite ir até outro jogador porque essa ação move somente o autor. Não concede alteração do destino. Não há restrição de ações normais no mundo.
+
+`scripts/permissions.lua` define o vocabulário, os presets e a avaliação compartilhada. O servidor continua validando cada comando no momento da execução; os botões desabilitados no cliente apenas refletem a autorização. Gerenciamento de acesso/templates, alterações do host, restauração de perfis, reinício de mapa e políticas gerais de ferramentas são exclusivos do host e não podem ser delegados. A aba Jogadores perdeu os atalhos redundantes de bloqueio de ferramentas de mods; os filtros e controles individuais/coletivos continuam em Ferramentas.
+
+Templates personalizados ficam em `savegame.mod.osp.templates`, com contador de IDs separado, e vínculos em `players.<perfil>.role`. Sem esse campo, a antiga flag admin é convertida em Administrador ou Convidado. Um papel explícito desconhecido é tratado como Convidado. Atribuir um acesso limitado grava admin=false para que uma versão anterior não interprete esse vínculo como acesso total. Editar um template altera as autorizações de todos os vinculados no próximo comando. Excluir revoga vínculos online e offline; IDs excluídos não são reutilizados. Restaurar opções de host por Options remove os vínculos, mas preserva a biblioteca de templates e as identidades existentes.
+
+`scripts/permissions_ui.lua` mantém o rascunho do host e envia as alterações pelo caminho de comando e resposta existente. Templates têm versão para recusar gravação/exclusão baseada em cópia antiga. A resposta aceita é mantida até a atualização de shared chegar, evitando perder a seleção ou reexibir template excluído por atraso de replicação. Nomes e capacidades inválidos são recusados; templates prontos não podem ser sobrescritos. Sair da tela cancela a captura de nome.
+
+Verificação local: sintaxe Lua 5.1 e testes de autorização no servidor, aliases de ferramentas, autoaplicação versus outros alvos, proteção do host, revogação imediata, regras separadas, migração de admin, nova instância Lua, exclusão com perfil offline, limite da biblioteca e conflitos de versão. O cliente simulado cobre EN/PT, layouts estreito/largo, fluxo de cópia/edição/atribuição/exclusão, confirmação desatualizada, respostas antes da replicação, captura de texto e acesso por capacidade. Options confirma que a recuperação apaga vínculos e preserva templates. Prévias sintéticas da interface foram inspecionadas em 1024×768 e 1920×1080. Uma leitura independente apontou captura de nome ao fechar o painel; a correção ganhou cobertura de regressão. O desenho nativo, a persistência efetiva e a propagação multiplayer ainda precisam ser observados no jogo com os mesmos arquivos nos participantes.

@@ -63,6 +63,9 @@ for _,size in ipairs({{840,760},{1280,720},{1024,768},{1920,1080}}) do
     w.type('f8');check(w.registry[r..'menu_key']=='f8','save shortcut without map')
     w.registry[r..'identity.host']='p3';w.registry[r..'hostid']='keep';w.registry[r..'nextprofile']=3
     w.registry[r..'players.p3.exists']=true;w.registry[r..'players.p3.admin']=true
+    w.registry[r..'players.p3.role']='c1'
+    w.registry[r..'templates.c1.name']='Helper';w.registry[r..'templates.c1.version']=1
+    w.registry[r..'templates.c1.permissions.heal']=1;w.registry[r..'templates_next']=1
     w.registry[r..'players.p3.tools.67756e']=2
     w.registry[r..'tools.67756e']=2;w.registry[r..'rules.rain']=1
     w.registry['savegame.tool.gun.enabled']=true
@@ -74,6 +77,8 @@ for _,size in ipairs({{840,760},{1280,720},{1024,768},{1920,1080}}) do
     w.click(30,376);w.click(399,418)
     check(w.registry[r..'rules.rain']==nil and w.registry[r..'tools.67756e']==nil,'host reset clears policies')
     check(w.registry[r..'players.p3.admin']==nil and w.registry[r..'players.p3.tools.67756e']==nil,'host reset clears player choices')
+    check(w.registry[r..'players.p3.role']==nil,'host recovery removes granular assignments')
+    check(w.registry[r..'templates.c1.name']=='Helper' and w.registry[r..'templates.c1.version']==1 and w.registry[r..'templates.c1.permissions.heal']==1 and w.registry[r..'templates_next']==1,'host recovery keeps the custom template library and allocator')
     check(w.registry[r..'players.p3.exists']==true and w.registry[r..'identity.host']=='p3','identities survive recovery')
     check(w.registry[r..'hostid']=='keep' and w.registry[r..'nextprofile']==3,'host identity and allocator survive')
     check(w.registry['savegame.tool.gun.enabled']==true,'native unlock data untouched')

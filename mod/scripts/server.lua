@@ -12,9 +12,16 @@ function OSP.installServer()
     local profileSave = "savegame.mod.osp.players."
     local profileHost
     local actions = {}
+    local templates = {}
+    local P=OSP.Permissions
+    local templateSave="savegame.mod.osp.templates"
     local function roster() return GetAllPlayers() end
     local function isHost(p) return IsPlayerValid(p) and IsPlayerHost(p) end
-    local function isAdmin(p) return isHost(p) or (players[p] and players[p].admin == true) end
+    local function playerRole(p)
+        local e=players[p]
+        return P.resolve(e and (e.role or (e.admin and "admin" or "guest")),templates)
+    end
+    local function isAdmin(p) return isHost(p) or P.hasAccess(playerRole(p).permissions) end
     local function encoded(id)
         return id:gsub(".",function(c) return string.format("%02x",c:byte()) end)
     end
@@ -24,6 +31,8 @@ function OSP.installServer()
         for _,key in ipairs({"admin","god","fly","freeze"}) do
             if HasKey(root..key) then e[key]=GetBool(root..key) end
         end
+        if HasKey(root.."role") then e.role=GetString(root.."role");e.admin=false
+        else e.role=e.admin and "admin" or "guest" end
         if HasKey(root.."speed") then
             local value=GetFloat(root.."speed")
             if OSP.finite(value) and value>=.5 and value<=3 then e.speed=value end
@@ -65,14 +74,14 @@ function OSP.installServer()
     end
     local function publish()
         local view={version=OSP.version,ready=true,players={},tools=OSP.copy(tools),
-            rules=OSP.copy(rules),log=OSP.copy(logs),toolPolicies=OSP.copy(policies),profileHost=profileHost}
+            rules=OSP.copy(rules),log=OSP.copy(logs),toolPolicies=OSP.copy(policies),profileHost=profileHost,templates=P.list(templates)}
         for _, p in ipairs(roster()) do
             local e=players[p]
             if e then
                 view.players[#view.players+1]={id=p,name=GetPlayerName(p),health=GetPlayerHealth(p),
                     vehicle=GetPlayerVehicle(p)~=0,host=isHost(p),admin=isAdmin(p),god=e.god==true or (e.god==nil and e.baseGod==true),
                     fly=e.fly==true or (e.fly==nil and e.baseFly==true),
-                    freeze=e.freeze,speed=e.speed,profileReady=e.profile~=nil,profileChallenge=e.challenge}
+                    freeze=e.freeze,speed=e.speed,role=playerRole(p).id,permissions=OSP.copy(playerRole(p).permissions),profileReady=e.profile~=nil,profileChallenge=e.challenge}
             end
         end
         shared.osp=view
@@ -246,15 +255,71 @@ function OSP.installServer()
     add("speed",function(v) return numberIn(v,0.5,3) end,function(c,p,v)
         players[p].speed=v;saveField(c,p,"speed",v)
     end,{target=true,persistent=true})
-    add("admin",boolean,function(c,p,v)
-        players[p].admin=v;saveField(c,p,"admin",v)
-    end,{target=true,host=true,noHost=true,persistent=true})
+    local function assignRole(c,p,id)
+        players[p].role=id;players[p].admin=id=="admin"
+        saveField(c,p,"admin",id=="admin")
+        SetString(profileSave..players[p].profile..".role",id)
+    end
+    add("admin",boolean,function(c,p,v) assignRole(c,p,v and "admin" or "guest") end,{target=true,host=true,noHost=true,persistent=true})
+    add("role_assign",function(v) return type(v)=="table" and type(v.id)=="string" and P.resolve(v.id,templates).id==v.id end,
+        function(c,p,v) assignRole(c,p,v.id) end,{target=true,host=true,noHost=true,persistent=true})
+    local function loadTemplates()
+        templates={}
+        for _,id in ipairs(ListKeys(templateSave)) do
+            if id:match("^c%d+$") then
+                local path=templateSave.."."..id.."."
+                local name,version=GetString(path.."name"),GetInt(path.."version")
+                local values={}
+                for _,spec in ipairs(P.spec) do values[spec.id]=GetInt(path.."permissions."..spec.id) end
+                local permissions=P.normalize(values)
+                if P.validName(name) and version>=1 and permissions then
+                    templates[id]={id=id,name=name,version=version,permissions=permissions,builtin=false}
+                end
+            end
+        end
+    end
+    local function templateArg(v)
+        return type(v)=="table" and type(v.id)=="string" and (v.id=="" or templates[v.id]~=nil)
+            and P.validName(v.name) and P.normalize(v.permissions)~=nil and OSP.finite(v.version) and v.version%1==0
+    end
+    add("role_save",templateArg,function(_,_,v)
+        local id=v.id
+        if id=="" then
+            local nextId=GetInt(templateSave.."_next")+1
+            id="c"..nextId;SetInt(templateSave.."_next",nextId)
+        end
+        local role={id=id,name=v.name,version=v.version+1,permissions=P.normalize(v.permissions),builtin=false}
+        templates[id]=role
+        local path=templateSave.."."..id.."."
+        SetString(path.."name",role.name);SetInt(path.."version",role.version)
+        for _,spec in ipairs(P.spec) do SetInt(path.."permissions."..spec.id,role.permissions[spec.id]) end
+        return {affected=1,skipped=0,template=OSP.copy(role)}
+    end,{host=true,guard=function(v)
+        if (v.id=="" and v.version~=0) or (v.id~="" and templates[v.id].version~=v.version) then return "conflict" end
+        local count=0
+        for id,role in pairs(templates) do
+            count=count+1
+            if id~=v.id and role.name:lower()==v.name:lower() then return "invalid" end
+        end
+        if v.id=="" and count>=16 then return "template_limit" end
+    end})
+    add("role_delete",function(v) return type(v)=="table" and type(v.id)=="string" and templates[v.id]~=nil and OSP.finite(v.version) end,
+        function(_,_,v)
+            templates[v.id]=nil;ClearKey(templateSave.."."..v.id)
+            for _,e in pairs(players) do if e.role==v.id then e.role="guest";e.admin=false end end
+            for _,id in ipairs(ListKeys(profileSave:sub(1,-2))) do
+                local path=profileSave..id.."."
+                if GetString(path.."role")==v.id then SetString(path.."role","guest");SetBool(path.."admin",false) end
+            end
+            return {affected=1,skipped=0,deleted=v.id}
+        end,
+        {host=true,guard=function(v) if templates[v.id].version~=v.version then return "conflict" end end})
     add("reset_player",nil,function(_,p)
         local e=players[p]
         ClearKey(profileSave..e.profile)
         -- Keep the assigned identity, so reconnecting does not allocate a new one.
         SetBool(profileSave..e.profile..".exists",true)
-        e.admin=false;e.god=nil;e.fly=nil;e.freeze=false;e.anchor=nil;e.speed=1;e.toolRules={}
+        e.admin=false;e.role="guest";e.god=nil;e.fly=nil;e.freeze=false;e.anchor=nil;e.speed=1;e.toolRules={}
         SetPlayerParam("godMode",e.baseGod,p);SetPlayerParam("flyMode",e.baseFly,p)
         for id,on in pairs(e.toolBase) do if known[id] then applyTool(p,id,on) end end
         enforceTools(p)
@@ -363,7 +428,7 @@ function OSP.installServer()
             SetString("savegame.mod.osp.hostid",profileHost)
         end
         original={rain=GetEnvironmentProperty("rain"),fog={GetEnvironmentProperty("fogparams")}}
-        loadPolicies(); syncPlayers(); refreshTools()
+        loadTemplates(); loadPolicies(); syncPlayers(); refreshTools()
         for _,p in ipairs(roster()) do enforceTools(p) end
         for _,key in ipairs({"time","rain","fog","regen"}) do
             if HasKey(save..key) then
@@ -396,10 +461,11 @@ function OSP.installServer()
             if def.persistent and isHost(actor) and not players[target].profile then deny("unavailable"); return end
         end
         if def.validate and not def.validate(arg) then deny("invalid"); return end
+        if not isHost(actor) and not P.allows(playerRole(actor).permissions,action,target,arg,actor) then deny("denied");return end
         if def.guard then local code=def.guard(arg); if code then deny(code);return end end
         -- Throttle accepted requests, not permission revocations (which must win immediately).
         local now=GetTime()
-        if action~="admin" and lastRequest[actor] and now-lastRequest[actor]<0.05 then deny("rate_limited"); return end
+        if action~="admin" and action~="role_assign" and action~="role_save" and action~="role_delete" and lastRequest[actor] and now-lastRequest[actor]<0.05 then deny("rate_limited"); return end
         lastRequest[actor]=now
         local ok,details=pcall(def.run,actor,target,arg)
         local code=ok and "ok" or "error"

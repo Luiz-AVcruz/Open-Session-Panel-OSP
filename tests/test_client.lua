@@ -7,7 +7,7 @@ local function eq(a,b,msg) check(a==b,(msg or 'equality')..': '..tostring(a)..' 
 local function world(width,height,previousRegistry)
     local w={reg=previousRegistry or {},sent={},texts={},now=0,input='',wheel=0,mouse={x=0,y=0},click=false,held=false,released=false,armed={},
         width=width,height=height,t={x=0,y=0,s=1},stack={},drawn=false,hp=1}
-    local env=setmetatable({client={},shared={osp={ready=true,version='1.5.0',rules={},log={},
+    local env=setmetatable({client={},shared={osp={ready=true,version='1.6.0',rules={},log={},
         tools={{id='gun',name='gun',nameKey='TOOL_NAME_GUN',origin='vanilla',policy='default'},
                {id='sledge',name='Sledge',origin='vanilla',policy='enabled'},
                {id='mytool',name=string.rep('X',90),origin='mod',policy='disabled'}},
@@ -181,22 +181,7 @@ for _,size in ipairs({{1280,720},{1920,1080},{2560,1440},{1024,768},{2560,1080}}
         check(r.x>=st.layout.ox-.01 and r.y>=st.layout.oy-.01 and r.x+r.w<=st.layout.ox+st.layout.w+.01 and r.y+r.h<=st.layout.oy+st.layout.h+.01,'control inside panel')
     end
     w:clickControl('player_23');eq(e.OSP.UI.getState().selected,23)
-    local beforeMods=#w.sent
-    w:clickControl('mods_disable_player')
-    local modConfirm=e.OSP.UI.getState().confirm
-    eq(modConfirm.action,'tools_filtered');eq(modConfirm.target,23)
-    eq(modConfirm.arg.category,'mod');eq(modConfirm.arg.enabled,false)
-    eq(#w.sent,beforeMods,'mod shortcut waits for confirmation')
-    w:clickControl('confirm_cancel');eq(#w.sent,beforeMods,'cancel mod block sends nothing')
-    w:clickControl('mods_disable_player');w:clickControl('confirm_accept')
-    local modRequest=w.sent[#w.sent].args
-    eq(modRequest[2],'tools_filtered');eq(modRequest[3],23)
-    eq(modRequest[4].category,'mod');eq(modRequest[4].enabled,false);w:ack()
-    w:clickControl('mods_disable_everyone');modConfirm=e.OSP.UI.getState().confirm
-    eq(modConfirm.action,'tool_policy_bulk');eq(modConfirm.message,e.OSP.L('confirm_mods_global'),'persistent scope is explicit')
-    w:clickControl('confirm_accept');modRequest=w.sent[#w.sent].args
-    eq(modRequest[2],'tool_policy_bulk');eq(modRequest[3],0)
-    eq(modRequest[4].category,'mod');eq(modRequest[4].mode,'disabled');w:ack()
+    eq(e.OSP.UI.getState().controls.mods_disable_player,nil,'redundant tools shortcut removed')
     w:clickControl('reset_player');eq(e.OSP.UI.getState().confirm.action,'reset_player')
     w:clickControl('confirm_accept');eq(w.sent[#w.sent].args[2],'reset_player');eq(w.sent[#w.sent].args[3],23);w:ack()
     w:clickControl('player_action_kill')
@@ -262,19 +247,7 @@ for _,size in ipairs({{1280,720},{1920,1080},{2560,1440},{1024,768},{2560,1080}}
     d:clickControl('filter_vanilla');d:clickControl('tool_player_next');ds=d:draw()
     eq(ds.controls.tool_gun.disabled,true,'delegated admin cannot change host tools')
     d:clickControl('tab_players')
-    local protected=d:scrollTo('mods_disable_player');eq(protected.disabled,true,'individual shortcut protects host')
-    local beforeBlock=#d.sent;d:pressAt(protected.x+2,protected.y+2);d:releaseAt(protected.x+2,protected.y+2)
-    eq(#d.sent,beforeBlock);eq(de.OSP.UI.getState().confirm,nil,'disabled shortcut cannot open confirmation')
-    d:clickControl('mods_disable_everyone');local delegatedConfirm=de.OSP.UI.getState().confirm
-    eq(delegatedConfirm.action,'tools_filtered_all')
-    eq(delegatedConfirm.message,de.OSP.L('confirm_mods_nonhost'),'delegate sees temporary scope and host exclusion')
-    d:clickControl('confirm_accept');local delegatedRequest=d.sent[#d.sent].args
-    eq(delegatedRequest[2],'tools_filtered_all');eq(delegatedRequest[3],0)
-    eq(delegatedRequest[4].category,'mod');eq(delegatedRequest[4].enabled,false);d:ack()
-    de.shared.osp.tools={{id='gun',origin='vanilla'}}
-    eq(d:scrollTo('mods_disable_everyone').disabled,true,'no mod tools disables bulk shortcut')
-    d:clickControl('player_11')
-    eq(d:scrollTo('mods_disable_player').disabled,true,'no mod tools disables selected shortcut')
+    eq(d:draw().controls.mods_disable_everyone,nil,'redundant bulk shortcut removed')
     for k in pairs(e.OSP.languages.en) do check(e.OSP.languages.pt[k]~=nil,'missing PT '..k) end
     for k in pairs(e.OSP.languages.pt) do check(e.OSP.languages.en[k]~=nil,'missing EN '..k) end
  end
@@ -315,7 +288,7 @@ do
     local w=world(1024,768);local e=w.api
     e.shared.osp.players[2].profileReady=false;e.OSP.UI.open(true)
     w:clickControl('player_23')
-    for _,id in ipairs({'player_action_god','player_action_fly','player_action_freeze','speed_up','player_admin','reset_player','mods_disable_player'}) do
+    for _,id in ipairs({'player_action_god','player_action_fly','player_action_freeze','speed_up','player_admin','reset_player'}) do
         eq(w:scrollTo(id).disabled,true,'waiting profile disables '..id)
     end
     w:clickControl('tab_tools');w:clickControl('tool_mode_player')
@@ -354,5 +327,77 @@ for _,language in ipairs({'en','pt'}) do
     check(hasBoth(e.OSP.L('rain'),'20%'),'history shows lower rain value')
     check(hasBoth(e.OSP.L('rain'),'80%'),'history shows higher rain value')
     check(hasBoth(e.OSP.L('announcement'),'A different'),'history includes announcement content')
+end
+-- Host template editing, assignment and ACK-before-shared replication.
+for _,size in ipairs({{1024,768},{1920,1080}}) do
+ for _,language in ipairs({'en','pt'}) do
+    local w=world(unpack(size));local e=w.api
+    w.reg['savegame.mod.osp.language']=language
+    e.shared.osp.templates=e.OSP.Permissions.list({})
+    e.OSP.UI.open(true);w:clickControl('tab_permissions')
+    w:clickControl('permission_player_next')
+    w:clickControl('permission_next') -- Self only.
+    w:clickControl('permission_apply');eq(e.OSP.UI.getState().confirm.action,'role_assign')
+    w:clickControl('confirm_accept')
+    eq(w.sent[#w.sent].args[2],'role_assign');eq(w.sent[#w.sent].args[3],23);eq(w.sent[#w.sent].args[4].id,'self');w:ack()
+    w:clickControl('permission_copy')
+    eq(w:scrollTo('permission_apply').disabled,true,'unsaved copy cannot apply the base template by mistake')
+    w:clickControl('permission_name');check(e.OSP.PermissionUI.capturing(),'name capture starts')
+    w:clickControl('close');eq(e.OSP.PermissionUI.capturing(),false,'Close cancels name capture')
+    e.OSP.UI.open(true);w:clickControl('permission_name');check(e.OSP.PermissionUI.capturing())
+    e.OSP.UI.open(false);eq(e.OSP.PermissionUI.capturing(),false,'programmatic close cancels name capture')
+    e.OSP.UI.open(true);w:clickControl('permission_name')
+    for i=1,40 do w:tick('backspace') end
+    for letter in ('medi'):gmatch('.') do w:tick(letter) end
+    local r=w:scrollTo('permission_save')
+    w:pressAt(r.x+2,r.y+2,'c');w:releaseAt(r.x+2,r.y+2)
+    local request=w.sent[#w.sent]
+    eq(request.args[2],'role_save');eq(request.args[4].name,'medic')
+    eq(request.args[4].permissions.heal,1,'copy keeps self scope')
+    local saved={id='c1',name='medic',version=1,builtin=false,permissions=request.args[4].permissions}
+    e.client.ospResult(true,'ok',{template=saved},request.args[5])
+    -- Shared intentionally still contains only builtins: the ACK is enough to
+    -- keep the saved draft selected without reverting to Guest.
+    w:draw();eq(w:scrollTo('permission_delete').disabled,false,'saved copy survives delayed shared state')
+    w:clickControl('permission_apply');eq(e.OSP.UI.getState().confirm.arg.id,'c1')
+    w:clickControl('confirm_cancel')
+    e.shared.osp.templates[#e.shared.osp.templates+1]=saved
+    w:clickControl('permission_cap_heal')
+    eq(w:scrollTo('permission_apply').disabled,true,'dirty scope must be saved before assignment')
+    w:clickControl('permission_save');local edited=w.sent[#w.sent].args[4]
+    eq(edited.id,'c1');eq(edited.version,1);eq(edited.permissions.heal,2,'scope changes independently')
+    e.client.ospResult(false,'conflict',{},w.sent[#w.sent].args[5])
+    eq(e.OSP.UI.getState().status,e.OSP.L('role_conflict'))
+    w:clickControl('permission_reload')
+    w:clickControl('permission_delete');w:clickControl('confirm_accept')
+    eq(w.sent[#w.sent].args[2],'role_delete')
+    e.client.ospResult(true,'ok',{deleted='c1'},w.sent[#w.sent].args[5])
+    eq(w:scrollTo('permission_delete').disabled,true,'deleted role is hidden before shared catches up')
+ end
+end
+-- Per-control UI gating agrees with the server's public capability vocabulary.
+do
+    local w=world(1920,1080);local e=w.api
+    e.GetLocalPlayer=function() return 23 end;e.client.init()
+    e.shared.osp.players[2].admin=true;e.shared.osp.players[2].role='self'
+    e.shared.osp.players[2].permissions=e.OSP.Permissions.resolve('self').permissions
+    e.OSP.UI.open(true);w:draw()
+    eq(e.OSP.UI.getState().selected,23,'delegated panel defaults to its own player')
+    eq(w:scrollTo('player_action_heal').disabled,false)
+    eq(w:scrollTo('player_action_kill').disabled,true)
+    eq(w:scrollTo('heal_all').disabled,true)
+    w:clickControl('player_11')
+    eq(w:scrollTo('player_action_heal').disabled,true,'self permission cannot edit another player')
+    eq(w:scrollTo('tab_permissions').disabled,true,'template management is host-only')
+    w:clickControl('tab_session')
+    eq(w:scrollTo('rule_rain_up').disabled,true)
+    eq(w:scrollTo('announcement_send').disabled,true)
+    -- Revocation arriving while a modal is open still blocks command dispatch.
+    w:clickControl('tab_players');w:clickControl('player_23')
+    e.shared.osp.players[2].permissions=e.OSP.Permissions.resolve('admin').permissions
+    w:clickControl('player_action_kill')
+    e.shared.osp.players[2].permissions=e.OSP.Permissions.resolve('self').permissions
+    local before=#w.sent;w:clickControl('confirm_accept')
+    eq(#w.sent,before,'revocation prevents a stale confirmation from sending')
 end
 print('PASS client interaction, viewport and translation contracts: '..assertions..' assertions (mock UI)')

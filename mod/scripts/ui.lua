@@ -20,7 +20,7 @@ function OSP.installClient()
     local lmbPressed=false
     local clip=nil
     local C=OSP.Theme.colors()
-    local tabs={"players","session","tools","activity","settings","about"}
+    local tabs={"players","session","tools","permissions","activity","settings","about"}
     local function lang() return GetString(ROOT.."language")=="pt" and "pt" or "en" end
     OSP.getLanguage=lang
     local function T(k,...) return OSP.L(k,...) end
@@ -29,13 +29,48 @@ function OSP.installClient()
     local function findPlayer(id) for _,p in ipairs(roster()) do if p.id==id then return p end end end
     local function host() return IsPlayerHost(me) end
     local function admin() local p=findPlayer(me);return host() or (p and p.admin==true) or false end
+    local function allowed(action,target,arg)
+        if host() then return true end
+        local p=findPlayer(me)
+        local values=p and p.permissions
+        if not values then values=OSP.Permissions.resolve(p and p.admin and "admin" or "guest").permissions end
+        return OSP.Permissions.allows(values,action,target,arg,me)
+    end
+    local function permittedControl(id)
+        if id=="tab_permissions" or id:match("^permission_") then return host() and (not pending or id=="tab_permissions") end
+        local target=selected or me
+        local verb=id:match("^player_action_(.+)$")
+        if verb then return allowed(verb,target) end
+        if id=="speed_down" or id=="speed_up" then return allowed("speed",target) end
+        if id=="player_admin" or id=="reset_player" then return host() end
+        if id=="heal_all" or id=="bring_all" or id=="restart" or id=="reset_rules" then return allowed(id,0) end
+        local key=id:match("^rule_(%a+)_")
+        if key then return allowed("rule",0,{key=key}) end
+        if id=="regen_on" or id=="regen_off" then return allowed("rule",0,{key="regen"}) end
+        if id=="announcement_field" or id=="announcement_send" then return allowed("announce",0) end
+        if id=="tools_enable_everyone" or id=="tools_disable_everyone" or id:match("^tool_everyone_") then return allowed("tools_all",0) end
+        if id=="tools_reset_filtered" or id:match("^tool_reset_") then return host() end
+        if id=="tools_enable_filtered" or id=="tools_disable_filtered" then return toolMode=="global" and host() or allowed("tools",target) end
+        if id:match("^tool_") and not id:match("^tool_player_") and not id:match("^tool_mode_") then
+            return toolMode=="global" and host() or allowed("tool",target)
+        end
+        return true
+    end
+    local function roleLabel(p)
+        if p.host then return T("host") end
+        local wanted=p.role or (p.admin and "admin" or "guest")
+        for _,role in ipairs(state() and state().templates or OSP.Permissions.list({})) do
+            if role.id==wanted then return OSP.Permissions.name(role) end
+        end
+        return T("guest")
+    end
     local function keybind() local k=GetString(ROOT.."menu_key");return OSP.validKey(k) and k or "p" end
     local function setStatus(s,seconds) status=s;statusUntil=GetTime()+(seconds or 5) end
     local function setTab(t)
-        if tab~=t then tab=t;scroll=0;confirm=nil;typing=false;capturing=false end
+        if tab~=t then tab=t;scroll=0;confirm=nil;typing=false;capturing=false;OSP.PermissionUI.cancelInput() end
     end
     local function command(action,target,arg)
-        if not admin() then setStatus(T("result_denied"));return false end
+        if not admin() or not allowed(action,target,arg) then setStatus(T("result_denied"));return false end
         if pending then setStatus(T("request_pending"));return false end
         seq=seq+1;pending=seq;sentAt=GetTime();lastAction=action
         setStatus(T("request_sent"),8)
@@ -43,7 +78,7 @@ function OSP.installClient()
         return true
     end
     local function ask(action,target,arg,message)
-        typing=false;capturing=false;InputClear()
+        typing=false;capturing=false;OSP.PermissionUI.cancelInput();InputClear()
         confirm={action=action,target=target or 0,arg=arg,message=message}
     end
     local function rgb(c) UiColor(c[1],c[2],c[3],c[4] or 1) end
@@ -75,7 +110,7 @@ function OSP.installClient()
     end
     local function inside(x,y,w,h,mx,my) return mx>=x and my>=y and mx<x+w and my<y+h end
     local function button(id,x,y,w,h,value,kind,disabled,modal)
-        disabled=disabled or (confirm~=nil and not modal)
+        disabled=disabled or not permittedControl(id) or (confirm~=nil and not modal)
         local controlDisabled=disabled
         local hitEnabled=not disabled
         local visible=true
@@ -119,7 +154,7 @@ function OSP.installClient()
     local function selectedPlayer()
         local list=roster()
         if selected and not findPlayer(selected) then selected=nil;confirm=nil end
-        if not selected and #list>0 then selected=list[1].id end
+        if not selected and #list>0 then selected=findPlayer(me) and me or list[1].id end
         return findPlayer(selected)
     end
     local function actionForPlayer(p,verb,caption,value,kind)
@@ -138,7 +173,7 @@ function OSP.installClient()
         local pageNum=math.max(1,math.min(math.max(1,math.ceil(#list/rows)),pages.players));pages.players=pageNum
         for i=1,rows do local player=list[(pageNum-1)*rows+i]
             if player then
-                local role=player.host and T("host") or (player.admin and T("admin") or T("guest"))
+                local role=roleLabel(player)
                 local suffix="  ·  "..role
                 if button("player_"..player.id,0,102+(i-1)*48,listW,40,utf8clip(player.name,15)..suffix,
                     player.id==p.id and "active" or "plain",false) then selected=player.id;confirm=nil end
@@ -148,7 +183,7 @@ function OSP.installClient()
         local top=two and 82 or listBottom+8
         label(ax,top,p.name,22,C.text,aw,true)
         local life=math.floor((p.health or 0)*100+0.5)
-        label(ax,top+31,T("health",life).."  ·  "..(p.host and T("host") or p.admin and T("admin") or T("guest")),15,C.muted,aw)
+        label(ax,top+31,T("health",life).."  ·  "..roleLabel(p),15,C.muted,aw)
         local blocked=p.host and not host();local waiting=host() and p.profileReady==false;local gap=8
         local cols=aw>=400 and 2 or 1;local bw=(aw-gap*(cols-1))/cols
         local buttons={
@@ -186,28 +221,29 @@ function OSP.installClient()
         if cols==2 then
             if button("bring_all",ax+bw+gap,y,bw,37,T("bring_all"),"plain",false) then command("bring_all",0) end
         else y=y+43;if button("bring_all",ax,y,bw,37,T("bring_all"),"plain",false) then command("bring_all",0) end end
-        y=y+58
-        label(ax,y,T("mod_tools_shortcuts"),18,C.text,aw,true)
-        label(ax,y+26,T("vanilla_preserved"),14,C.muted,aw)
-        y=y+52
-        local hasMods=false
-        local s=state()
-        for _,tool in ipairs(s and s.tools or {}) do
-            if (tool.origin or OSP.toolOrigin(tool.id))=="mod" then hasMods=true;break end
-        end
-        if button("mods_disable_player",ax,y,bw,37,T("block_selected_mods"),"danger",blocked or waiting or not hasMods) then
-            ask("tools_filtered",p.id,{category="mod",enabled=false},T(host() and "confirm_mods_player_saved" or "confirm_mods_player",utf8clip(p.name,24)))
-        end
-        local allX=cols==2 and ax+bw+gap or ax
-        if cols==1 then y=y+43 end
-        if button("mods_disable_everyone",allX,y,bw,37,T(host() and "block_all_mods" or "block_nonhost_mods"),"danger",not hasMods) then
-            if host() then
-                ask("tool_policy_bulk",0,{category="mod",mode="disabled"},T("confirm_mods_global"))
-            else
-                ask("tools_filtered_all",0,{category="mod",enabled=false},T("confirm_mods_nonhost"))
-            end
-        end
         return math.max(listBottom,y+46)
+    end
+    local function drawPermissions()
+        if not host() then setTab("settings");return 0 end
+        title(T("permissions"),T("permissions_subtitle"))
+        local list=roster();local p=selectedPlayer()
+        local function playerIndex()
+            for i,q in ipairs(list) do if p and p.id==q.id then return i end end
+            return 1
+        end
+        return OSP.PermissionUI.draw({
+            label=function(x,y,value,size,width) label(x,y,value,size,C.text,width) end,
+            paragraph=function(x,y,value,size,width)
+                UiPush();UiTranslate(x,y);UiAlign("left top");UiFont("regular.ttf",size)
+                UiTextDisableWildcards(true);UiWordWrap(width);rgb(C.muted)
+                local _,height=UiText(value);UiPop()
+                return height
+            end,
+            button=button,ask=ask,command=command,
+            playerCaption=function() return p and utf8clip(p.name,24) or "?" end,
+            playerIndex=playerIndex,playerCount=function() return #list end,
+            playerStep=function(d) local q=list[playerIndex()+d];if q then selected=q.id end end,
+        },state() and state().templates,p,layout.contentW)
     end
     local function drawSession()
         local w=layout.contentW;local s=state();local rules=s and s.rules or {}
@@ -358,7 +394,7 @@ function OSP.installClient()
             if e then
                 local actor=math.min(140,w*.21);local result=math.min(105,w*.16);local target=math.min(125,w*.18)
                 local actionW=math.max(100,w-actor-result-target-24)
-                local key=({heal="heal",kill="kill",respawn="respawn",["goto"]="go_to",bring="bring",eject="eject",god="god_mode",fly="fly",freeze="freeze",speed="speed",admin="admin_access",reset_player="reset_player",heal_all="heal_all",bring_all="bring_all",rule="session_rules",reset_rules="reset_rules",restart="restart",announce="announcement",tool="tools",tool_all="tools",tools="tools",tools_all="tools",tool_policy="global_rules",tool_policy_bulk="global_rules",tools_filtered="tools",tools_filtered_all="tools"})[e.action] or "status"
+                local key=({heal="heal",kill="kill",respawn="respawn",["goto"]="go_to",bring="bring",eject="eject",god="god_mode",fly="fly",freeze="freeze",speed="speed",admin="admin_access",role_assign="permissions",role_save="permissions",role_delete="permissions",reset_player="reset_player",heal_all="heal_all",bring_all="bring_all",rule="session_rules",reset_rules="reset_rules",restart="restart",announce="announcement",tool="tools",tool_all="tools",tools="tools",tools_all="tools",tool_policy="global_rules",tool_policy_bulk="global_rules",tools_filtered="tools",tools_filtered_all="tools"})[e.action] or "status"
                 local detail=T(key)
                 if type(e.argument)=="table" then
                     local a=e.argument
@@ -464,11 +500,11 @@ function OSP.installClient()
             local x=math.max(260,W-490)
             if target and W-145-x>=90 then label(x,21,T("selected_short")..": "..target.name,14,C.muted,W-145-x) end
         end
-        if button("close",W-122,12,104,34,T("close"),"plain",false) then menu=false;confirm=nil;typing=false end
+        if button("close",W-122,12,104,34,T("close"),"plain",false) then menu=false;confirm=nil;typing=false;capturing=false;OSP.PermissionUI.cancelInput() end
         if not narrow then rect(0,header,side,H-header,C.side);rect(side,header,1,H-header,C.line) end
         for i,t in ipairs(tabs) do
             local x,y,w,h
-            if narrow then w=(W-44)/3;h=32;x=18+((i-1)%3)*(w+4);y=header+7+math.floor((i-1)/3)*36
+            if narrow then w=(W-48)/4;h=32;x=18+((i-1)%4)*(w+4);y=header+7+math.floor((i-1)/4)*36
             else x=12;y=header+19+(i-1)*43;w=side-24;h=37 end
             if button("tab_"..t,x,y,w,h,T(t),tab==t and "active" or "plain",not admin() and t~="settings" and t~="about") then setTab(t) end
         end
@@ -485,6 +521,7 @@ function OSP.installClient()
         elseif tab=="players" then contentHeight=drawPlayers()
         elseif tab=="session" then contentHeight=drawSession()
         elseif tab=="tools" then contentHeight=drawTools()
+        elseif tab=="permissions" then contentHeight=drawPermissions()
         elseif tab=="activity" then contentHeight=drawActivity()
         elseif tab=="settings" then contentHeight=drawSettings()
         else contentHeight=drawAbout() end
@@ -514,10 +551,12 @@ function OSP.installClient()
     end
     function client.ospResult(ok,code,details,id)
         if not pending or id~=pending then return end
-        local names={ok="result_ok",denied="result_denied",invalid="result_invalid",protected="result_protected",unavailable="result_unavailable",error="result_error",rate_limited="result_rate_limited"}
+        local names={ok="result_ok",denied="result_denied",invalid="result_invalid",protected="result_protected",unavailable="result_unavailable",error="result_error",rate_limited="result_rate_limited",conflict="role_conflict",template_limit="role_limit"}
         local msg=T(names[code] or "result_error")
         if details and details.skipped and details.skipped>0 then msg=msg.."  "..T("skipped",details.skipped) end
         if ok and lastAction=="rule" then msg=T("rules_saved") elseif ok and lastAction=="reset_rules" then msg=T("rules_reset") end
+        if ok and lastAction=="role_save" and details then OSP.PermissionUI.saved(details.template) end
+        if ok and lastAction=="role_delete" and details then OSP.PermissionUI.deleted(details.deleted) end
         pending=nil;lastAction=nil;setStatus(msg)
     end
     function client.ospAnnouncement(actor,message)
@@ -553,7 +592,9 @@ function OSP.installClient()
         end
         if pending and GetTime()-sentAt>=8 then pending=nil;lastAction=nil;setStatus(T("request_unknown"),10) end
         if selected and not findPlayer(selected) then selected=nil;confirm=nil end
-        if capturing then
+        if menu and tab=="permissions" and OSP.PermissionUI.capturing() then
+            OSP.PermissionUI.key()
+        elseif capturing then
             local key=InputLastPressedKey()
             if key and key~="" and not isMouseKey(string.lower(key)) then
                 key=string.lower(key)
@@ -564,12 +605,12 @@ function OSP.installClient()
             end
         elseif typing then consumeText()
         else
-            if InputPressed(keybind()) then menu=not menu;confirm=nil end
-            if menu and InputPressed("esc") then if confirm then confirm=nil else menu=false end end
-            if menu and bodyHovered and not confirm then
-                local delta=InputValue("mousewheel")
-                if delta~=0 then scroll=math.max(0,math.min(maxScroll,scroll-delta*48)) end
-            end
+            if InputPressed(keybind()) then menu=not menu;confirm=nil;if not menu then OSP.PermissionUI.cancelInput() end end
+            if menu and InputPressed("esc") then if confirm then confirm=nil else menu=false;OSP.PermissionUI.cancelInput() end end
+        end
+        if menu and bodyHovered and not confirm then
+            local delta=InputValue("mousewheel")
+            if delta~=0 then scroll=math.max(0,math.min(maxScroll,scroll-delta*48)) end
         end
         if PauseMenuButton(T("pause_button"),"bottom_bar",false) then menu=true;setTab(admin() and "players" or "settings");confirm=nil end
         if not admin() and tab~="settings" and tab~="about" then setTab("settings") end
@@ -588,5 +629,5 @@ function OSP.installClient()
         end
     end
     OSP.UI={getState=function() return {open=menu,tab=tab,selected=selected,confirm=confirm,keyCapture=capturing,typing=typing,language=lang(),menuKey=keybind(),requestPending=pending~=nil,pendingId=pending,status=status,layout=OSP.copy(layout),controls=OSP.copy(controls),scroll=scroll,maxScroll=maxScroll,filter=filter,toolMode=toolMode} end,
-        open=function(v) menu=v==true;if not menu then confirm=nil;typing=false end end,selectTab=setTab}
+        open=function(v) menu=v==true;if not menu then confirm=nil;typing=false;capturing=false;OSP.PermissionUI.cancelInput() end end,selectTab=setTab}
 end

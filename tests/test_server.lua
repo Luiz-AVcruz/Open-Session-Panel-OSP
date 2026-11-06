@@ -348,4 +348,104 @@ local changedDefaults=world({baseGod=true,identities={[47]=explicit.identities[2
 changedDefaults.tick()
 eq(changedDefaults.players[47].params.godMode,false,'saved false overrides a true map default')
 eq(changedDefaults.players[47].speed,3.5,'saved fractional speed survives map')
+-- Granular templates are checked on the server, including aliases and lifecycle.
+registry={}
+local access=world({catalog={'sledge','gun','modlaser'}})
+local P=access.api.OSP.Permissions
+local function denied(actor,action,target,value)
+    local success,result=access.command(actor,action,target,value)
+    eq(success,false,action);eq(result,'denied',action)
+end
+local function saveRole(id,name,version,permissions)
+    local success,result,details=access.command(11,'role_save',0,{id=id,name=name,version=version,permissions=permissions})
+    eq(success,true,'save template '..name)
+    return details.template
+end
+local function assign(player,id) eq(access.command(11,'role_assign',player,{id=id}),true) end
+assign(23,'self')
+eq(access.api.shared.osp.players[2].role,'self')
+eq(access.command(23,'heal',23),true)
+denied(23,'heal',47)
+denied(23,'kill',23)
+for _,action in ipairs({'tool','tools','tools_filtered'}) do
+    local value=action=='tool' and {id='gun',enabled=false} or action=='tools' and false or {category='vanilla',enabled=false}
+    if action=='tools' then value=false end
+    eq(access.command(23,action,23,value),true,action..' self')
+    denied(23,action,47,value)
+end
+for _,action in ipairs({'tool_all','tools_all','tools_filtered_all'}) do
+    local value=action=='tool_all' and {id='gun',enabled=false} or action=='tools_all' and false or {category='all',enabled=false}
+    if action=='tools_all' then value=false end
+    denied(23,action,0,value)
+end
+eq(access.command(23,'god',23,true),true)
+ok,code=access.command(23,'god',11,true);eq(ok,false);eq(code,'protected')
+eq(access.command(23,'goto',11),true,'self-service can move itself to a destination')
+denied(23,'rule',0,{key='rain',value=.8})
+denied(23,'restart',0)
+for _,action in ipairs({'admin','role_assign','role_save','role_delete','reset_player','tool_policy','tool_policy_bulk'}) do denied(23,action,47,{}) end
+ok,code=access.command(11,'role_assign',11,{id='guest'});eq(ok,false);eq(code,'protected')
+local custom=saveRole('','Rain helper',0,{rule_rain=2,heal=2})
+assign(23,custom.id)
+eq(access.command(23,'rule',0,{key='rain',value=.7}),true)
+denied(23,'rule',0,{key='fog',value=20})
+denied(23,'reset_rules',0)
+eq(access.command(23,'heal',47),true)
+custom=saveRole(custom.id,custom.name,custom.version,{rule_rain=2,heal=1})
+denied(23,'heal',47)
+eq(access.command(23,'heal',23),true,'editing a template changes the next command')
+ok,code=access.command(11,'role_save',0,{id=custom.id,name=custom.name,version=1,permissions={heal=2}})
+eq(ok,false);eq(code,'conflict','stale save must not restore old grants')
+local ids=access.api.OSP.copy(access.identities)
+local nextSession=world({catalog={'sledge','gun','modlaser'},identities=ids})
+eq(nextSession.api.shared.osp.players[2].role,custom.id,'assignment survives a new map')
+ok,code=nextSession.command(23,'heal',47);eq(ok,false);eq(code,'denied')
+eq(nextSession.command(23,'rule',0,{key='rain',value=.4}),true,'custom rule grant survives a new map')
+local bad={
+    {id='admin',name='Overwrite builtin',version=0,permissions={heal=2}},
+    {id='',name='  padded',version=0,permissions={heal=2}},
+    {id='',name=string.rep('x',41),version=0,permissions={heal=2}},
+    {id='',name='Bad key',version=0,permissions={admin=2}},
+    {id='',name='Bad scope',version=0,permissions={heal_all=1}},
+    {id='',name='Bad type',version=0,permissions={heal=false}},
+    {id='',name='Bad number',version=0,permissions={heal=0/0}},
+}
+for _,arg in ipairs(bad) do ok,code=access.command(11,'role_save',0,arg);eq(ok,false);eq(code,'invalid') end
+ok,code=access.command(11,'role_assign',47,{id='not_a_role'});eq(ok,false);eq(code,'invalid')
+assign(47,custom.id)
+access.players[47]=nil;access.removed={47};access.tick()
+eq(access.command(11,'role_delete',0,{id=custom.id,version=custom.version}),true)
+denied(23,'heal',23)
+eq(registry['savegame.mod.osp.players.'..ids[47]..'.role'],'guest','deletion revokes offline assignments')
+local afterDelete=world({identities=ids})
+eq(afterDelete.api.shared.osp.players[2].admin,false)
+eq(afterDelete.api.shared.osp.players[3].admin,false)
+registry['savegame.mod.osp.players.'..ids[23]..'.role']='deleted_or_corrupt'
+registry['savegame.mod.osp.players.'..ids[23]..'.admin']=true
+local corrupt=world({identities=ids})
+eq(corrupt.api.shared.osp.players[2].admin,false,'unknown explicit role never resurrects legacy admin')
+local replacement=saveRole('','New role',0,{heal=2})
+check(replacement.id~=custom.id,'deleted template IDs are not reused')
+assign(23,replacement.id)
+replacement=saveRole(replacement.id,replacement.name,replacement.version,{})
+denied(23,'heal',23)
+eq(access.api.shared.osp.players[2].admin,false,'all-zero permissions remove panel access')
+-- Built-in administrator preserves the former delegated-admin behavior.
+assign(23,'admin')
+eq(access.command(23,'heal_all',0),true)
+eq(access.command(23,'rule',0,{key='fog',value=200}),true)
+denied(23,'tool_policy',0,{id='gun',mode='enabled'})
+access.command(11,'admin',23,false)
+denied(23,'heal',23)
+-- Bounded custom library and exact target scope rules.
+for n=2,16 do saveRole('','Role '..n,0,{heal=1}) end
+ok,code=access.command(11,'role_save',0,{id='',name='Overflow',version=0,permissions={heal=2}})
+eq(ok,false);eq(code,'template_limit')
+for _,spec in ipairs(P.spec) do
+    local grants=P.normalize({[spec.id]=spec.target and 1 or 2})
+    if spec.target and spec.id~='tools' then
+        check(P.allows(grants,spec.id,23,nil,23),'self scope '..spec.id)
+        check(not P.allows(grants,spec.id,47,nil,23),'other target blocked '..spec.id)
+    end
+end
 print('PASS server boundary: '..count..' assertions')
