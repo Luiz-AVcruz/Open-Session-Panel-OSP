@@ -18,7 +18,7 @@ DIST = ROOT / "dist"
 MOD_ARCHIVE_ROOT = "OpenSessionPanel"
 SOURCE_ARCHIVE_ROOT = "OpenSessionPanel-source"
 ZIP_TIME = (1980, 1, 1, 0, 0, 0)
-PREVIEW_FILES = ("preview.jpg", "preview-menu.png")
+PUBLICATION_FILES = ("preview.jpg", "preview-menu.png", "WORKSHOP-DESCRIPTION.txt")
 
 
 def product_version() -> str:
@@ -42,7 +42,7 @@ def required_install_files() -> list[Path]:
         ROOT / "LICENSE",
         ROOT / "ADDITIONAL-PERMISSION",
     ]
-    required.extend(MOD / name for name in PREVIEW_FILES)
+    required.extend(MOD / name for name in PUBLICATION_FILES)
     missing = [p.relative_to(ROOT).as_posix() for p in required if not p.is_file()]
     if missing:
         raise FileNotFoundError("Required package files are missing: " + ", ".join(missing))
@@ -52,6 +52,10 @@ def required_install_files() -> list[Path]:
         raise ValueError("mod/info.txt must declare Teardown multiplayer script version = 2")
     if not re.search(r"(?m)^preview\s*=\s*preview-menu\.png\s*$", info):
         raise ValueError("mod/info.txt must reference preview-menu.png")
+    description = re.search(r"(?m)^description\s*=\s*(.*)$", info)
+    workshop_text = (MOD / "WORKSHOP-DESCRIPTION.txt").read_text(encoding="utf-8")
+    if description is None or description.group(1).strip() != " ".join(workshop_text.split()):
+        raise ValueError("info.txt description must match WORKSHOP-DESCRIPTION.txt content")
     steam_preview = (MOD / "preview.jpg").read_bytes()
     if not steam_preview.startswith(b"\xff\xd8\xff") or len(steam_preview) > 1_000_000:
         raise ValueError("preview.jpg must be a JPEG no larger than 1 MB")
@@ -85,7 +89,7 @@ def add_file(zf: zipfile.ZipFile, path: Path, archive_name: str) -> None:
 
 def install_members() -> list[tuple[Path, str]]:
     files = [MOD / "info.txt", MOD / "main.lua", MOD / "SOURCE.md"]
-    files.extend(MOD / name for name in PREVIEW_FILES)
+    files.extend(MOD / name for name in PUBLICATION_FILES)
     files.extend(path for path in (MOD / "scripts").rglob("*.lua") if path.is_file())
     members: list[tuple[Path, str]] = []
     for path in sorted(files):
@@ -113,7 +117,7 @@ def source_members() -> list[tuple[Path, str]]:
         ROOT / "Docs" / "PROJETO.md",
     ]
     paths.extend([MOD / "info.txt", MOD / "main.lua", MOD / "SOURCE.md"])
-    paths.extend(MOD / name for name in PREVIEW_FILES)
+    paths.extend(MOD / name for name in PUBLICATION_FILES)
     paths.extend(path for path in (MOD / "scripts").rglob("*.lua") if path.is_file())
     paths.extend(path for path in (ROOT / "tests").rglob("test_*.lua") if path.is_file())
     paths.extend(path for path in (ROOT / "tools").rglob("*.py") if path.is_file())

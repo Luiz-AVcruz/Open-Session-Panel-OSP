@@ -49,7 +49,7 @@ python3 tools/package.py
 
 Packaging creates an install ZIP, complete matching source ZIP and `SHA256SUMS`. Both contain readable source and licensing notices; there is no compilation or minification. Source repository: [Luiz-AVcruz/Open-Session-Panel-OSP](https://github.com/Luiz-AVcruz/Open-Session-Panel-OSP).
 
-Workshop previews are included in both archives: `preview.jpg` is a temporary thumbnail made from the user's Tools screenshot, below 1 MB; `preview-menu.png` is the Players screenshot fitted to 512 × 292 and referenced by `info.txt`. The full screenshot is preserved within each image using padding. To replace the Workshop thumbnail later, replace `preview.jpg` in the local mod and use **Publish update**, keeping the `id.txt` created by the first upload. Packaging checks the JPEG signature/size and the PNG header/dimensions. The publisher's final acceptance still needs to be checked in the game.
+Workshop assets are included in both archives. `preview.jpg` (512 × 512, below 1 MB) and `preview-menu.png` (512 × 292) use the logo supplied by Luiz-AVcruz, fitted with black padding. `WORKSHOP-DESCRIPTION.txt` preserves the author's complete description and AI disclosure with paragraph breaks; `info.txt` contains the same words on one line for its key/value format. Editing the Steam page does not automatically update the local metadata file. Before publishing an update, check the description displayed by the game against this text. To replace the thumbnail, replace `preview.jpg` and use **Publish update**, preserving the existing `id.txt`. Packaging validates preview headers/size/dimensions and matching description content.
 
 ## Verification and limits
 
