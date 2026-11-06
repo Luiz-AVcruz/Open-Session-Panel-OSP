@@ -407,13 +407,7 @@ function OSP.installClient()
         if capturing then label(130,y+9,T("press_key"),16,C.muted,w-130)
         elseif button("rebind",130,y,math.min(220,w-130),38,T("change_key"),"plain",false) then capturing=true;typing=false;confirm=nil end
         y=y+59;rect(0,y,w,1,C.line);y=y+20
-        label(0,y,T("health_indicator"),17,C.text,w-150,true);y=y+30
-        local enabled=GetBool(ROOT.."health_hud")
-        label(0,y+9,T("health_indicator_description"),15,C.muted,w-165)
-        if button("health_toggle",w-145,y,145,38,T(enabled and "on" or "off"),enabled and "active" or "plain",false) then
-            SetBool(ROOT.."health_hud",not enabled);setStatus(T("preference_saved"))
-        end
-        y=y+75
+        y=y+10
         local height=OSP.Theme.draw({
             label=function(x,py,value,size,width,color) label(x,py,value,size,color or C.text,width) end,
             button=function(id,x,py,width,height,value,kind) return button(id,x,py,width,height,value,kind,false) end,
@@ -587,15 +581,6 @@ function OSP.installClient()
         if menu then UiMakeInteractive();render();lmbPressed=false;return end
         lmbPressed=false
         local canvas=UiCanvasSize()
-        if GetBool(ROOT.."health_hud") and IsPlayerValid(me) then
-            local hp=GetPlayerHealth(me)
-            if hp>0 then
-                local w,h=200,42;local x=math.max(16,canvas.w-w-24);local y=math.max(16,canvas.h-110)
-                UiPush();UiTranslate(x,y);UiWindow(w,h,true);rect(0,0,w,h,C.back)
-                label(10,5,T("health",math.floor(math.max(0,math.min(1,hp))*100+.5)),15,C.text,w-20,true)
-                rect(10,28,w-20,5,C.line);rect(10,28,(w-20)*math.max(0,math.min(1,hp)),5,C.accent);UiPop()
-            end
-        end
         if notice and GetTime()<noticeUntil then
             local w=math.min(700,canvas.w-40);UiPush();UiTranslate((canvas.w-w)/2,40);UiWindow(w,112,true)
             rect(0,0,w,112,C.back);rect(0,0,4,112,C.accent);UiTranslate(18,14);UiWordWrap(w-36)

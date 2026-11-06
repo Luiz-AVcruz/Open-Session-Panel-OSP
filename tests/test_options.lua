@@ -56,22 +56,22 @@ local function world(width, height)
 end
 for _,size in ipairs({{840,760},{1280,720},{1024,768},{1920,1080}}) do
     local w,r=world(unpack(size))
-    w.draw();check(w.registry[r..'health_hud']==nil,'default HUD stays off')
+    w.registry[r..'health_hud']=true -- Legacy key is ignored, including on reset.
+    w.draw()
     w.click(272,148);check(w.registry[r..'language']=='pt','language padding hit')
     w.click(30,245);w.type('w');check(w.registry[r..'menu_key']==nil,'reject movement key')
     w.type('f8');check(w.registry[r..'menu_key']=='f8','save shortcut without map')
-    w.click(584,302);check(w.registry[r..'health_hud']==true,'HUD toggle')
     w.registry[r..'identity.host']='p3';w.registry[r..'hostid']='keep';w.registry[r..'nextprofile']=3
     w.registry[r..'players.p3.exists']=true;w.registry[r..'players.p3.admin']=true
     w.registry[r..'players.p3.tools.67756e']=2
     w.registry[r..'tools.67756e']=2;w.registry[r..'rules.rain']=1
     w.registry['savegame.tool.gun.enabled']=true
-    w.click(30,405)
-    check(w.registry[r..'menu_key']=='p' and w.registry[r..'language']=='en' and w.registry[r..'health_hud']==false,'personal defaults')
+    w.click(30,315)
+    check(w.registry[r..'menu_key']=='p' and w.registry[r..'language']=='en' and w.registry[r..'health_hud']==true,'personal defaults leave unused legacy key untouched')
     check(w.registry[r..'rules.rain']==1 and w.registry[r..'players.p3.admin']==true,'personal reset preserves host rules')
-    w.click(30,466);check(w.registry[r..'rules.rain']==1,'opening reset cannot erase anything')
+    w.click(30,376);check(w.registry[r..'rules.rain']==1,'opening reset cannot erase anything')
     w.click(55,418);check(w.registry[r..'rules.rain']==1,'cancel preserves rules')
-    w.click(30,466);w.click(399,418)
+    w.click(30,376);w.click(399,418)
     check(w.registry[r..'rules.rain']==nil and w.registry[r..'tools.67756e']==nil,'host reset clears policies')
     check(w.registry[r..'players.p3.admin']==nil and w.registry[r..'players.p3.tools.67756e']==nil,'host reset clears player choices')
     check(w.registry[r..'players.p3.exists']==true and w.registry[r..'identity.host']=='p3','identities survive recovery')
@@ -83,7 +83,7 @@ for _,size in ipairs({{840,760},{1280,720},{1024,768},{1920,1080}}) do
     check(w.registry[r..'theme.mode']=='custom','custom from main-menu options')
     check(w.registry[r..'theme.custom.back']~=nil,'RGB control without a map')
     w.click(30,660)
-    w.click(30,405);check(w.registry[r..'theme.mode']=='classic','personal reset restores palette')
+    w.click(30,315);check(w.registry[r..'theme.mode']=='classic','personal reset restores palette')
     w.click(30,660);check(w.back,'back to Mod Manager')
 end
 print('PASS main-menu options without a map: '..assertions..' assertions')

@@ -6,7 +6,7 @@ Painel independente de administração de Teardown, modificável e redistribuív
 
 A v1.0 foi implementada e copiada para mods locais. O log confirma seu carregamento; o usuário observou que o menu era grande, pouco adaptável e visualmente insatisfatório. O layout anterior de 1400×880 era redimensionado inteiro. A revisão 1.1 trata esses problemas sem alegar que os testes anteriores demonstraram usabilidade.
 
-## Escopo da versão 1.4.0
+## Escopo da versão 1.5.0
 
 - Jogadores: cura, morte confirmada, respawn, ir até/trazer jogador, retirada de veículo, congelamento, invencibilidade, voo e velocidade.
 - Sessão: cura coletiva, trazer participantes, regeneração nativa, tempo, chuva, neblina, restauração de padrões, reinício confirmado e anúncios.
@@ -14,8 +14,7 @@ A v1.0 foi implementada e copiada para mods locais. O log confirma seu carregame
 - Perfis por jogador: ferramentas, invencibilidade, voo, congelamento, velocidade e admin salvos pelo host; restauração dos padrões pessoais sem remover regras gerais.
 - Atividade: até cem ações, autor, alvo, resultado e contagem de afetados/ignorados.
 - Interface: janela central limitada a 1120×720 unidades e a 85% da largura/82% da altura disponíveis; colunas e linhas adaptadas à área, navegação superior em telas estreitas; paginação/rolagem conforme o conteúdo.
-- Configurações: idioma, atalho e indicador adicional de vida, também acessíveis antes de carregar um mapa pelo botão Options do gerenciador, com recuperação de preferências/regras locais. Sobre: versão, autoria, licença e código. Ambas são acessíveis aos convidados. Anúncios ficam na seção Sessão.
-- Indicador de vida adicional, individual, persistente e desligado no primeiro uso. Preserva integralmente a barra nativa; lê vida real sem alterar vida, regeneração ou flags globais de HUD.
+- Configurações: idioma, atalho e paleta de cores, também acessíveis antes de carregar um mapa pelo botão Options do gerenciador, com recuperação de preferências/regras locais. Sobre: versão, autoria, licença e código. Ambas são acessíveis aos convidados. Anúncios ficam na seção Sessão.
 - Inglês padrão e português brasileiro. Nome público e autoria: **Luiz-AVcruz**.
 
 Permanecem fora da entrega: armadura, vida ampliada, dano de queda próprio, minimapa, substituição do HUD nativo, modo foto, kick/ban e integrações específicas com outros mods.
@@ -26,7 +25,7 @@ Lógica de jogo no servidor, apresentação no cliente e dados serializáveis em
 
 A identidade de remetente do `ServerCall` não é autenticada pela API documentada: o modelo pressupõe clientes normais e não é anunciado como anticheat. Cada ação valida papel, alvo e argumento no momento de execução; respostas são correlacionadas por identificador. Após oito segundos sem resposta, o cliente indica resultado desconhecido, permite nova ação e ignora respostas antigas; nunca repete comandos automaticamente.
 
-Idioma, atalho e indicador são preferências locais. Tempo, chuva, neblina, regeneração e políticas de ferramentas ficam na área própria do mod no host. Preferências anteriores são preservadas; indicador ausente significa desligado e política de ferramenta ausente significa padrão do jogo. Nenhum dado em `savegame.tool` é escrito.
+Idioma, atalho e paleta são preferências locais. Tempo, chuva, neblina, regeneração e políticas de ferramentas ficam na área própria do mod no host. Preferências anteriores são preservadas; política de ferramenta ausente significa padrão do jogo. Nenhum dado em `savegame.tool` é escrito.
 
 Políticas de ferramentas são indexadas por ID codificado, sem depender do ID temporário do jogador. Aplicam-se ao host, participantes presentes, novos participantes, respawns e ferramentas registradas mais tarde. Ferramentas ausentes mantêm sua preferência. Bloqueio geral domina habilitação individual. Mudar uma política geral remove as substituições pessoais daquele ID, inclusive perfis salvos de jogadores offline; depois disso, uma restrição individual pode limitar uma política habilitada. O estado padrão remove a política e restaura o valor capturado antes da primeira intervenção no mapa atual; a próxima missão usa seus próprios padrões. Ações de categoria abrangem os IDs registrados no momento, sem criar uma regra para futuros IDs desconhecidos.
 
@@ -40,7 +39,7 @@ Antes de remover o mod, restaurar regras conforme desejado e recarregar o mapa. 
 
 ## Organização e comandos
 
-Lua 5.1, scripting version 2 do Teardown, sem dependências no runtime. Código jogável em `mod/`, teste do contrato do servidor/cliente em `tests/`, ferramentas locais em `tools/`. A versão de produto é **1.4.0**; `version = 2` no manifesto continua significando a geração do scripting.
+Lua 5.1, scripting version 2 do Teardown, sem dependências no runtime. Código jogável em `mod/`, teste do contrato do servidor/cliente em `tests/`, ferramentas locais em `tools/`. A versão de produto é **1.5.0**; `version = 2` no manifesto continua significando a geração do scripting.
 
 ```sh
 python3 tools/check.py
@@ -59,7 +58,7 @@ O usuário indicou `https://github.com/Luiz-AVcruz/Open-Session-Panel-OSP.git` c
 
 Registrar a seguir a evidência efetivamente obtida nesta revisão, distinguindo testes locais, prévia ilustrativa, instalação e observação dentro do jogo. O backup central da árvore de projeto e da cópia instalada da v1.0 foi compactado e validado antes das alterações.
 
-Para testar no jogo: carregar sandbox somente com este painel administrativo; conferir Players/Session/Tools/Activity/Settings/About em EN/PT, foco de anúncio, modais, navegação e rolagem. Testar o indicador desligado/ligado, dano, cura, morte e respawn. Alternar políticas de Vanilla/Mods, trocar missão, entrar outro jogador e registrar ferramentas tardiamente. Restaurar padrões e confirmar que a próxima missão segue o jogo. Repetir com host/admin/convidado antes de afirmar suporte multiplayer observado.
+Para testar no jogo: carregar sandbox somente com este painel administrativo; conferir Players/Session/Tools/Activity/Settings/About em EN/PT, foco de anúncio, modais, navegação e rolagem. Testar dano, cura, morte e respawn. Alternar políticas de Vanilla/Mods, trocar missão, entrar outro jogador e registrar ferramentas tardiamente. Restaurar padrões e confirmar que a próxima missão segue o jogo. Repetir com host/admin/convidado antes de afirmar suporte multiplayer observado.
 
 ### Evidência obtida na revisão 1.1
 
@@ -122,3 +121,9 @@ A migração local foi concluída com o processo do jogo encerrado: somente a su
 O cliente fornece coordenadas, recorte do viewport e consumo do mouse ao editor; a tela de Options fornece seu contexto sem mapa. Ambos usam o mesmo editor e respeitam soltura do mouse, bloqueio por modal e cancelamento de arrasto ao sair. Avisos de contraste e o botão de recuperação têm cores fixas para permitir recuperar uma paleta ilegível. Cores salvas inválidas usam o padrão, e valores RGB inválidos são rejeitados. Não há editor de transparência nesta entrega.
 
 Verificação: testes de presets/contraste, RGB, persistência entre instâncias, dados inválidos, arrastar/soltar, recorte, recuperação e integração com as duas telas. Prévias sintéticas das chamadas reais de desenho foram inspecionadas em Oceano, Clara e Personalizada. O resultado visual e o arrasto no motor ainda precisam ser observados no Teardown.
+
+### Versão 1.5.0: remoção do indicador adicional de vida
+
+O HUD adicional foi retirado por não fazer parte da proposta administrativa. Foram removidos sua renderização, os controles de Settings e Options e as referências na descrição distribuída. O HUD nativo não é alterado. O campo de vida na ficha do jogador, cura e regeneração continuam existindo como controles administrativos. A chave antiga health_hud não é lida nem escrita pelo mod; pode permanecer inerte no save, sem migração ou alteração de dados do jogo. Testes ligam essa chave antiga e confirmam que não há HUD extra, inclusive em uma nova instância. Os registros de versões anteriores acima são históricos.
+
+Permissões verificadas: o host e os administradores nomeados têm acesso às funções administrativas. Convidados têm Settings e Sobre. Nomeação/revogação de admin, reinício de mapa, alterações no host e persistência das escolhas são exclusivos do host; delegados não podem alterar o host e suas ações permanecem temporárias. Não houve mudança de permissões nesta versão.

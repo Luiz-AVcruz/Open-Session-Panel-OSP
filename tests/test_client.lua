@@ -7,7 +7,7 @@ local function eq(a,b,msg) check(a==b,(msg or 'equality')..': '..tostring(a)..' 
 local function world(width,height,previousRegistry)
     local w={reg=previousRegistry or {},sent={},texts={},now=0,input='',wheel=0,mouse={x=0,y=0},click=false,held=false,released=false,armed={},
         width=width,height=height,t={x=0,y=0,s=1},stack={},drawn=false,hp=1}
-    local env=setmetatable({client={},shared={osp={ready=true,version='1.4.0',rules={},log={},
+    local env=setmetatable({client={},shared={osp={ready=true,version='1.5.0',rules={},log={},
         tools={{id='gun',name='gun',nameKey='TOOL_NAME_GUN',origin='vanilla',policy='default'},
                {id='sledge',name='Sledge',origin='vanilla',policy='enabled'},
                {id='mytool',name=string.rep('X',90),origin='mod',policy='disabled'}},
@@ -21,7 +21,7 @@ local function world(width,height,previousRegistry)
     env.GetTranslatedStringByKey=function(k,fallback) if k=='TOOL_NAME_GUN' then return 'Pistol' end;return fallback end
     env.GetLocalPlayer=function() return 11 end
     env.IsPlayerValid=function(p) return p==11 or p==23 end
-    env.GetPlayerHealth=function() return w.hp end
+    env.GetPlayerHealth=function() error('Client must not read health for an additional HUD') end
     env.IsPlayerHost=function(p) return p==11 end
     env.GetTime=function() return w.now end
     env.IsToolEnabled=function(id,p) return id=='sledge' end
@@ -156,14 +156,16 @@ for _,size in ipairs({{1280,720},{1920,1080},{1024,768},{2560,1080}}) do
     local x,y=point(r);w:pressAt(x,y)
     eq(e.OSP.UI.getState().tab,'settings','tab reacts on press in background padding')
     w:releaseAt(x,y)
-    r=w:scrollTo('health_toggle');x,y=point(r);w:pressAt(x,y)
-    eq(w.reg['savegame.mod.osp.health_hud'],true,'toggle reacts on press in background padding')
-    for i=1,3 do w:holdAt(x,y);eq(w.reg['savegame.mod.osp.health_hud'],true,'hold does not repeat') end
-    w:releaseAt(x,y);eq(w.reg['savegame.mod.osp.health_hud'],true,'release does not repeat')
+    w:clickControl('palette_custom')
+    r=w:scrollTo('palette_R_plus');x,y=point(r);w:pressAt(x,y)
+    local color=w.reg['savegame.mod.osp.theme.custom.back']
+    check(color~=nil,'RGB control reacts on press in background padding')
+    for i=1,3 do w:holdAt(x,y);eq(w.reg['savegame.mod.osp.theme.custom.back'],color,'hold does not repeat') end
+    w:releaseAt(x,y);eq(w.reg['savegame.mod.osp.theme.custom.back'],color,'release does not repeat')
     local st=w:draw();local count=#w.sent
     w:pressAt(x,st.layout.oy+st.layout.contentY+st.layout.contentH+4)
     eq(#w.sent,count,'outside viewport sends no command')
-    eq(w.reg['savegame.mod.osp.health_hud'],true,'outside viewport leaves toggle unchanged')
+    eq(w.reg['savegame.mod.osp.theme.custom.back'],color,'outside viewport leaves color unchanged')
     w:releaseAt(x,y)
   end
  end
@@ -232,8 +234,7 @@ for _,size in ipairs({{1280,720},{1920,1080},{2560,1440},{1024,768},{2560,1080}}
     w:clickControl('tool_mode_player');eq(e.OSP.UI.getState().toolMode,'player')
     w:clickControl('tool_gun');eq(w.sent[#w.sent].args[2],'tool');eq(w.sent[#w.sent].args[3],23);w:ack()
     w:clickControl('tools_disable_everyone');eq(e.OSP.UI.getState().confirm.action,'tools_filtered_all');w:clickControl('confirm_cancel')
-    w:clickControl('tab_settings');eq(w.reg['savegame.mod.osp.health_hud'],nil,'HUD starts disabled')
-    w:clickControl('health_toggle');eq(w.reg['savegame.mod.osp.health_hud'],true)
+    w:clickControl('tab_settings');eq(e.OSP.UI.getState().controls.health_toggle,nil,'health toggle removed')
     w:clickControl('palette_ocean');eq(w.reg['savegame.mod.osp.theme.mode'],'ocean')
     w:clickControl('palette_custom');w:clickControl('palette_R_plus')
     check(w.reg['savegame.mod.osp.theme.custom.back']~=nil,'custom RGB control saves')
@@ -243,10 +244,10 @@ for _,size in ipairs({{1280,720},{1920,1080},{2560,1440},{1024,768},{2560,1080}}
     eq(e.OSP.UI.getState().status,oldStatus,'unsolicited nil ACK ignored')
     w:clickControl('tab_about');w:draw();local combined=table.concat(w.texts,'|');check(combined:find('Luiz%-AVcruz')~=nil,'about author')
     e.client.ospAnnouncement('Host','Hello everyone');check(e.OSP.UI.getState().status:find('Hello everyone')~=nil,'announcement visible with menu open')
-    e.OSP.UI.open(false);w.now=w.now+7;w.hp=.4;w:draw();combined=table.concat(w.texts,'|');check(combined:find('40%%')~=nil,'health HUD displays actual health')
-    w.hp=0;w:draw();eq(#w.texts,0,'dead player has no additional indicator');w.hp=.4
-    local nextMap=world(size[1],size[2],w.reg);nextMap.hp=.5;nextMap:draw();check(table.concat(nextMap.texts,'|'):find('50%%')~=nil,'HUD preference persists across maps')
-    w.reg['savegame.mod.osp.health_hud']=false;w:draw();eq(#w.texts,0,'disabled HUD adds no text')
+    e.OSP.UI.open(false);w.now=w.now+7
+    w.reg['savegame.mod.osp.health_hud']=true -- Old saved preferences must not resurrect the removed HUD.
+    w:draw();eq(#w.texts,0,'no health HUD even with old setting enabled')
+    local nextMap=world(size[1],size[2],w.reg);nextMap:draw();eq(#nextMap.texts,0,'no HUD after map reload')
     e.IsPlayerHost=function() return false end;e.shared.osp.players[1].admin=false;e.OSP.UI.selectTab('players');w:tick();e.OSP.UI.open(true);w:draw();eq(e.OSP.UI.getState().tab,'settings')
     w:clickControl('tab_about');w:draw();eq(e.OSP.UI.getState().tab,'about','guests can read about')
     local d=world(size[1],size[2]);local de=d.api

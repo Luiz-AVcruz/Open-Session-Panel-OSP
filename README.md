@@ -1,10 +1,10 @@
 # Open Session Panel
 
-An independently written Teardown administration panel for solo and multiplayer. Version **1.4.0**, by **Luiz-AVcruz**, uses Lua 5.1 and multiplayer scripting version 2. English is the default; Brazilian Portuguese is available.
+An independently written Teardown administration panel for solo and multiplayer. Version **1.5.0**, by **Luiz-AVcruz**, uses Lua 5.1 and multiplayer scripting version 2. English is the default; Brazilian Portuguese is available.
 
 ## Panel and controls
 
-Open with **P** or the pause menu. The centered panel adapts its layout to the available canvas instead of enlarging a fixed screen. Players, Session, Tools and Activity are administrative areas. **Settings** contains language, shortcut and the optional health indicator; **About** contains version, license and source information. Both remain available to ordinary guests.
+Open with **P** or the pause menu. The centered panel adapts its layout to the available canvas instead of enlarging a fixed screen. Players, Session, Tools and Activity are administrative areas. **Settings** contains language, shortcut and the color palette; **About** contains version, license and source information. Both remain available to ordinary guests.
 
 Only the host can save player options and global tool policies, grant access, restart the map or directly change the host. A delegate may use the host as a teleport destination but cannot move or change the host. Bulk actions skip the host when issued by a delegate.
 
@@ -32,7 +32,7 @@ The host's **Global rules** are saved per tool: game default, enabled or blocked
 
 ## Settings before loading a map
 
-Select **Open Session Panel → Options** in the Mod Manager. This separate menu runs without a map, player or server. It changes language, the panel shortcut and the optional health indicator using the same saved preferences as the in-game panel. **Restore personal preferences** returns to English, P and the health indicator off.
+Select **Open Session Panel → Options** in the Mod Manager. This separate menu runs without a map, player or server. It changes language, the panel shortcut and the color palette using the same saved preferences as the in-game panel. **Restore personal preferences** returns to English, P and the Classic palette.
 
 **Reset saved host options on this computer** requires confirmation and removes this computer's saved session rules, tool policies and player choices, including admin grants. It keeps personal preferences, the host identity, profile identity references and profile slots. It does not modify another host or native campaign unlocks. Changes take effect on the next map load.
 
@@ -44,13 +44,9 @@ In the in-game **Settings**, choose Classic, Ocean, Forest, Violet, Light or Cus
 
 Custom lets you choose each interface color with the previous/next role arrows, drag its RGB bars or use the +/- buttons for exact one-step adjustments. The hex value and color swatch are shown alongside the role. Background, header/sidebar, buttons, hover, selection, dividers, primary/secondary/disabled text, accent, danger and success are editable. Switching presets keeps the custom colors. A low-contrast warning helps identify hard-to-read combinations. **Restore default palette** has fixed contrast, and the main Options page also keeps **Restore personal preferences** readable regardless of the palette; both return to Classic without deleting your custom colors.
 
-## Optional health indicator
-
-The additional bar is an individual preference in Settings, **off by default**, saved between missions. Enabling it shows real player health and a percentage alongside the native HUD. Disabling it leaves the game's HUD alone. It neither replaces the native bar nor modifies health, regeneration or global HUD flags.
-
 ## Install and develop
 
-Players do not need Python or LuaJIT. Extract `dist/OpenSessionPanel-1.4.0.zip` as its own folder in Teardown's local mods directory and enable **Open Session Panel**. After updating an already loaded mod, reload the map to load the new scripts. Keep only one administration panel active while testing conflicting gameplay controls.
+Players do not need Python or LuaJIT. Extract `dist/OpenSessionPanel-1.5.0.zip` as its own folder in Teardown's local mods directory and enable **Open Session Panel**. After updating an already loaded mod, reload the map to load the new scripts. Keep only one administration panel active while testing conflicting gameplay controls.
 
 Before disabling or removing the mod, restore session/tool defaults as desired, then reload the map to clear temporary effects. A global mod's `server.destroy` callback is not guaranteed cleanup. Remove only this mod's folder; no game files or campaign saves are included.
 
@@ -77,7 +73,7 @@ Original code is **AGPL-3.0-or-later**, with a narrow additional permission for 
 
 ## Português
 
-Painel de administração por **Luiz-AVcruz**, com inglês padrão e opção de português brasileiro. Abra com **P** ou pelo menu de pausa. Configurações e Sobre são áreas separadas. O indicador adicional de vida começa desligado e preserva o HUD do jogo.
+Painel de administração por **Luiz-AVcruz**, com inglês padrão e opção de português brasileiro. Abra com **P** ou pelo menu de pausa. Configurações e Sobre são áreas separadas. O mod usa o HUD nativo do jogo.
 
 As escolhas do host por jogador persistem entre missões: ferramentas, invencibilidade, voo, congelamento, velocidade e admin. O perfil é atribuído pelo mod e guardado no cliente para aquele host; não depende do nome ou número temporário da sessão. Alterações de admins nomeados continuam temporárias. **Jogadores → Restaurar opções do jogador** limpa as escolhas pessoais e mantém as regras gerais.
 

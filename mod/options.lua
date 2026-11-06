@@ -113,27 +113,20 @@ function draw()
         message = nil
     end
     if capturing then label(390, 251, text("press_key"), 16, 375) end
-    local health = GetBool(root .. "health_hud")
-    label(28, 310, text("health_indicator"), 20)
-    if button(582, 300, 190, text(health and "on" or "off"), health) then
-        SetBool(root .. "health_hud", not health)
-    end
-    label(28, 349, text("health_indicator_description"), 17, 744)
-    if button(28, 403, 744, text("reset_personal"), false, false, true) then
+    if button(28, 313, 744, text("reset_personal"), false, false, true) then
         SetString(root .. "language", "en")
         SetString(root .. "menu_key", "p")
-        SetBool(root .. "health_hud", false)
         capturing = false
         OSP.Theme.reset()
         message = text("preferences_reset")
     end
-    if button(28, 464, 744, text("reset_saved_host")) then
+    if button(28, 374, 744, text("reset_saved_host")) then
         confirming = true
         capturing = false
         message = nil
     end
-    label(28, 518, text("reset_saved_host_help"), 17, 744)
-    if message then label(28, 598, message, 17, 744) end
+    label(28, 428, text("reset_saved_host_help"), 17, 744)
+    if message then label(28, 508, message, 17, 744) end
     if button(28, 658, 170, text("back")) then Menu() end
     if button(210,658,350,text("palette")) then appearance=true;capturing=false end
     label(610, 668, text("version", OSP.version), 16)
