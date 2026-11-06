@@ -8,7 +8,7 @@ local function check(value, message)
 end
 local function world(width, height)
     local root = 'savegame.mod.osp.'
-    local w = {registry={}, key='', pressed=false, mouse={0,0}, back=false, stack={}, x=0,y=0,scale=1}
+    local w = {registry={}, key='', pressed=false, mouse={0,0}, back=false, stack={}, windows={}, x=0,y=0,scale=1}
     local env = setmetatable({}, {__index=_G})
     env.GetString=function(k) return w.registry[k] or '' end
     env.GetBool=function(k) return w.registry[k] or false end
@@ -37,6 +37,9 @@ local function world(width, height)
     env.UiTranslate=function(x,y) w.x=w.x+x*w.scale;w.y=w.y+y*w.scale end
     env.UiScale=function(s) w.scale=w.scale*s end
     env.UiGetMousePos=function() return (w.mouse[1]-w.x)/w.scale,(w.mouse[2]-w.y)/w.scale end
+    env.UiWindow=function(windowWidth,windowHeight,clip,scrollbar)
+        w.windows[#w.windows+1]={x=w.x,y=w.y,width=windowWidth,height=windowHeight,scale=w.scale,clip=clip,scrollbar=scrollbar}
+    end
     for _,name in ipairs({'UiColor','UiRect','UiAlign','UiFont','UiText','UiWordWrap','UiTextDisableWildcards'}) do env[name]=function() end end
     env.InputPressed=function(k) return k=='lmb' and w.pressed end
     env.InputLastPressedKey=function() return w.key end
@@ -52,12 +55,13 @@ local function world(width, height)
         w.mouse={(width-800*s)/2+x*s,(height-720*s)/2+y*s};w.pressed=true;w.draw();w.pressed=false;w.draw()
     end
     function w.type(k) w.key=k;w.draw();w.key='' end
-    return w,root
+    return w,root,env
 end
 for _,size in ipairs({{840,760},{1280,720},{1024,768},{1920,1080}}) do
-    local w,r=world(unpack(size))
+    local w,r,env=world(unpack(size))
     w.registry[r..'health_hud']=true -- Legacy key is ignored, including on reset.
     w.draw()
+    check(#w.windows==0,'ordinary Options labels and buttons do not create clipped fields')
     w.click(272,148);check(w.registry[r..'language']=='pt','language padding hit')
     w.click(30,245);w.type('w');check(w.registry[r..'menu_key']==nil,'reject movement key')
     w.type('f8');check(w.registry[r..'menu_key']=='f8','save shortcut without map')
@@ -84,9 +88,27 @@ for _,size in ipairs({{840,760},{1280,720},{1024,768},{1920,1080}}) do
     check(w.registry['savegame.tool.gun.enabled']==true,'native unlock data untouched')
     w.click(212,660);w.click(282,126)
     check(w.registry[r..'theme.mode']=='ocean','preset from main-menu options')
-    w.click(532,170);w.click(694,272)
+    w.click(532,170)
     check(w.registry[r..'theme.mode']=='custom','custom from main-menu options')
-    check(w.registry[r..'theme.custom.back']~=nil,'RGB control without a map')
+    w.windows={};w.draw()
+    check(#w.windows==3,'only the three RGB numeric captions use clipping windows')
+    local scale=math.min(1,size[1]/840,size[2]/760)
+    for _,window in ipairs(w.windows) do
+        check(window.clip==true and window.scrollbar==nil,'RGB caption uses a clip window without a scrollbar')
+        check(math.abs(window.width*window.scale-36*scale)<.001,'RGB caption clip scales with its 60px field')
+        check(math.abs(window.height*window.scale-27*scale)<.001,'RGB caption clip height scales with its field text')
+        check(math.abs(window.x-((size[1]-800*scale)/2+60*scale))<.001,'RGB caption clip begins inside its own button')
+    end
+    w.click(60,285)
+    check(env.OSP.NumberInput.active('palette_R_value'),'RGB entry opens without a map')
+    w.type('2');w.type('0');w.type('0');w.type('enter')
+    check(w.registry[r..'theme.custom.back']:sub(1,2)=='C8','numeric red channel saves as 200')
+    w.click(60,285);w.type('5')
+    local beforeCancel=w.registry[r..'theme.custom.back']
+    w.type('esc')
+    check(w.registry[r..'theme.custom.back']==beforeCancel and not env.OSP.NumberInput.active(),'Escape cancels without changing saved RGB')
+    w.click(60,285);w.type('9');w.type('9');w.type('9');w.type('enter')
+    check(w.registry[r..'theme.custom.back']:sub(1,2)=='FF','main-menu RGB clamps to maximum')
     w.click(30,660)
     w.click(30,315);check(w.registry[r..'theme.mode']=='classic','personal reset restores palette')
     w.click(30,660);check(w.back,'back to Mod Manager')

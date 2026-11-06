@@ -7,7 +7,7 @@ local function eq(a,b,msg) check(a==b,(msg or 'equality')..': '..tostring(a)..' 
 local function world(width,height,previousRegistry)
     local w={reg=previousRegistry or {},sent={},texts={},now=0,input='',wheel=0,mouse={x=0,y=0},click=false,held=false,released=false,armed={},
         width=width,height=height,t={x=0,y=0,s=1},stack={},drawn=false,hp=1}
-    local env=setmetatable({client={},shared={osp={ready=true,version='1.6.0',rules={},log={},
+    local env=setmetatable({client={},shared={osp={ready=true,version='1.3.0',rules={},log={},
         tools={{id='gun',name='gun',nameKey='TOOL_NAME_GUN',origin='vanilla',policy='default'},
                {id='sledge',name='Sledge',origin='vanilla',policy='enabled'},
                {id='mytool',name=string.rep('X',90),origin='mod',policy='disabled'}},
@@ -288,7 +288,7 @@ do
     local w=world(1024,768);local e=w.api
     e.shared.osp.players[2].profileReady=false;e.OSP.UI.open(true)
     w:clickControl('player_23')
-    for _,id in ipairs({'player_action_god','player_action_fly','player_action_freeze','speed_up','player_admin','reset_player'}) do
+    for _,id in ipairs({'player_action_god','player_action_fly','player_action_noclip','player_speed_value','player_action_freeze','speed_up','player_admin','reset_player'}) do
         eq(w:scrollTo(id).disabled,true,'waiting profile disables '..id)
     end
     w:clickControl('tab_tools');w:clickControl('tool_mode_player')
@@ -328,28 +328,41 @@ for _,language in ipairs({'en','pt'}) do
     check(hasBoth(e.OSP.L('rain'),'80%'),'history shows higher rain value')
     check(hasBoth(e.OSP.L('announcement'),'A different'),'history includes announcement content')
 end
--- Host template editing, assignment and ACK-before-shared replication.
+-- Host role assignment and its separate custom-role editor.
 for _,size in ipairs({{1024,768},{1920,1080}}) do
  for _,language in ipairs({'en','pt'}) do
     local w=world(unpack(size));local e=w.api
     w.reg['savegame.mod.osp.language']=language
     e.shared.osp.templates=e.OSP.Permissions.list({})
     e.OSP.UI.open(true);w:clickControl('tab_permissions')
-    w:clickControl('permission_player_next')
-    w:clickControl('permission_next') -- Self only.
-    w:clickControl('permission_apply');eq(e.OSP.UI.getState().confirm.action,'role_assign')
+    local st=w:draw()
+    eq(st.controls.role_editor_name,nil,'assignment view hides editor name')
+    eq(st.controls.role_editor_save,nil,'assignment view hides editor save')
+    eq(st.controls.role_scope_heal,nil,'assignment view hides editable permissions')
+    w:clickControl('role_target_next')
+    w:clickControl('role_select_next') -- Self only.
+    w:clickControl('role_apply');eq(e.OSP.UI.getState().confirm.action,'role_assign')
     w:clickControl('confirm_accept')
     eq(w.sent[#w.sent].args[2],'role_assign');eq(w.sent[#w.sent].args[3],23);eq(w.sent[#w.sent].args[4].id,'self');w:ack()
-    w:clickControl('permission_copy')
-    eq(w:scrollTo('permission_apply').disabled,true,'unsaved copy cannot apply the base template by mistake')
-    w:clickControl('permission_name');check(e.OSP.PermissionUI.capturing(),'name capture starts')
+    w:clickControl('role_create_custom')
+    st=w:draw()
+    eq(st.controls.role_apply,nil,'editor hides role assignment')
+    eq(st.controls.role_target_prev,nil,'editor hides player selection')
+    eq(st.controls.role_create_custom,nil,'editor hides custom-role browser actions')
+    eq(w:scrollTo('role_editor_save').disabled,false,'new custom role can be saved')
+    w:clickControl('role_editor_name');check(e.OSP.PermissionUI.capturing(),'name capture starts')
     w:clickControl('close');eq(e.OSP.PermissionUI.capturing(),false,'Close cancels name capture')
-    e.OSP.UI.open(true);w:clickControl('permission_name');check(e.OSP.PermissionUI.capturing())
+    e.OSP.UI.open(true);w:clickControl('role_editor_name');check(e.OSP.PermissionUI.capturing())
     e.OSP.UI.open(false);eq(e.OSP.PermissionUI.capturing(),false,'programmatic close cancels name capture')
-    e.OSP.UI.open(true);w:clickControl('permission_name')
+    e.OSP.UI.open(true);w:clickControl('role_editor_name');w:tick('x')
+    local beforeDiscard=#w.sent
+    w:clickControl('role_editor_discard')
+    eq(#w.sent,beforeDiscard,'discarding a new role sends no save request')
+    eq(w:draw().controls.role_apply~=nil,true,'discard returns to role assignment')
+    w:clickControl('role_create_custom');w:clickControl('role_editor_name')
     for i=1,40 do w:tick('backspace') end
     for letter in ('medi'):gmatch('.') do w:tick(letter) end
-    local r=w:scrollTo('permission_save')
+    local r=w:scrollTo('role_editor_save')
     w:pressAt(r.x+2,r.y+2,'c');w:releaseAt(r.x+2,r.y+2)
     local request=w.sent[#w.sent]
     eq(request.args[2],'role_save');eq(request.args[4].name,'medic')
@@ -357,22 +370,49 @@ for _,size in ipairs({{1024,768},{1920,1080}}) do
     local saved={id='c1',name='medic',version=1,builtin=false,permissions=request.args[4].permissions}
     e.client.ospResult(true,'ok',{template=saved},request.args[5])
     -- Shared intentionally still contains only builtins: the ACK is enough to
-    -- keep the saved draft selected without reverting to Guest.
-    w:draw();eq(w:scrollTo('permission_delete').disabled,false,'saved copy survives delayed shared state')
-    w:clickControl('permission_apply');eq(e.OSP.UI.getState().confirm.arg.id,'c1')
+    -- keep the new role selected after the editor returns to assignment.
+    st=w:draw()
+    eq(st.controls.role_editor_name,nil,'ACK returns to assignment view')
+    eq(st.controls.role_create_custom~=nil,true,'ACK returns to custom-role actions')
+    eq(w:scrollTo('role_edit_custom').disabled,false,'saved copy survives delayed shared state')
+    w:clickControl('role_apply');eq(e.OSP.UI.getState().confirm.arg.id,'c1')
     w:clickControl('confirm_cancel')
     e.shared.osp.templates[#e.shared.osp.templates+1]=saved
-    w:clickControl('permission_cap_heal')
-    eq(w:scrollTo('permission_apply').disabled,true,'dirty scope must be saved before assignment')
-    w:clickControl('permission_save');local edited=w.sent[#w.sent].args[4]
+    w:clickControl('role_edit_custom')
+    st=w:draw()
+    eq(st.controls.role_apply,nil,'editing a role cannot assign it in the editor')
+    w:clickControl('role_scope_heal')
+    local editedRequestRect=w:scrollTo('role_editor_save')
+    w:pressAt(editedRequestRect.x+2,editedRequestRect.y+2,'c');w:releaseAt(editedRequestRect.x+2,editedRequestRect.y+2)
+    local edited=w.sent[#w.sent].args[4]
+    eq(w.sent[#w.sent].args[2],'role_save')
     eq(edited.id,'c1');eq(edited.version,1);eq(edited.permissions.heal,2,'scope changes independently')
     e.client.ospResult(false,'conflict',{},w.sent[#w.sent].args[5])
     eq(e.OSP.UI.getState().status,e.OSP.L('role_conflict'))
-    w:clickControl('permission_reload')
-    w:clickControl('permission_delete');w:clickControl('confirm_accept')
+    st=w:draw()
+    eq(st.controls.role_scope_heal.disabled,false,'conflict leaves the custom editor and draft active')
+    saved.version=2;saved.permissions.heal=0
+    for i,entry in ipairs(e.shared.osp.templates) do if entry.id=='c1' then e.shared.osp.templates[i]=saved end end
+    w:draw()
+    w:clickControl('role_editor_reload')
+    w:clickControl('role_scope_heal') -- Reloaded blocked value, now allow self only.
+    local r2=w:scrollTo('role_editor_save')
+    w:pressAt(r2.x+2,r2.y+2,'c');w:releaseAt(r2.x+2,r2.y+2)
+    local refreshed=w.sent[#w.sent].args[4]
+    eq(refreshed.version,2,'reload uses latest template version')
+    eq(refreshed.permissions.heal,1,'reload discards stale draft permissions')
+    e.client.ospResult(false,'conflict',{},w.sent[#w.sent].args[5])
+    w:draw()
+    eq(w:scrollTo('role_editor_reload').disabled,false,'failed save preserves the latest draft')
+    w:clickControl('role_editor_discard')
+    eq(w:draw().controls.role_apply~=nil,true,'discard returns to assignment mode')
+    w:clickControl('role_edit_custom')
+    w:clickControl('role_editor_delete');w:clickControl('confirm_accept')
     eq(w.sent[#w.sent].args[2],'role_delete')
     e.client.ospResult(true,'ok',{deleted='c1'},w.sent[#w.sent].args[5])
-    eq(w:scrollTo('permission_delete').disabled,true,'deleted role is hidden before shared catches up')
+    st=w:draw()
+    eq(st.controls.role_editor_delete,nil,'delete ACK returns to assignment mode')
+    eq(st.controls.role_select_next~=nil,true,'deleted role is hidden before shared catches up')
  end
 end
 -- Per-control UI gating agrees with the server's public capability vocabulary.
@@ -399,5 +439,72 @@ do
     e.shared.osp.players[2].permissions=e.OSP.Permissions.resolve('self').permissions
     local before=#w.sent;w:clickControl('confirm_accept')
     eq(#w.sent,before,'revocation prevents a stale confirmation from sending')
+end
+-- Numeric edits use the same permission/command path as the +/- controls.
+for _,size in ipairs({{1024,768},{1920,1080}}) do
+ for _,language in ipairs({'en','pt'}) do
+    local w=world(unpack(size));local e=w.api
+    w.reg['savegame.mod.osp.language']=language;e.OSP.UI.open(true)
+    local function edit(id,text,action,value,key)
+        w:clickControl(id);check(e.OSP.NumberInput.active(id),'number field takes focus')
+        for char in text:gmatch('.') do w:tick(char) end
+        local before=#w.sent;w:tick('return')
+        eq(e.OSP.NumberInput.active(),false,'Enter ends numeric input')
+        eq(#w.sent,before+1,'one numeric commit sends one request')
+        local request=w.sent[#w.sent]
+        eq(request.args[2],action)
+        if key then eq(request.args[4].key,key);eq(request.args[4].value,value)
+        else eq(request.args[4],value) end
+        w:ack()
+    end
+    edit('player_speed_value','99','speed',3)
+    edit('player_speed_value','-8','speed',.5)
+    edit('player_speed_value','1,75','speed',1.75)
+    local before=#w.sent
+    w:clickControl('player_speed_value');w:tick('2');w:tick('esc')
+    eq(#w.sent,before,'Escape discards a numeric edit')
+    eq(e.OSP.NumberInput.active(),false)
+    w:clickControl('player_speed_value');w:tick('2');w:clickControl('close')
+    eq(#w.sent,before,'Close cannot save an unfinished number')
+    eq(e.OSP.NumberInput.active(),false)
+    e.OSP.UI.open(true);w:clickControl('player_speed_value')
+    local r=w:scrollTo('speed_up');w:pressAt(r.x+2,r.y+2,'9');w:releaseAt(r.x+2,r.y+2)
+    eq(#w.sent,before+1,'simultaneous typing and mouse keeps the +/- press')
+    eq(w.sent[#w.sent].args[4],1.25,'+/- discards the unfinished typed value');w:ack()
+    w:clickControl('tab_session')
+    edit('rule_time_value','0','rule',.1,'time')
+    edit('rule_time_value','9','rule',2,'time')
+    edit('rule_rain_value','-1','rule',0,'rain')
+    edit('rule_rain_value','7','rule',1,'rain')
+    edit('rule_rain_value','0.37','rule',.37,'rain')
+    edit('rule_fog_value','1','rule',10,'fog')
+    edit('rule_fog_value','9000','rule',1000,'fog')
+    edit('rule_fog_value','151.8','rule',152,'fog')
+    -- Each row captures its own rule key, and edits cannot survive navigation.
+    before=#w.sent;w:clickControl('rule_fog_value');w:tick('5');w:clickControl('tab_players');w:tick('return')
+    eq(#w.sent,before,'changing tabs cancels the number draft')
+    w:clickControl('tab_settings');w:clickControl('palette_custom')
+    local color=e.OSP.Theme.colors().back
+    local green,blue=math.floor(color[2]*255+.5)/255,math.floor(color[3]*255+.5)/255
+    w:clickControl('palette_R_value');w:tick('9');w:tick('9');w:tick('9');w:tick('return')
+    eq(e.OSP.Theme.colors().back[1],1,'RGB typed in the panel clamps at 255')
+    eq(e.OSP.Theme.colors().back[2],green,'editing red keeps green')
+    eq(e.OSP.Theme.colors().back[3],blue,'editing red keeps blue')
+    eq(#w.sent,before,'personal color editing sends no server command')
+ end
+end
+do
+    local w=world(1920,1080);local e=w.api
+    e.GetLocalPlayer=function() return 23 end;e.client.init()
+    local p=e.shared.osp.players[2];p.admin=true;p.role='self';p.permissions=e.OSP.Permissions.resolve('self').permissions
+    e.OSP.UI.open(true);w:draw();w:clickControl('player_speed_value');w:tick('2')
+    p.permissions=e.OSP.Permissions.normalize({})
+    local before=#w.sent;w:tick('return')
+    eq(#w.sent,before,'revoking speed access also blocks an already-open field')
+    p.permissions=e.OSP.Permissions.resolve('self').permissions
+    w:clickControl('player_11');eq(w:scrollTo('player_speed_value').disabled,true,'self-only scope protects other numeric targets')
+    w:clickControl('player_23');w:clickControl('player_speed_value');w:tick('2')
+    p.profileChallenge=99;w:tick('return')
+    eq(#w.sent,before,'a reused session player cannot receive an old numeric edit')
 end
 print('PASS client interaction, viewport and translation contracts: '..assertions..' assertions (mock UI)')

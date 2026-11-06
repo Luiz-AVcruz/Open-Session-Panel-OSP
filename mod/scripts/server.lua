@@ -28,9 +28,14 @@ function OSP.installServer()
     local function loadProfile(p,e,id)
         e.profile=id
         local root=profileSave..id.."."
-        for _,key in ipairs({"admin","god","fly","freeze"}) do
+        for _,key in ipairs({"admin","god","freeze"}) do
             if HasKey(root..key) then e[key]=GetBool(root..key) end
         end
+        -- The old fly flag meant native noclip. New colliding flight has its
+        -- own storage key, so older builds never turn flight grants into noclip.
+        if HasKey(root.."noclip") then e.noclip=GetBool(root.."noclip")
+        elseif HasKey(root.."fly") then e.noclip=GetBool(root.."fly") end
+        e.fly=GetBool(root.."flight")
         if HasKey(root.."role") then e.role=GetString(root.."role");e.admin=false
         else e.role=e.admin and "admin" or "guest" end
         if HasKey(root.."speed") then
@@ -57,7 +62,7 @@ function OSP.installServer()
         if join<1 or join>2147483647 then join=1 end
         SetInt("savegame.mod.osp.nextjoin",join)
         local e={
-            admin=false, god=nil, fly=nil, freeze=false, speed=1,
+            admin=false, god=nil, fly=false, noclip=nil, flying=false, freeze=false, speed=1,
             baseSpeed=GetPlayerWalkingSpeed(p),
             baseGod=GetPlayerParam("godMode", p),
             baseFly=GetPlayerParam("flyMode", p),
@@ -80,7 +85,7 @@ function OSP.installServer()
             if e then
                 view.players[#view.players+1]={id=p,name=GetPlayerName(p),health=GetPlayerHealth(p),
                     vehicle=GetPlayerVehicle(p)~=0,host=isHost(p),admin=isAdmin(p),god=e.god==true or (e.god==nil and e.baseGod==true),
-                    fly=e.fly==true or (e.fly==nil and e.baseFly==true),
+                    fly=e.fly==true,flying=e.flying==true,noclip=e.noclip==true or (e.noclip==nil and e.baseFly==true),
                     freeze=e.freeze,speed=e.speed,role=playerRole(p).id,permissions=OSP.copy(playerRole(p).permissions),profileReady=e.profile~=nil,profileChallenge=e.challenge}
             end
         end
@@ -226,12 +231,15 @@ function OSP.installServer()
     local function add(name,validate,run,opts)
         opts=opts or {}; opts.validate=validate; opts.run=run; actions[name]=opts
     end
+    local function stopFlight(e)
+        e.flying=false;e.jumpAt=nil
+    end
     local function heal(p)
-        if GetPlayerHealth(p)<=0 then RespawnPlayer(p); players[p].alive=false; enforceTools(p) else SetPlayerHealth(1,p) end
+        if GetPlayerHealth(p)<=0 then stopFlight(players[p]);RespawnPlayer(p); players[p].alive=false; enforceTools(p) else SetPlayerHealth(1,p) end
     end
     add("heal",nil,function(_,p) heal(p) end,{target=true})
-    add("kill",nil,function(_,p) SetPlayerHealth(0,p) end,{target=true})
-    add("respawn",nil,function(_,p) RespawnPlayer(p); players[p].alive=false; enforceTools(p) end,{target=true})
+    add("kill",nil,function(_,p) stopFlight(players[p]);SetPlayerHealth(0,p) end,{target=true})
+    add("respawn",nil,function(_,p) stopFlight(players[p]);RespawnPlayer(p); players[p].alive=false; enforceTools(p) end,{target=true})
     add("goto",nil,function(c,p) moveTo(c,p) end,{target=true,readTarget=true,aliveCaller=true,aliveTarget=true})
     add("bring",nil,function(c,p) moveTo(p,c) end,{target=true,aliveCaller=true,aliveTarget=true})
     add("eject",nil,function(_,p) SetPlayerVehicle(0,p) end,{target=true})
@@ -239,13 +247,28 @@ function OSP.installServer()
         SetPlayerParam("godMode",v,p); players[p].god=v
         saveField(c,p,"god",v)
     end,{target=true,persistent=true})
-    add("fly",boolean,function(c,p,v)
+    local function saveNoclip(c,p,v)
+        saveField(c,p,"noclip",v)
+        saveField(c,p,"fly",v) -- Compatibility with the old native-fly setting.
+    end
+    add("noclip",boolean,function(c,p,v)
         SetPlayerVehicle(0,p); SetPlayerParam("flyMode",v,p)
-        SetPlayerVelocity(Vec(0,0,0),p); players[p].fly=v
-        saveField(c,p,"fly",v)
+        local e=players[p]
+        SetPlayerVelocity(Vec(0,0,0),p);e.noclip=v;stopFlight(e)
+        saveNoclip(c,p,v)
+        if v then e.fly=false;saveField(c,p,"flight",false) end
+    end,{target=true,persistent=true})
+    add("fly",boolean,function(c,p,v)
+        local e=players[p]
+        if e.flying then SetPlayerVelocity(Vec(0,0,0),p) end
+        stopFlight(e);e.fly=v;saveField(c,p,"flight",v)
+        if v then
+            e.noclip=false;SetPlayerParam("flyMode",false,p);saveNoclip(c,p,false)
+        end
     end,{target=true,persistent=true})
     add("freeze",boolean,function(c,p,v)
         players[p].freeze=v
+        stopFlight(players[p])
         if v then
             SetPlayerVehicle(0,p); players[p].anchor=GetPlayerTransform(p)
             SetPlayerVelocity(Vec(0,0,0),p)
@@ -271,6 +294,8 @@ function OSP.installServer()
                 local name,version=GetString(path.."name"),GetInt(path.."version")
                 local values={}
                 for _,spec in ipairs(P.spec) do values[spec.id]=GetInt(path.."permissions."..spec.id) end
+                if HasKey(path.."permissions.noclip") then values.fly=GetInt(path.."permissions.flight")
+                else values.noclip=values.fly;values.fly=0 end
                 local permissions=P.normalize(values)
                 if P.validName(name) and version>=1 and permissions then
                     templates[id]={id=id,name=name,version=version,permissions=permissions,builtin=false}
@@ -292,7 +317,11 @@ function OSP.installServer()
         templates[id]=role
         local path=templateSave.."."..id.."."
         SetString(path.."name",role.name);SetInt(path.."version",role.version)
-        for _,spec in ipairs(P.spec) do SetInt(path.."permissions."..spec.id,role.permissions[spec.id]) end
+        for _,spec in ipairs(P.spec) do
+            local key=spec.id=="fly" and "flight" or spec.id
+            SetInt(path.."permissions."..key,role.permissions[spec.id])
+        end
+        SetInt(path.."permissions.fly",role.permissions.noclip)
         return {affected=1,skipped=0,template=OSP.copy(role)}
     end,{host=true,guard=function(v)
         if (v.id=="" and v.version~=0) or (v.id~="" and templates[v.id].version~=v.version) then return "conflict" end
@@ -319,7 +348,7 @@ function OSP.installServer()
         ClearKey(profileSave..e.profile)
         -- Keep the assigned identity, so reconnecting does not allocate a new one.
         SetBool(profileSave..e.profile..".exists",true)
-        e.admin=false;e.role="guest";e.god=nil;e.fly=nil;e.freeze=false;e.anchor=nil;e.speed=1;e.toolRules={}
+        e.admin=false;e.role="guest";e.god=nil;e.fly=false;e.noclip=nil;stopFlight(e);e.freeze=false;e.anchor=nil;e.speed=1;e.toolRules={}
         SetPlayerParam("godMode",e.baseGod,p);SetPlayerParam("flyMode",e.baseFly,p)
         for id,on in pairs(e.toolBase) do if known[id] then applyTool(p,id,on) end end
         enforceTools(p)
@@ -474,26 +503,44 @@ function OSP.installServer()
         record(actor,action,target,code,details,arg)
         publish(); reply(actor,ok,code,details,requestId)
     end
-    local function updatePlayer(p)
+    local function updatePlayer(p,readInput)
         local e=players[p]
         enforceTools(p)
         local alive=GetPlayerHealth(p)>0
         if alive and not e.alive then
+            stopFlight(e)
             e.baseSpeed=GetPlayerWalkingSpeed(p)
             if e.freeze then e.anchor=GetPlayerTransform(p) end
         end
         e.alive=alive
-        if not alive then return end
+        if not alive then stopFlight(e);return end
         if e.god~=nil then SetPlayerParam("godMode",e.god,p) end
-        if e.fly~=nil then SetPlayerParam("flyMode",e.fly,p) end
+        if e.noclip~=nil then SetPlayerParam("flyMode",e.noclip,p) end
         if e.speed~=1 then SetPlayerParam("walkingSpeed",e.baseSpeed*e.speed,p) end
         if rules.regen~=nil then SetPlayerRegenerationState(rules.regen,p) end
+        local noclip=e.noclip==true or (e.noclip==nil and e.baseFly==true)
+        if not e.fly or noclip or e.freeze or GetPlayerVehicle(p)~=0 then stopFlight(e)
+        elseif readInput then
+            if not GetPlayerCanUseTool(p) then e.jumpAt=nil
+            elseif InputPressed("jump",p) then
+                local now=GetTime()
+                if e.jumpAt and now>e.jumpAt and now-e.jumpAt<=0.3 then
+                    e.flying=not e.flying;e.jumpAt=nil
+                    SetPlayerVelocity(Vec(0,0,0),p)
+                else e.jumpAt=now end
+            end
+        end
+        if e.flying then
+            -- Keep the normal character collider; suppress only native walking
+            -- and jump impulses while the fixed-step flight velocity drives it.
+            SetPlayerParam("walkingSpeed",0,p);SetPlayerParam("jumpSpeed",0,p)
+        end
         if e.freeze then
             DisablePlayerInput(p)
             SetPlayerVehicle(0,p)
             SetPlayerTransform(e.anchor,p)
             SetPlayerVelocity(Vec(0,0,0),p)
-        elseif e.fly then
+        elseif e.noclip then
             -- Logical movement inputs honor the player's actual keyboard mapping.
             local x=(InputDown("right",p) and 1 or 0)-(InputDown("left",p) and 1 or 0)
             local z=(InputDown("down",p) and 1 or 0)-(InputDown("up",p) and 1 or 0)
@@ -546,8 +593,40 @@ function OSP.installServer()
             end
         end
         if rules.time~=nil then SetTimeScale(rules.time) end
-        for _,p in ipairs(roster()) do updatePlayer(p) end
+        for _,p in ipairs(roster()) do updatePlayer(p,true) end
         if refresh then publish() end
+    end
+    function server.update(dt)
+        for _,p in ipairs(roster()) do
+            local e=players[p]
+            if e and e.flying then
+                if not e.fly or e.noclip or e.freeze or GetPlayerHealth(p)<=0 or GetPlayerVehicle(p)~=0 then stopFlight(e)
+                else
+                    local direction=Vec(0,0,0)
+                    if GetPlayerCanUseTool(p) then
+                        -- Flatten the camera direction so looking up/down does
+                        -- not turn forward movement into vertical movement.
+                        local forward=TransformToParentVec(GetPlayerCameraTransform(p),Vec(0,0,-1))
+                        forward[2]=0
+                        if VecLength(forward)<0.001 then
+                            forward=TransformToParentVec(GetPlayerTransform(p),Vec(0,0,-1));forward[2]=0
+                        end
+                        local length=VecLength(forward)
+                        if length>0 then forward=VecScale(forward,1/length) end
+                        local right=Vec(-forward[3],0,forward[1])
+                        local x=(InputDown("right",p) and 1 or 0)-(InputDown("left",p) and 1 or 0)
+                        local z=(InputDown("up",p) and 1 or 0)-(InputDown("down",p) and 1 or 0)
+                        local y=(InputDown("jump",p) and 1 or 0)-(InputDown("crouch",p) and 1 or 0)
+                        direction=VecAdd(VecAdd(VecScale(right,x),VecScale(forward,z)),Vec(0,y,0))
+                        length=VecLength(direction)
+                        if length>1 then direction=VecScale(direction,1/length) end
+                    end
+                    -- Cancel gravity for this physics step without changing the
+                    -- scene's gravity, teleporting or disabling collisions.
+                    SetPlayerVelocity(VecAdd(VecScale(direction,9*e.speed),VecScale(GetGravity(),-dt)),p)
+                end
+            end
+        end
     end
     function server.destroy()
         -- Engine documents destroy for game modes only; never rely on this for

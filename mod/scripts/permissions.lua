@@ -6,7 +6,7 @@ local P = OSP.Permissions
 P.spec = {
     {id="heal",target=true},{id="respawn",target=true},{id="goto",target=true},
     {id="bring",target=true},{id="kill",target=true},{id="eject",target=true},
-    {id="god",target=true},{id="fly",target=true},{id="freeze",target=true},
+    {id="god",target=true},{id="fly",target=true},{id="noclip",target=true},{id="freeze",target=true},
     {id="speed",target=true},{id="tools",target=true},
     {id="heal_all"},{id="bring_all"},{id="tools_all"},{id="announce"},
     {id="rule_time"},{id="rule_rain"},{id="rule_fog"},{id="rule_regen"},{id="reset_rules"},
@@ -34,7 +34,7 @@ local all={}
 for _,spec in ipairs(P.spec) do all[spec.id]=2 end
 P.builtins={
     preset("guest",{}),
-    preset("self",{heal=1,respawn=1,["goto"]=2,eject=1,god=1,fly=1,speed=1,tools=1}),
+    preset("self",{heal=1,respawn=1,["goto"]=2,eject=1,god=1,fly=1,noclip=1,speed=1,tools=1}),
     preset("helper",{heal=2,respawn=2,["goto"]=2,bring=2,announce=2}),
     preset("moderator",{heal=2,respawn=2,["goto"]=2,bring=2,eject=2,freeze=2,speed=2,tools=2,heal_all=2,bring_all=2,tools_all=2,announce=2}),
     preset("admin",all),

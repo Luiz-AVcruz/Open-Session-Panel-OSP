@@ -55,6 +55,9 @@ local function world(options)
     env.SetPlayerVelocity=function(v,p) w.players[p].velocity=v end
     env.DisablePlayerInput=function(p) w.players[p].disabled=true end
     env.InputDown=function(k,p) return w.players[p].inputs and w.players[p].inputs[k] or false end
+    env.InputPressed=function(k,p) return w.players[p].pressed and w.players[p].pressed[k] or false end
+    env.GetPlayerCanUseTool=function(p) return w.players[p].interactive~=true end
+    env.GetGravity=function() return w.gravity or {0,-10,0} end
     env.GetEnvironmentProperty=function(k)
         local v=w.env[k]; if type(v)=='table' then return unpack(v) else return v end
     end
@@ -158,8 +161,8 @@ w.command(11,'tool',47,{id='gun',enabled=false});w.api.RespawnPlayer(47);w.tick(
 w.players[47].tools.gun=true;w.now=w.now+1/60;w.api.server.tick(1/60)
 eq(w.players[47].tools.gun,false,'no 200 ms pickup window')
 -- Effects are immediate/frame based; movement stops only while frozen.
-w.command(11,'god',47,true);w.command(11,'fly',47,true);w.command(11,'speed',47,2)
-w.players[47].inputs={up=true,jump=true};w.tick();check(w.players[47].velocity[3]<0,'fly logical forward');check(w.players[47].velocity[2]>0,'fly logical jump');eq(w.players[47].speed,14)
+w.command(11,'god',47,true);w.command(11,'noclip',47,true);w.command(11,'speed',47,2)
+w.players[47].inputs={up=true,jump=true};w.tick();check(w.players[47].velocity[3]<0,'noclip logical forward');check(w.players[47].velocity[2]>0,'noclip logical jump');eq(w.players[47].speed,14)
 w.command(11,'freeze',47,true);w.tick();eq(w.players[47].disabled,true);eq(w.players[47].velocity[3],0)
 w.command(11,'freeze',47,false);w.tick();eq(w.players[47].disabled,false)
 w.command(11,'kill',47);w.tick();w.command(11,'respawn',47);w.tick();eq(w.players[47].params.godMode,true);eq(w.players[47].params.flyMode,true);eq(w.players[47].speed,14)
@@ -272,7 +275,7 @@ registry={}
 local saved=world({catalog={'sledge','gun','modlaser'}})
 local identity=saved.identities[23]
 local previousJoin=saved.api.shared.osp.players[2].profileChallenge
-for _,effect in ipairs({'god','fly','freeze','admin'}) do eq(saved.command(11,effect,23,true),true) end
+for _,effect in ipairs({'god','noclip','freeze','admin'}) do eq(saved.command(11,effect,23,true),true) end
 saved.command(11,'speed',23,2.25)
 saved.players[23].tools.modlaser=true
 saved.command(11,'tools_filtered',23,{category='mod',enabled=false})
@@ -448,4 +451,92 @@ for _,spec in ipairs(P.spec) do
         check(not P.allows(grants,spec.id,47,nil,23),'other target blocked '..spec.id)
     end
 end
+-- Colliding flight is a saved ability; the live flying state is transient.
+registry={}
+local flight=world();local pilot=flight.players[23];pilot.vehicle=0
+eq(flight.command(11,'fly',23,true),true)
+eq(flight.api.shared.osp.players[2].fly,true)
+eq(flight.api.shared.osp.players[2].flying,false,'enabling the ability does not immediately fly')
+eq(pilot.params.flyMode,false,'colliding flight must never enable native noclip')
+eq(flight.api.shared.osp.players[2].admin,false,'host may grant the ability to an ordinary guest')
+local transforms=0
+flight.api.SetPlayerTransform=function() transforms=transforms+1 end
+local function frame(pressed,dt)
+    flight.now=flight.now+(dt or .05)
+    pilot.pressed={jump=pressed};pilot.speed=7;pilot.params.jumpSpeed=5
+    flight.api.server.tick(dt or .05);flight.api.server.update(1/60)
+    pilot.pressed={}
+end
+pilot.inputs={jump=true};frame(true)
+eq(pilot.speed,7,'single jump retains normal movement')
+frame(false);frame(true)
+eq(pilot.speed,0,'double jump starts colliding flight')
+eq(pilot.params.jumpSpeed,0,'native jump impulse is suppressed only while flying')
+check(pilot.velocity[2]>0,'hold jump ascends')
+frame(false,.4);eq(pilot.speed,0,'holding jump cannot repeatedly toggle flight')
+pilot.inputs={};frame(false)
+eq(pilot.velocity[1],0);eq(pilot.velocity[3],0)
+check(math.abs(pilot.velocity[2]-10/60)<.00001,'hover compensates this physics step gravity')
+local hovered=pilot.velocity[2]-10/60
+check(math.abs(hovered)<.00001,'gravity cancellation produces zero vertical velocity in a physics step')
+flight.gravity={2,-4,0};flight.api.server.update(.02)
+eq(pilot.velocity[1],-.04);eq(pilot.velocity[2],.08)
+flight.gravity=nil;pilot.inputs={up=true,right=true,jump=true};frame(false)
+local v=pilot.velocity;local speed=math.sqrt(v[1]^2+(v[2]-10/60)^2+v[3]^2)
+check(math.abs(speed-9)<.00001,'diagonal flight speed stays bounded')
+eq(transforms,0,'flight uses the normal collider, never position teleportation')
+eq(pilot.params.CollisionMask,nil,'collision mask is not disabled')
+eq(pilot.params.flyMode,false)
+pilot.interactive=true;pilot.inputs={jump=true,right=true};frame(true)
+eq(pilot.velocity[1],0,'interactive UI suspends steering')
+pilot.interactive=false;frame(true);frame(false);frame(true)
+eq(pilot.speed,7,'the two taps after closing UI can stop flight')
+-- Slow taps and UI transitions cannot be combined into a double jump.
+frame(true,.5);frame(false,.4);frame(true,.4);eq(pilot.speed,7)
+pilot.interactive=true;frame(false);pilot.interactive=false;frame(true);eq(pilot.speed,7)
+frame(false);frame(true);eq(pilot.speed,0)
+pilot.vehicle=123;frame(false);eq(pilot.vehicle,123,'entering a vehicle ends flight without ejecting it')
+eq(pilot.speed,7)
+pilot.vehicle=0;frame(true);frame(false);frame(true);eq(pilot.speed,0)
+flight.command(11,'freeze',23,true);frame(false);eq(pilot.speed,7,'freeze cancels active flight')
+flight.command(11,'freeze',23,false)
+frame(true);frame(false);frame(true);eq(pilot.speed,0)
+flight.command(11,'respawn',23);frame(false);eq(pilot.speed,7,'explicit respawn ends flight without waiting to observe death')
+frame(true);frame(false);frame(true);eq(pilot.speed,0)
+flight.command(11,'kill',23);flight.command(11,'heal',23);frame(false)
+eq(pilot.speed,7,'kill and heal in one frame cannot preserve active flight')
+frame(true);frame(false);frame(true);eq(pilot.speed,0)
+pilot.health=0;frame(false);pilot.health=1;frame(false);eq(pilot.speed,7,'respawn does not reactivate flight')
+flight.command(11,'noclip',23,true);eq(pilot.params.flyMode,true)
+eq(flight.api.shared.osp.players[2].fly,false,'noclip disables the colliding-flight ability')
+flight.command(11,'fly',23,true);eq(pilot.params.flyMode,false)
+eq(flight.api.shared.osp.players[2].noclip,false,'enabling colliding flight turns noclip off')
+local flyingMap=world({identities=flight.identities});flyingMap.players[23].vehicle=0;flyingMap.tick()
+eq(flyingMap.api.shared.osp.players[2].fly,true,'flight ability persists between maps')
+eq(flyingMap.api.shared.osp.players[2].flying,false,'active flight is not saved')
+eq(flyingMap.players[23].params.flyMode,false)
+local flightRoot='savegame.mod.osp.players.'..flight.identities[23]..'.'
+eq(registry[flightRoot..'fly'],false,'older builds cannot turn the new ability into noclip')
+registry[flightRoot..'noclip']=nil;registry[flightRoot..'flight']=nil;registry[flightRoot..'fly']=true
+local oldFlight=world({identities=flight.identities});oldFlight.tick()
+eq(oldFlight.api.shared.osp.players[2].noclip,true,'legacy Fly choices retain noclip behavior')
+eq(oldFlight.api.shared.osp.players[2].fly,false)
+-- Existing custom-role Fly grants retain their old meaning, independently of
+-- the new capability. Storage remains safe when returning to an older build.
+registry={}
+registry['savegame.mod.osp.templates.c7.name']='Legacy flyer'
+registry['savegame.mod.osp.templates.c7.version']=1
+registry['savegame.mod.osp.templates.c7.permissions.fly']=2
+registry['savegame.mod.osp.templates_next']=7
+local legacy=world()
+eq(legacy.command(11,'role_assign',23,{id='c7'}),true)
+eq(legacy.command(23,'noclip',47,true),true)
+ok,code=legacy.command(23,'fly',47,true);eq(ok,false);eq(code,'denied')
+eq(legacy.command(11,'role_save',0,{id='c7',name='New flyer',version=1,permissions={fly=1,noclip=0}}),true)
+eq(registry['savegame.mod.osp.templates.c7.permissions.fly'],0,'legacy grant mirrors only noclip')
+eq(registry['savegame.mod.osp.templates.c7.permissions.flight'],1)
+local modern=world({identities=legacy.identities})
+eq(modern.command(23,'fly',23,true),true)
+ok,code=modern.command(23,'fly',47,true);eq(ok,false);eq(code,'denied')
+ok,code=modern.command(23,'noclip',23,true);eq(ok,false);eq(code,'denied')
 print('PASS server boundary: '..count..' assertions')

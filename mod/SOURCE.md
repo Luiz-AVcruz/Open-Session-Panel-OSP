@@ -1,6 +1,6 @@
 # Source and redistribution
 
-Open Session Panel 1.6.0 — Luiz-AVcruz.
+Open Session Panel 1.3.0 — Luiz-AVcruz.
 
 The Lua files used by this mod are the complete, human-readable source code. The game does not receive a compiled or minified variant. The mod root also contains the full GNU AGPL license and the additional permission for use with the Teardown runtime/API.
 

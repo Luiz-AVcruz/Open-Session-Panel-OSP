@@ -21,6 +21,13 @@ local variants = {
 }
 local selectedRole = 1
 local dragging = nil
+local function cancelColorInput()
+    local number=OSP.NumberInput
+    if not number then return end
+    for _,letter in ipairs({"R","G","B"}) do
+        if number.active("palette_"..letter.."_value") then number.cancel();return end
+    end
+end
 local function decode(value, fallback)
     if type(value) ~= "string" or #value ~= 6 or value:find("[^%x]") then return OSP.copy(fallback) end
     return {tonumber(value:sub(1,2),16)/255, tonumber(value:sub(3,4),16)/255, tonumber(value:sub(5,6),16)/255, 1}
@@ -35,7 +42,11 @@ function Theme.mode()
 end
 function Theme.select(id)
     for _,name in ipairs(Theme.presets) do
-        if id == name then SetString(root .. "mode", id); dragging=nil; return true end
+        if id == name then
+            SetString(root .. "mode", id);dragging=nil
+            cancelColorInput()
+            return true
+        end
     end
     return false
 end
@@ -60,7 +71,10 @@ function Theme.setColor(role, color)
     return true
 end
 function Theme.reset() Theme.select("classic") end
-function Theme.cancelDrag() dragging=nil end
+function Theme.cancelDrag()
+    dragging=nil
+    cancelColorInput()
+end
 function Theme.contrast(a,b)
     local function luminance(c)
         local out=0
@@ -87,8 +101,12 @@ function Theme.draw(api,x,y,width)
     y=y+96
     if Theme.mode()=="custom" then
         local role=Theme.roles[selectedRole]
-        if api.button("palette_role_prev",x,y,40,36,"<","plain") then selectedRole=selectedRole==1 and #Theme.roles or selectedRole-1;dragging=nil end
-        if api.button("palette_role_next",x+width-40,y,40,36,">","plain") then selectedRole=selectedRole%#Theme.roles+1;dragging=nil end
+        if api.button("palette_role_prev",x,y,40,36,"<","plain") then
+            selectedRole=selectedRole==1 and #Theme.roles or selectedRole-1;Theme.cancelDrag()
+        end
+        if api.button("palette_role_next",x+width-40,y,40,36,">","plain") then
+            selectedRole=selectedRole%#Theme.roles+1;Theme.cancelDrag()
+        end
         role=Theme.roles[selectedRole]
         local color=Theme.colors()[role]
         api.rect(x+52,y+4,28,28,color)
@@ -97,7 +115,12 @@ function Theme.draw(api,x,y,width)
         if not api.down() then dragging=nil end
         for channel,letter in ipairs({"R","G","B"}) do
             local sx,sw=x+85,width-180
-            api.label(x,y+8,letter.." "..math.floor(color[channel]*255+.5),16,80)
+            api.label(x,y+8,letter,16,20)
+            api.number("palette_"..letter.."_value",x+20,y,60,36,math.floor(color[channel]*255+.5),0,255,0,function(value)
+                local nextColor=Theme.colors()[role]
+                nextColor[channel]=value/255
+                Theme.setColor(role,nextColor)
+            end)
             for part=0,15 do
                 local tint=OSP.copy(color);tint[channel]=part/15
                 api.rect(sx+sw*part/16,y+10,sw/16+1,16,tint)
@@ -105,7 +128,7 @@ function Theme.draw(api,x,y,width)
             local mx,my=api.mouse()
             local visible=api.visible()
             if visible and api.pressed() and mx>=sx and mx<sx+sw and my>=y and my<y+36 then
-                dragging=channel;api.consume()
+                Theme.cancelDrag();dragging=channel;api.consume()
             end
             if dragging==channel and api.down() and visible then
                 color[channel]=math.max(0,math.min(255,math.floor((mx-sx)/sw*255+.5)))/255
@@ -120,6 +143,10 @@ function Theme.draw(api,x,y,width)
                 end
             end
             y=y+44
+        end
+        if OSP.NumberInput and (OSP.NumberInput.active("palette_R_value") or OSP.NumberInput.active("palette_G_value") or OSP.NumberInput.active("palette_B_value")) then
+            api.label(x,y,OSP.L("number_help"),14,width)
+            y=y+22
         end
         local colors=Theme.colors()
         if Theme.contrast(colors.text,colors.back)<4.5 or Theme.contrast(colors.text,colors.surface)<4.5 then

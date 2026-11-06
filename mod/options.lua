@@ -3,6 +3,7 @@
 -- The Mod Manager runs this legacy draw entry point without a map or server.
 #include "scripts/common.lua"
 #include "scripts/strings.lua"
+#include "scripts/number_input.lua"
 #include "scripts/theme.lua"
 
 local root = "savegame.mod.osp."
@@ -19,7 +20,7 @@ end
 local function text(key, ...)
     return OSP.L(key, ...)
 end
-local function label(x, y, value, size, width, color)
+local function label(x, y, value, size, width, color, clipped)
     UiPush()
     UiTranslate(x, y)
     UiAlign("left top")
@@ -27,23 +28,30 @@ local function label(x, y, value, size, width, color)
     color = color or colors.text
     UiColor(unpack(color))
     UiTextDisableWildcards(true)
-    if width then UiWordWrap(width) end
+    if width then
+        if clipped then UiWindow(width, (size or 20) * 1.35, true)
+        else UiWordWrap(width) end
+    end
     UiText(value)
     UiPop()
 end
-local function button(x, y, width, caption, selected, modal, recovery)
+local function button(x, y, width, caption, selected, modal, recovery, clipCaption)
     UiPush()
     UiTranslate(x, y)
     local mx, my = UiGetMousePos()
     local enabled = not confirming or modal
     local hovered = enabled and mx >= 0 and my >= 0 and mx < width and my < 40
     local clicked = hovered and pressed and not consumed
-    if clicked then consumed = true end
+    if clicked then
+        consumed = true
+        OSP.NumberInput.cancel()
+    end
     local color = selected and colors.selected or hovered and colors.hover or colors.surface
     if recovery then color={.08,.08,.08,1} end
     UiColor(unpack(color))
     UiRect(width, 40)
-    label(12, 9, caption, 20, nil, recovery and {1,1,1,1} or colors.text)
+    label(12, 9, caption, 20, clipCaption and math.max(0, width-24) or nil,
+        recovery and {1,1,1,1} or colors.text, clipCaption)
     UiPop()
     return clicked
 end
@@ -69,7 +77,7 @@ end
 function draw()
     colors = OSP.Theme.colors()
     pressed, consumed = InputPressed("lmb"), false
-    captureKey()
+    if OSP.NumberInput.active() then OSP.NumberInput.key() else captureKey() end
     local width, height = 800, 720
     local scale = math.min(1, UiWidth() / 840, UiHeight() / 760)
     UiPush()
@@ -84,6 +92,13 @@ function draw()
             label=label,
             button=function(id,x,y,width,height,value,kind)
                 return button(x,y,width,value,kind=="active",false,kind=="recovery")
+            end,
+            number=function(id,x,y,width,height,value,minimum,maximum,decimals,onCommit)
+                local active=OSP.NumberInput.active(id)
+                if button(x,y,width,OSP.NumberInput.caption(id,value),active,false,false,true) then
+                    capturing=false
+                    OSP.NumberInput.begin(id,value,minimum,maximum,decimals,onCommit)
+                end
             end,
             rect=function(x,y,width,height,color)
                 UiPush();UiTranslate(x,y);UiColor(unpack(color));UiRect(width,height);UiPop()
