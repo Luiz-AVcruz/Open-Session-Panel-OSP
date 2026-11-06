@@ -1,6 +1,6 @@
 # Open Session Panel
 
-An independently written Teardown administration panel for solo and multiplayer. Version **1.2.0**, by **Luiz-AVcruz**, uses Lua 5.1 and multiplayer scripting version 2. English is the default; Brazilian Portuguese is available.
+An independently written Teardown administration panel for solo and multiplayer. Version **1.3.0**, by **Luiz-AVcruz**, uses Lua 5.1 and multiplayer scripting version 2. English is the default; Brazilian Portuguese is available.
 
 ## Panel and controls
 
@@ -30,13 +30,21 @@ The host's **Global rules** are saved per tool: game default, enabled or blocked
 
 **Selected player** changes made by the host are saved per player; delegate changes remain temporary. They cannot enable a globally blocked tool. A global rule change clears related personal overrides, including saved profiles of offline players; a personal restriction can subsequently narrow an enabled global rule. Resetting a global tool rule restores its state captured before the first intervention in the current map; subsequent maps follow their own defaults. Native campaign unlock data is never changed.
 
+## Settings before loading a map
+
+Select **Open Session Panel → Options** in the Mod Manager. This separate menu runs without a map, player or server. It changes language, the panel shortcut and the optional health indicator using the same saved preferences as the in-game panel. **Restore personal preferences** returns to English, P and the health indicator off.
+
+**Reset saved host options on this computer** requires confirmation and removes this computer's saved session rules, tool policies and player choices, including admin grants. It keeps personal preferences, the host identity, profile identity references and profile slots. It does not modify another host or native campaign unlocks. Changes take effect on the next map load.
+
+The install archive uses the folder **Open Session Panel**, with spaces, for the local Mod Manager entry. Keep a single local copy enabled. Renaming an older local folder changes its settings namespace, so existing local preferences must be transferred with the game closed. Workshop updates keep their existing item identity. The Workshop ID remains in the installed `id.txt`; do not delete it when updating.
+
 ## Optional health indicator
 
 The additional bar is an individual preference in Settings, **off by default**, saved between missions. Enabling it shows real player health and a percentage alongside the native HUD. Disabling it leaves the game's HUD alone. It neither replaces the native bar nor modifies health, regeneration or global HUD flags.
 
 ## Install and develop
 
-Players do not need Python or LuaJIT. Extract `dist/OpenSessionPanel-1.2.0.zip` as its own folder in Teardown's local mods directory and enable **Open Session Panel**. After updating an already loaded mod, reload the map to load the new scripts. Keep only one administration panel active while testing conflicting gameplay controls.
+Players do not need Python or LuaJIT. Extract `dist/OpenSessionPanel-1.3.0.zip` as its own folder in Teardown's local mods directory and enable **Open Session Panel**. After updating an already loaded mod, reload the map to load the new scripts. Keep only one administration panel active while testing conflicting gameplay controls.
 
 Before disabling or removing the mod, restore session/tool defaults as desired, then reload the map to clear temporary effects. A global mod's `server.destroy` callback is not guaranteed cleanup. Remove only this mod's folder; no game files or campaign saves are included.
 

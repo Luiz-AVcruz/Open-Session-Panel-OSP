@@ -6,7 +6,7 @@ Painel independente de administração de Teardown, modificável e redistribuív
 
 A v1.0 foi implementada e copiada para mods locais. O log confirma seu carregamento; o usuário observou que o menu era grande, pouco adaptável e visualmente insatisfatório. O layout anterior de 1400×880 era redimensionado inteiro. A revisão 1.1 trata esses problemas sem alegar que os testes anteriores demonstraram usabilidade.
 
-## Escopo da versão 1.2.0
+## Escopo da versão 1.3.0
 
 - Jogadores: cura, morte confirmada, respawn, ir até/trazer jogador, retirada de veículo, congelamento, invencibilidade, voo e velocidade.
 - Sessão: cura coletiva, trazer participantes, regeneração nativa, tempo, chuva, neblina, restauração de padrões, reinício confirmado e anúncios.
@@ -14,7 +14,7 @@ A v1.0 foi implementada e copiada para mods locais. O log confirma seu carregame
 - Perfis por jogador: ferramentas, invencibilidade, voo, congelamento, velocidade e admin salvos pelo host; restauração dos padrões pessoais sem remover regras gerais.
 - Atividade: até cem ações, autor, alvo, resultado e contagem de afetados/ignorados.
 - Interface: janela central limitada a 1120×720 unidades e a 85% da largura/82% da altura disponíveis; colunas e linhas adaptadas à área, navegação superior em telas estreitas; paginação/rolagem conforme o conteúdo.
-- Configurações: idioma, atalho e indicador adicional de vida. Sobre: versão, autoria, licença e código. Ambas são acessíveis aos convidados. Anúncios ficam na seção Sessão.
+- Configurações: idioma, atalho e indicador adicional de vida, também acessíveis antes de carregar um mapa pelo botão Options do gerenciador, com recuperação de preferências/regras locais. Sobre: versão, autoria, licença e código. Ambas são acessíveis aos convidados. Anúncios ficam na seção Sessão.
 - Indicador de vida adicional, individual, persistente e desligado no primeiro uso. Preserva integralmente a barra nativa; lê vida real sem alterar vida, regeneração ou flags globais de HUD.
 - Inglês padrão e português brasileiro. Nome público e autoria: **Luiz-AVcruz**.
 
@@ -40,7 +40,7 @@ Antes de remover o mod, restaurar regras conforme desejado e recarregar o mapa. 
 
 ## Organização e comandos
 
-Lua 5.1, scripting version 2 do Teardown, sem dependências no runtime. Código jogável em `mod/`, teste do contrato do servidor/cliente em `tests/`, ferramentas locais em `tools/`. A versão de produto é **1.2.0**; `version = 2` no manifesto continua significando a geração do scripting.
+Lua 5.1, scripting version 2 do Teardown, sem dependências no runtime. Código jogável em `mod/`, teste do contrato do servidor/cliente em `tests/`, ferramentas locais em `tools/`. A versão de produto é **1.3.0**; `version = 2` no manifesto continua significando a geração do scripting.
 
 ```sh
 python3 tools/check.py
@@ -104,3 +104,13 @@ O empacotador inclui as duas imagens nos ZIPs de instalação e fontes e recusa 
 As prévias provisórias de capturas foram substituídas pela logo fornecida pelo usuário em `Downloads/Logo.png`: JPEG de 512×512 para Steam e PNG de 512×292 para o menu, com margens pretas e sem geração de imagem. O original foi preservado. A descrição editada na Steam não havia sido transferida ao `info.txt` local, que ainda continha somente o resumo original. O conteúdo completo fornecido pelo autor foi copiado sem reescrita para `mod/WORKSHOP-DESCRIPTION.txt`, incluindo os parágrafos de divulgação do uso de IA; no `info.txt`, o mesmo texto fica em uma linha. O empacotador inclui esse arquivo nos dois ZIPs e verifica a igualdade do conteúdo normalizado.
 
 A interface local do publicador lê `mods.publish.description`; a documentação informa que título/descrição/tags são preenchidos a partir de `info.txt`. Isso não comprova se o motor preserva as quebras de parágrafo da descrição remota durante uma atualização. O autor deve conferir o texto na tela de Publish update antes do envio e usar o arquivo completo para restaurar os parágrafos na Steam, se necessário. O `id.txt` instalado identifica o item existente e deve ser preservado; não entra nos ZIPs ou no Git. Esta entrega prepara os arquivos, sem executar upload ao Workshop.
+
+### Versão 1.3.0: opções no menu principal
+
+`options.lua` é uma entrada legada `draw()` do gerenciador, sem `#version 2`, jogador, mapa ou servidor. Inclui apenas helpers comuns e traduções. Permite idioma, captura do atalho validado e indicador de vida nas mesmas chaves usadas pelo cliente; oferece restauração das três preferências e uma restauração separada das regras de host deste computador com confirmação. Essa última limpa regras de sessão, ferramentas e escolhas de jogadores; recria os marcadores de existência dos perfis e preserva hostid, contadores e referências de identidade. Não altera hosts remotos, dados nativos ou preferências pessoais. Mudanças valem no próximo mapa.
+
+O checker compila as duas entradas e executa o teste específico do menu em contexto sem API de jogador/servidor. O empacotador inclui options.lua nos dois arquivos e usa a raiz instalável `Open Session Panel`, com espaços. A interface do gerenciador usa `listname`, separado do `name` dos detalhes, e a lista local acompanha a pasta. A API não documenta o formato do ID após renomear a pasta. Nesta instalação, o teste do usuário abrindo Options e alternando o indicador confirmou a mudança de `local-opensessionpanel` para `local-open-session-panel`. Portanto, a renomeação exige transferir as preferências com o jogo fechado, mantendo a identidade do host, dos perfis e a referência do Workshop. A entrada do Workshop e seu id.txt não devem ser alterados.
+
+Verificação da 1.3.0: sintaxe das entradas principal e Options, 8.066 asserções do cliente simulado, 184 do menu sem mapa e 182 do servidor passaram. A árvore extraída de fontes reproduziu os dois ZIPs byte a byte. O usuário abriu Options sem carregar um mapa e gravou a alteração temporária do indicador; não houve erro de Lua no log consultado. A posição e os textos também foram inspecionados em uma prévia sintetizada a partir das chamadas reais de desenho, sem apresentá-la como captura do jogo. A migração do namespace deve ser registrada no recibo central, separadamente dos arquivos distribuídos.
+
+A migração local foi concluída com o processo do jogo encerrado: somente a subárvore OSP foi transferida para o identificador confirmado, incluindo identidade do host, perfis, referências e contadores. O indicador temporariamente ativado no teste foi restaurado ao valor anterior, desligado. O namespace antigo foi removido depois de provar igualdade do conteúdo no destino e igualdade byte a byte de todo o conteúdo fora desses dois nós. Backups comprimidos e recibo com hashes ficam na pasta central de backups, fora do mod, Git e pacotes. O id.txt do Workshop foi preservado.

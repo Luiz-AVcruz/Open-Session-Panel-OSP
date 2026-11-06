@@ -37,8 +37,12 @@ def main():
         bundle = Path(tmp) / 'main.lua'
         bundle.write_text(source)
         subprocess.run([runtime, '-b', str(bundle), str(Path(tmp) / 'syntax.luac')], check=True)
+        options = Path(tmp) / 'options.lua'
+        options.write_text(expand(MOD / 'options.lua'))
+        subprocess.run([runtime, '-b', str(options), str(Path(tmp) / 'options.luac')], check=True)
         for test in sorted((ROOT / 'tests').glob('test_*.lua')):
-            subprocess.run([runtime, str(test), str(bundle)], cwd=ROOT, check=True)
+            entry = options if test.name == 'test_options.lua' else bundle
+            subprocess.run([runtime, str(test), str(entry)], cwd=ROOT, check=True)
     print('PASS: expanded entry point, Lua 5.1 syntax and all available contract tests')
 
 

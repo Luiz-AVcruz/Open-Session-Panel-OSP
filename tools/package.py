@@ -15,7 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MOD = ROOT / "mod"
 DIST = ROOT / "dist"
-MOD_ARCHIVE_ROOT = "OpenSessionPanel"
+MOD_ARCHIVE_ROOT = "Open Session Panel"
 SOURCE_ARCHIVE_ROOT = "OpenSessionPanel-source"
 ZIP_TIME = (1980, 1, 1, 0, 0, 0)
 PUBLICATION_FILES = ("preview.jpg", "preview-menu.png", "WORKSHOP-DESCRIPTION.txt")
@@ -34,6 +34,7 @@ def required_install_files() -> list[Path]:
     required = [
         MOD / "info.txt",
         MOD / "main.lua",
+        MOD / "options.lua",
         MOD / "scripts" / "common.lua",
         MOD / "scripts" / "server.lua",
         MOD / "scripts" / "ui.lua",
@@ -88,7 +89,7 @@ def add_file(zf: zipfile.ZipFile, path: Path, archive_name: str) -> None:
 
 
 def install_members() -> list[tuple[Path, str]]:
-    files = [MOD / "info.txt", MOD / "main.lua", MOD / "SOURCE.md"]
+    files = [MOD / "info.txt", MOD / "main.lua", MOD / "options.lua", MOD / "SOURCE.md"]
     files.extend(MOD / name for name in PUBLICATION_FILES)
     files.extend(path for path in (MOD / "scripts").rglob("*.lua") if path.is_file())
     members: list[tuple[Path, str]] = []
@@ -116,7 +117,7 @@ def source_members() -> list[tuple[Path, str]]:
         ROOT / "ADDITIONAL-PERMISSION",
         ROOT / "Docs" / "PROJETO.md",
     ]
-    paths.extend([MOD / "info.txt", MOD / "main.lua", MOD / "SOURCE.md"])
+    paths.extend([MOD / "info.txt", MOD / "main.lua", MOD / "options.lua", MOD / "SOURCE.md"])
     paths.extend(MOD / name for name in PUBLICATION_FILES)
     paths.extend(path for path in (MOD / "scripts").rglob("*.lua") if path.is_file())
     paths.extend(path for path in (ROOT / "tests").rglob("test_*.lua") if path.is_file())

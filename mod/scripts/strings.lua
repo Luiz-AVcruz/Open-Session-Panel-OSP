@@ -6,6 +6,12 @@ OSP = OSP or {}
 
 OSP.languages = {
 	en = {
+        main_options_help="Personal settings and recovery. Changes apply when you next load a map.",
+        reset_personal="Restore personal preferences", preferences_reset="Preferences restored: English, P, health indicator off.",
+        reset_saved_host="Reset saved host options on this computer",
+        reset_saved_host_help="Clears this computer's saved session rules, tool policies and player options. Other hosts are unaffected.",
+        reset_saved_host_confirm="Clear saved session rules, tool policies and player options, including admin roles? Player identity references and personal preferences are kept.",
+        host_options_reset="Saved host options cleared. The next map will use its defaults.", back="Back",
         request_sent="Request sent; waiting for the server.",
         profile_waiting="Waiting for the player's saved profile...", player_options_saved="Host choices persist between missions.",
         player_tools_saved="Host changes for this player persist between missions.", reset_player="Reset player options",
@@ -158,6 +164,12 @@ OSP.languages = {
 		read_only = "Settings and source information are available to every player.",
 	},
 	pt = {
+        main_options_help="Preferências pessoais e recuperação. As mudanças valem ao carregar o próximo mapa.",
+        reset_personal="Restaurar preferências pessoais", preferences_reset="Preferências restauradas: inglês, P e indicador de vida desligado.",
+        reset_saved_host="Restaurar opções de host salvas neste computador",
+        reset_saved_host_help="Limpa regras de sessão, políticas de ferramentas e opções de jogadores salvas neste computador. Não altera outros hosts.",
+        reset_saved_host_confirm="Limpar regras de sessão, políticas de ferramentas e opções de jogadores, incluindo acesso de admin? Identidades dos jogadores e preferências pessoais serão preservadas.",
+        host_options_reset="Opções de host removidas. O próximo mapa usará seus padrões.", back="Voltar",
         request_sent="Pedido enviado; aguardando o servidor.",
         profile_waiting="Aguardando o perfil salvo do jogador...", player_options_saved="Escolhas do host permanecem entre missões.",
         player_tools_saved="Mudanças do host para este jogador persistem entre missões.", reset_player="Restaurar opções do jogador",
