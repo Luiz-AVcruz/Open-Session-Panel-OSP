@@ -42,6 +42,12 @@ The host's **Global rules** are saved per tool: game default, enabled or blocked
 
 Player controls show contextual help after a 0.6-second hover, including reasons for unavailable actions. A small note beneath the player summary explains host persistence or delegated temporary changes once; individual hints do not repeat it. Hints disappear during editing, dialogs and scrolling.
 
+## Personal shortcuts
+
+Settings and the Mod Manager Options offer optional keys for **Invincibility**, **Fly** and **Noclip**, all unassigned by default. They always act on your own player while the panel is closed, regardless of the selected player. Fly grants/removes the ability, keeping double Jump to start/stop active flight. Keys are local preferences across hosts and missions. Clear each binding or the group; personal recovery also clears the group.
+
+The panel rejects internal duplicate keys and collisions with its opening shortcut. Invalid/conflicting saved bindings remain inactive. Use one key without Shift/Ctrl/Alt and check game/other-mod bindings yourself. Editing, capture, interactive UI, pause, vehicles and death block action shortcuts. Held keys do not repeat; simultaneous actions and presses while a request is pending are not queued. Roles and host persistence still apply. The server rejects an outdated toggle state rather than applying it blindly; notifications distinguish pending, confirmed, rejected and unknown outcomes. No automatic retries occur.
+
 ## Numeric values
 
 Click the value for movement speed, time scale, rain, fog or an RGB channel to type it. Enter applies; clicking another control discards the unfinished edit. Values are rounded to the field precision and clamped to its range: player speed 0.5–3, Fly/Noclip speeds 0.5–100, time scale 0.1–2, rain 0–1, fog 10–1000 m and RGB 0–255. Decimal points and commas are accepted. The +/- buttons and RGB bars remain available. Commands still require the appropriate role permission.

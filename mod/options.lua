@@ -4,6 +4,7 @@
 #include "scripts/common.lua"
 #include "scripts/strings.lua"
 #include "scripts/navigation.lua"
+#include "scripts/shortcuts.lua"
 #include "scripts/number_input.lua"
 #include "scripts/theme.lua"
 
@@ -11,6 +12,8 @@ local root = "savegame.mod.osp."
 local capturing = false
 local appearance = false
 local navigation = false
+local personalShortcuts = false
+local shortcuts = OSP.Shortcuts
 local colors = OSP.Theme.colors()
 local confirming = false
 local message = nil
@@ -37,23 +40,24 @@ local function label(x, y, value, size, width, color, clipped)
     UiText(value)
     UiPop()
 end
-local function button(x, y, width, caption, selected, modal, recovery, clipCaption)
+local function button(x, y, width, caption, selected, modal, recovery, clipCaption, disabled)
     UiPush()
     UiTranslate(x, y)
     local mx, my = UiGetMousePos()
-    local enabled = not confirming or modal
+    local enabled = not disabled and (not confirming or modal)
     local hovered = enabled and mx >= 0 and my >= 0 and mx < width and my < 40
     local clicked = hovered and pressed and not consumed
     if clicked then
         consumed = true
         OSP.NumberInput.cancel()
+        shortcuts.cancel();capturing=false
     end
     local color = selected and colors.selected or hovered and colors.hover or colors.surface
     if recovery then color={.08,.08,.08,1} end
     UiColor(unpack(color))
     UiRect(width, 40)
     label(12, 9, caption, 20, clipCaption and math.max(0, width-24) or nil,
-        recovery and {1,1,1,1} or colors.text, clipCaption)
+        recovery and {1,1,1,1} or disabled and colors.disabled or colors.text, clipCaption)
     UiPop()
     return clicked
 end
@@ -62,20 +66,11 @@ local function readKey()
     return OSP.validKey(key) and key or "p"
 end
 local function captureKey()
-    if not capturing then return end
-    local key = string.lower(InputLastPressedKey() or "")
-    if key == "" or key == "lmb" or key == "rmb" or key == "mmb" then return end
-    if key == "esc" then
-        capturing = false
-    elseif OSP.validKey(key) then
-        SetString(root .. "menu_key", key)
-        capturing = false
-        message = text("shortcut_saved")
-    else
-        message = text("invalid_key")
-    end
-    InputClear()
+    if not shortcuts.capture then return end
+    shortcuts.key();capturing=shortcuts.capture=="menu"
+    if shortcuts.message then message=text(shortcuts.message) end
 end
+
 function draw()
     colors = OSP.Theme.colors()
     pressed, consumed = InputPressed("lmb"), false
@@ -89,6 +84,13 @@ function draw()
     UiColor(unpack(colors.back))
     UiRect(width, height)
     label(28, 22, text("app_title"), 30)
+    if personalShortcuts then
+        shortcuts.draw({label=label,button=function(id,x,y,width,height,value,kind,disabled)
+            return button(x,y,width,value,kind=="active",false,false,true,disabled)
+        end},28,90,744)
+        if button(28,658,220,text("back")) then personalShortcuts=false;shortcuts.cancel() end
+        UiPop();return
+    end
     if navigation then
         OSP.Navigation.draw({
             label=label,
@@ -133,9 +135,10 @@ function draw()
         SetString(root .. "language", "pt")
     end
     label(28, 210, text("menu_key") .. ": " .. string.upper(readKey()), 20)
-    if button(28, 243, 350, text(capturing and "cancel" or "change_key")) then
-        capturing = not capturing
-        message = nil
+    local menuCapture=shortcuts.capture=="menu"
+    if button(28, 243, 350, text(menuCapture and "cancel" or "change_key")) then
+        if menuCapture then shortcuts.cancel() else shortcuts.begin("menu") end
+        capturing=shortcuts.capture=="menu";message=nil
     end
     if capturing then label(390, 251, text("press_key"), 16, 375) end
     if button(28, 313, 744, text("reset_personal"), false, false, true) then
@@ -144,18 +147,21 @@ function draw()
         capturing = false
         OSP.Theme.reset()
         OSP.Navigation.reset()
+        shortcuts.reset()
         message = text("preferences_reset")
     end
     if button(28, 374, 744, text("reset_saved_host")) then
+        shortcuts.cancel()
         confirming = true
         capturing = false
         message = nil
     end
     label(28, 428, text("reset_saved_host_help"), 17, 744)
     if message then label(28, 508, message, 17, 744) end
-    if button(28, 568, 744, text("navigation_title")) then navigation=true;capturing=false;OSP.NumberInput.cancel() end
-    if button(28, 658, 170, text("back")) then Menu() end
-    if button(210,658,350,text("palette")) then appearance=true;capturing=false end
+    if button(408, 568, 364, text("personal_shortcuts")) then personalShortcuts=true;capturing=false;shortcuts.cancel();OSP.NumberInput.cancel() end
+    if button(28, 568, 368, text("navigation_title")) then shortcuts.cancel();navigation=true;capturing=false;OSP.NumberInput.cancel() end
+    if button(28, 658, 170, text("back")) then shortcuts.cancel();Menu() end
+    if button(210,658,350,text("palette")) then shortcuts.cancel();appearance=true;capturing=false end
     label(610, 668, text("version", OSP.version), 16)
     if confirming then
         UiColor(0, 0, 0, 0.82)

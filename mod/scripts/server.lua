@@ -557,12 +557,27 @@ function OSP.installServer()
             if isHost(target) and (def.noHost or (not isHost(actor) and not def.readTarget)) then deny("protected"); return end
             if def.persistent and isHost(actor) and not players[target].profile then deny("unavailable"); return end
         end
+        local conditional=type(arg)=="table" and (action=="god" or action=="fly" or action=="noclip")
+        local expected
+        if conditional then
+            if actor~=target or type(arg.expected)~="boolean" or type(arg.value)~="boolean" or arg.expected==arg.value then deny("invalid");return end
+            for key in pairs(arg) do if key~="expected" and key~="value" then deny("invalid");return end end
+            expected=arg.expected;arg=arg.value
+        end
         if def.validate then
             local valid,validationCode=def.validate(arg)
             if not valid then deny(validationCode or "invalid"); return end
         end
         if not isHost(actor) and not P.allows(playerRole(actor).permissions,action,target,arg,actor) then deny("denied");return end
         if def.guard then local code=def.guard(arg); if code then deny(code);return end end
+        if conditional then
+            local e=players[target]
+            local current
+            if action=="god" then current=e.god==true or (e.god==nil and e.baseGod==true)
+            elseif action=="noclip" then current=e.noclip==true or (e.noclip==nil and e.baseFly==true)
+            else current=e.fly==true end
+            if current~=expected then deny("state_changed");return end
+        end
         -- Throttle accepted requests, not permission revocations (which must win immediately).
         local now=GetTime()
         if action~="admin" and action~="role_assign" and action~="role_save" and action~="role_delete" and lastRequest[actor] and now-lastRequest[actor]<0.05 then deny("rate_limited"); return end

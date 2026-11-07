@@ -12,7 +12,7 @@ local function world(options)
         env={rain=0.15,fogparams={80,300,0.8,2}}}
     for _,id in ipairs({11,23,47}) do
         w.players[id]={id=id,name="Player "..id,health=1,host=id==11,
-            params={godMode=options.baseGod==true,flyMode=false,healthRegeneration=true},speed=7,
+            params={godMode=options.baseGod==true,flyMode=options.baseFly==true,healthRegeneration=true},speed=7,
             tools={sledge=true,gun=true},tool="gun",vehicle=99,position={pos={0,0,0},rot={0,0,0,1}},velocity={0,0,0}}
     end
     local env={server={},shared={},math=math,table=table,string=string,type=type,pairs=pairs,
@@ -752,4 +752,36 @@ selectionPolicyMap.command(11,'tool_policy_selection',0,
 ok,code=selectionPolicyMap.command(11,'tools_selection',23,
     {category='all',ids={'tool03'},enabled=true})
 eq(ok,true);eq(selectionPolicyMap.players[23].tools.tool03,false,'global block dominates explicit enable')
+-- Conditional self toggles reject stale expectations before any gameplay write.
+for _,action in ipairs({'god','fly','noclip'}) do
+    registry={}
+    local conditional=world({baseGod=true,baseFly=true});local e=conditional.api
+    local function current(id)
+        for _,entry in ipairs(e.shared.osp.players) do if entry.id==id then return entry[action] end end
+    end
+    local expected=current(11);local position=e.OSP.copy(conditional.players[11].position)
+    conditional.players[11].vehicle=77;conditional.players[11].velocity={4,5,6}
+    local before=e.shared.osp.log[#e.shared.osp.log]
+    ok,code=conditional.command(11,action,11,{expected=not expected,value=expected})
+    eq(ok,false);eq(code,'state_changed');eq(current(11),expected)
+    eq(conditional.players[11].vehicle,77,'stale request does not eject')
+    eq(conditional.players[11].velocity[1],4,'stale request does not stop movement')
+    eq(conditional.players[11].position.pos[1],position.pos[1])
+    eq(e.shared.osp.log[#e.shared.osp.log],before,'rejected request does not log success')
+    for _,arg in ipairs({{expected=expected,value=expected},{expected=expected,value='true'},{value=true},{expected=expected,value=not expected,extra=1}}) do
+        ok,code=conditional.command(11,action,11,arg);eq(ok,false);eq(code,'invalid')
+    end
+    ok,code=conditional.command(11,action,23,{expected=current(23),value=not current(23)})
+    eq(ok,false);eq(code,'invalid','conditional form is self-only')
+    eq(conditional.command(11,action,11,{expected=expected,value=not expected}),true)
+    eq(current(11),not expected,'matching state applies once')
+    eq(e.shared.osp.log[#e.shared.osp.log].argument,not expected,'history keeps boolean argument')
+    local reload=world({baseGod=true,baseFly=true})
+    for _,entry in ipairs(reload.api.shared.osp.players) do if entry.id==11 then eq(entry[action],not expected,'host choice persists') end end
+    eq(conditional.command(11,action,23,true),true,'legacy boolean still targets other players')
+    ok,code=conditional.command(47,action,47,{expected=current(47),value=not current(47)})
+    eq(ok,false);eq(code,'denied','guest cannot use conditional form')
+    eq(conditional.command(11,'admin',23,true),true)
+    local own=current(23);eq(conditional.command(23,action,23,{expected=own,value=not own}),true,'delegate can use own permitted toggle')
+end
 print('PASS server boundary: '..count..' assertions')

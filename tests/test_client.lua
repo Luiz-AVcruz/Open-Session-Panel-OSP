@@ -24,12 +24,13 @@ local function world(width,height,previousRegistry)
     env.GetPlayerHealth=function() error('Client must not read health for an additional HUD') end
     env.IsPlayerHost=function(p) return p==11 end
     env.GetTime=function() return w.now end
+    env.GetPlayerCanUseTool=function(p) assert(p==11);return w.canUseTool~=false end
     env.IsToolEnabled=function(id,p) return id=='sledge' end
     env.ServerCall=function(fn,...) w.sent[#w.sent+1]={fn=fn,args={...}} end
     env.PauseMenuButton=function() return false end
     env.InputLastPressedKey=function() return w.input end
     env.InputPressed=function(k) return k==w.input or (k=='lmb' and w.click) end
-    env.InputDown=function(k) return k=="lmb" and w.held or false end
+    env.InputDown=function(k) return k=="lmb" and w.held or (w.mods and w.mods[k]) or false end
     env.InputValue=function(k) assert(k=='mousewheel');return w.wheel end
     env.InputClear=function() w.input='';w.click=false;w.held=false;w.released=false;w.wheel=0 end
     env.SetFloat=function() error('HUD must never write health or gameplay') end
@@ -845,5 +846,63 @@ do
     w:clickControl('player_23');eq(hint('player_action_god').text,e.OSP.L('protects_host'))
     w:clickControl('player_11');me.permissions=e.OSP.Permissions.normalize({})
     eq(hint('player_action_god').text,e.OSP.L('result_denied'))
+end
+-- Physical shortcuts target self, guard the observed state and never queue input.
+for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
+ for _,language in ipairs({'en','pt'}) do
+    local w=world(unpack(size));local e=w.api;w.reg['savegame.mod.osp.language']=language
+    e.shared.osp.players[1].profileReady=true
+    e.OSP.Shortcuts.assign('god','f8');e.OSP.Shortcuts.assign('fly','f9');e.OSP.Shortcuts.assign('noclip','f10')
+    e.OSP.UI.open(true);w:clickControl('player_23');w:tick('f8');eq(#w.sent,0,'open panel blocks shortcut')
+    e.OSP.UI.open(false);w:tick('f8');eq(#w.sent,1)
+    local request=w.sent[1];eq(request.args[2],'god');eq(request.args[3],11,'ignores selected other player')
+    eq(request.args[4].expected,false);eq(request.args[4].value,true)
+    check(e.OSP.UI.getState().shortcutNotice:find(e.OSP.L('request_sent'),1,true)~=nil,'no optimistic success')
+    w:tick('f9');eq(#w.sent,1,'pending actions are not queued');w:ack();w:tick();eq(#w.sent,1)
+    check(e.OSP.UI.getState().shortcutNotice:find(e.OSP.L('on'),1,true)~=nil,'ACK confirms requested boolean')
+    w:tick('f8');request=w.sent[#w.sent];eq(request.args[4].expected,false,'stale publication carries stale expectation')
+    w:ack(false,'state_changed');check(e.OSP.UI.getState().shortcutNotice:find(e.OSP.L('shortcut_state_changed'),1,true)~=nil)
+    e.shared.osp.players[1].god=true;w:tick('f8');eq(w.sent[#w.sent].args[4].value,false,'new published state toggles off')
+    w:ack();local count=#w.sent;w.mods={shift=true};w:tick('f9');eq(#w.sent,count);w.mods={}
+    w.reg['game.paused']=true;w:tick('f9');eq(#w.sent,count);w.reg['game.paused']=false
+    w.canUseTool=false;w:tick('f9');eq(#w.sent,count,'vehicle/dead/interactive context blocks');w.canUseTool=true
+    local pressed=e.InputPressed;e.InputPressed=function(k) return k=='f9' or k=='f10' end
+    w:tick();eq(#w.sent,count,'simultaneous actions ignored');e.InputPressed=pressed
+    e.shared.osp.players[1].profileReady=false;w:tick('f9');eq(#w.sent,count,'host profile must be ready')
+    e.shared.osp.players[1].profileReady=true;w:tick('f9');request=w.sent[#w.sent]
+    w.now=w.now+9;w:tick();check(e.OSP.UI.getState().shortcutNotice:find(e.OSP.L('request_unknown'),1,true)~=nil)
+    local notice=e.OSP.UI.getState().shortcutNotice;e.client.ospResult(true,'ok',{},request.args[5]);eq(e.OSP.UI.getState().shortcutNotice,notice,'late ACK cannot resurrect success')
+    e.IsPlayerHost=function() return false end;e.shared.osp.players[1].host=false;e.shared.osp.players[1].admin=false
+    count=#w.sent;w:tick('f8');eq(#w.sent,count,'guest cannot dispatch shortcut')
+    local nextMap=world(size[1],size[2],w.reg);eq(nextMap.api.OSP.Shortcuts.binding('god'),'f8','personal binding survives map change')
+    e.OSP.UI.open(true);w:clickControl('tab_settings');w:clickControl('shortcut_god');eq(e.OSP.Shortcuts.capture,'god')
+    w:tick('w');eq(e.OSP.Shortcuts.capture,'god','invalid key preserves capture');w:tick('f11');eq(e.OSP.Shortcuts.binding('god'),'f11')
+    w:clickControl('rebind');w:tick('f11');eq(e.OSP.Shortcuts.capture,'menu','panel capture rejects action collision')
+    w:clickControl('rebind');eq(e.OSP.Shortcuts.capture,nil,'explicit cancel works')
+    w:clickControl('shortcut_clear_god');eq(e.OSP.Shortcuts.binding('god'),'');w:clickControl('shortcuts_reset');eq(e.OSP.Shortcuts.binding('fly'),'')
+ end
+end
+-- Same-frame panel transitions, held keys and delegated permissions keep their boundaries.
+do
+    local w=world(1920,1080);local e=w.api;local own=e.shared.osp.players[1]
+    own.profileReady=true;e.OSP.Shortcuts.assign('fly','f8')
+    e.IsPlayerHost=function() return false end;own.host=false;own.admin=true;own.permissions=e.OSP.Permissions.resolve('self').permissions
+    w:tick('f8');eq(#w.sent,1,'delegate may toggle own granted Fly');w:ack()
+    own.permissions=e.OSP.Permissions.normalize({});local count=#w.sent;w:tick('f8');eq(#w.sent,count,'revoked permission immediately stops dispatch')
+    own.permissions=e.OSP.Permissions.resolve('self').permissions
+    local input=e.InputPressed;e.InputPressed=function(k) return k=='p' or k=='f8' end
+    w:tick();eq(#w.sent,count,'opening panel and shortcut in one frame cannot dispatch')
+    w:tick();eq(#w.sent,count,'closing panel and shortcut in one frame cannot dispatch');e.InputPressed=input
+    local down=e.InputDown;e.InputDown=function(k) return k=='f8' or down(k) end
+    w:tick();eq(#w.sent,count,'held physical key without a press cannot repeat')
+    e.InputDown=down;w.reg['savegame.mod.osp.shortcuts.noclip']='f8';w:tick('f8');eq(#w.sent,count,'stored duplicates are inactive')
+end
+-- Immediate replies must not be replaced by the pending toast after dispatch.
+do
+    local w=world(1920,1080);local e=w.api;e.shared.osp.players[1].profileReady=true;e.OSP.Shortcuts.assign('fly','f8')
+    e.ServerCall=function(fn,...) local a={...};w.sent[#w.sent+1]={args=a};e.client.ospResult(true,'ok',{},a[5]) end
+    w:tick('f8');eq(#w.sent,1);eq(e.OSP.UI.getState().requestPending,false)
+    check(e.OSP.UI.getState().shortcutNotice:find(e.OSP.L('on'),1,true)~=nil)
+    w:tick();eq(#w.sent,1,'holding without a new press cannot repeat')
 end
 print('PASS client interaction, viewport and translation contracts: '..assertions..' assertions (mock UI)')

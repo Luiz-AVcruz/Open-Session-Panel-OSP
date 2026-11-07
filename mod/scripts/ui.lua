@@ -8,6 +8,8 @@ function OSP.installClient()
     local tipKey,tipSince,tooltip=nil,nil,nil
     local function resetTooltip() tipKey=nil;tipSince=nil;tooltip=nil end
     local toolsPopup=nil
+    local shortcuts=OSP.Shortcuts
+    local shortcutRequest,shortcutNotice,shortcutUntil=nil,nil,0
     local search=OSP.ToolSearch
     local movementSettings=nil
     local pages={players=1,tools=1,activity=1}
@@ -75,11 +77,15 @@ function OSP.installClient()
     end
     local function keybind() local k=GetString(ROOT.."menu_key");return OSP.validKey(k) and k or "p" end
     local function setStatus(s,seconds) status=s;statusUntil=GetTime()+(seconds or 5) end
+    local function shortcutMessage(action,message,seconds)
+        shortcutNotice=T(action=="god" and "god_short" or action).." · "..message
+        shortcutUntil=GetTime()+(seconds or 5);setStatus(shortcutNotice,seconds)
+    end
     local function closeMovement() movementSettings=nil;OSP.NumberInput.cancel() end
     local function closeTools() toolsPopup=nil;search.blur() end
     local function setTab(t)
         t=navigation.choose(t,function(id) return id=="settings" or id=="about" or admin() and (id~="permissions" or host()) end)
-        if tab~=t then resetTooltip();closeMovement();closeTools();tab=t;scroll=0;confirm=nil;typing=false;capturing=false;OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end
+        if tab~=t then resetTooltip();closeMovement();closeTools();tab=t;scroll=0;confirm=nil;typing=false;capturing=false;shortcuts.cancel();OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end
     end
     local function command(action,target,arg)
         if not admin() or not allowed(action,target,arg) then setStatus(T("result_denied"));return false end
@@ -136,7 +142,7 @@ function OSP.installClient()
         -- hit registration must not depend on a preceding clipped text draw.
         -- React on press, once per frame; holding/releasing never repeats it.
         local clicked=hover and not clickConsumed and (lmbPressed or InputPressed("lmb"))
-        if clicked then clickConsumed=true;OSP.NumberInput.cancel();search.blur() end
+        if clicked then clickConsumed=true;OSP.NumberInput.cancel();shortcuts.cancel();capturing=false;search.blur() end
         local col=kind=="active" and C.selected or (hover and C.hover or C.surface)
         if kind=="plain" then col=hover and C.hover or C.side end
         if clicked then col=C.selected end
@@ -267,7 +273,7 @@ function OSP.installClient()
     local function drawPlayerTooltip()
         tooltip=nil
         if tab~="players" or confirm or movementSettings or toolsPopup or typing or capturing
-            or search.focused or OSP.NumberInput.active() or OSP.PermissionUI.capturing()
+            or search.focused or shortcuts.capture or OSP.NumberInput.active() or OSP.PermissionUI.capturing()
             or clickConsumed or InputDown("lmb") then resetTooltip();return end
         local p=findPlayer(selected)
         if not p then resetTooltip();return end
@@ -519,10 +525,17 @@ function OSP.installClient()
         y=y+59;rect(0,y,w,1,C.line);y=y+20
         label(0,y,T("menu_key"),17,C.text,w,true);y=y+29
         label(0,y+9,string.upper(keybind()),18,C.accent,100,true)
-        if capturing then label(130,y+9,T("press_key"),16,C.muted,w-130)
-        elseif button("rebind",130,y,math.min(220,w-130),38,T("change_key"),"plain",false) then capturing=true;typing=false;confirm=nil end
+        local menuCapture=shortcuts.capture=="menu"
+        if button("rebind",130,y,math.min(220,w-130),38,T(menuCapture and "cancel" or "change_key"),"plain",false) then
+            if menuCapture then shortcuts.cancel() else shortcuts.begin("menu") end
+            capturing=shortcuts.capture=="menu";typing=false;confirm=nil
+        end
         y=y+59;rect(0,y,w,1,C.line);y=y+20
         y=y+10
+        y=y+shortcuts.draw({
+            label=function(x,py,value,size,width) label(x,py,value,size,C.text,width) end,
+            button=function(id,x,py,width,height,value,kind,disabled) return button(id,x,py,width,height,value,kind,disabled) end,
+        },0,y,w)+12
         y=y+navigation.draw({
             label=function(x,py,value,size,width) label(x,py,value,size,C.text,width) end,
             button=function(id,x,py,width,height,value,kind) return button(id,x,py,width,height,value,kind,false) end,
@@ -682,7 +695,7 @@ function OSP.installClient()
             local x=math.max(260,W-490)
             if target and W-145-x>=90 then label(x,headerCenter-14/2,T("selected_short")..": "..target.name,14,C.muted,W-145-x) end
         end
-        if button("close",W-122,headerCenter-34/2,104,34,T("close"),"outlined",false) then menu=false;closeTools();confirm=nil;typing=false;capturing=false;OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end
+        if button("close",W-122,headerCenter-34/2,104,34,T("close"),"outlined",false) then shortcuts.cancel();menu=false;closeTools();confirm=nil;typing=false;capturing=false;OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end
         if not narrow then rect(0,header,side,H-header,C.side);rect(side,header,1,H-header,C.line) end
         for i,t in ipairs(tabs) do
             local x,y,w,h
@@ -734,12 +747,19 @@ function OSP.installClient()
     end
     function client.ospResult(ok,code,details,id)
         if not pending or id~=pending then return end
-        local names={ok="result_ok",denied="result_denied",invalid="result_invalid",protected="result_protected",unavailable="result_unavailable",error="result_error",rate_limited="result_rate_limited",conflict="role_conflict",template_limit="role_limit"}
+        local names={ok="result_ok",denied="result_denied",invalid="result_invalid",protected="result_protected",unavailable="result_unavailable",error="result_error",rate_limited="result_rate_limited",state_changed="shortcut_state_changed",conflict="role_conflict",template_limit="role_limit"}
         local msg=T(names[code] or "result_error")
         if details and details.skipped and details.skipped>0 then msg=msg.."  "..T("skipped",details.skipped) end
         if ok and lastAction=="rule" then msg=T("rules_saved") elseif ok and lastAction=="reset_rules" then msg=T("rules_reset") end
         if ok and lastAction=="role_save" and details then OSP.PermissionUI.saved(details.template) end
         if ok and lastAction=="role_delete" and details then OSP.PermissionUI.deleted(details.deleted) end
+        if shortcutRequest then
+            local own=findPlayer(me);local request=shortcutRequest;shortcutRequest=nil
+            if not own or own.profileChallenge~=request.challenge then msg=T("result_unavailable")
+            elseif ok then msg=T(request.value and "on" or "off") end
+            shortcutMessage(request.action,msg)
+            msg=shortcutNotice
+        end
         pending=nil;lastAction=nil;setStatus(msg)
     end
     function client.ospAnnouncement(actor,message)
@@ -764,6 +784,7 @@ function OSP.installClient()
     function client.tick(dt)
         -- Preserve a simultaneous click before keyboard capture calls InputClear.
         if (InputLastPressedKey() or "")~="" or InputPressed("lmb") or InputValue("mousewheel")~=0 then resetTooltip() end
+        local wasMenu=menu
         setTab(tab)
         lmbPressed=InputPressed("lmb")
         if me==0 then me=GetLocalPlayer() end
@@ -775,7 +796,10 @@ function OSP.installClient()
             identityPending={host=s.profileHost,join=p.profileChallenge}
             ServerCall("server.ospIdentify",me,s.profileHost,p.profileChallenge,GetString(ROOT.."identity."..s.profileHost))
         end
-        if pending and GetTime()-sentAt>=8 then pending=nil;lastAction=nil;setStatus(T("request_unknown"),10) end
+        if pending and GetTime()-sentAt>=8 then
+            if shortcutRequest then shortcutMessage(shortcutRequest.action,T("request_unknown"),10);shortcutRequest=nil else setStatus(T("request_unknown"),10) end
+            pending=nil;lastAction=nil
+        end
         if selected and not findPlayer(selected) then selected=nil;confirm=nil;OSP.NumberInput.cancel() end
         if movementSettings then
             local target=findPlayer(movementSettings.player)
@@ -795,15 +819,9 @@ function OSP.installClient()
             OSP.NumberInput.key()
         elseif menu and tab=="permissions" and OSP.PermissionUI.capturing() then
             OSP.PermissionUI.key()
-        elseif capturing then
-            local key=InputLastPressedKey()
-            if key and key~="" and not isMouseKey(string.lower(key)) then
-                key=string.lower(key)
-                if key=="esc" then capturing=false
-                elseif OSP.validKey(key) then SetString(ROOT.."menu_key",key);capturing=false;setStatus(T("shortcut_saved"))
-                else setStatus(T("invalid_key")) end
-                InputClear()
-            end
+        elseif shortcuts.capture then
+            shortcuts.key();capturing=shortcuts.capture=="menu"
+            if shortcuts.message then setStatus(T(shortcuts.message)) end
         elseif typing then consumeText()
         else
             if InputPressed(keybind()) then menu=not menu;confirm=nil;if not menu then closeMovement();closeTools();OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end end
@@ -815,6 +833,31 @@ function OSP.installClient()
         end
         if PauseMenuButton(T("pause_button"),"bottom_bar",false) then menu=true;setTab(tab);confirm=nil end
         if not admin() and tab~="settings" and tab~="about" then setTab("settings") end
+        if not wasMenu and not menu and not shortcuts.capture and not typing and not capturing
+            and not confirm and not movementSettings and not toolsPopup and not search.focused
+            and not OSP.NumberInput.active() and not OSP.PermissionUI.capturing()
+            and not InputPressed(keybind()) and not shortcuts.modified() then
+            local action,count=nil,0
+            for _,id in ipairs(shortcuts.actions) do
+                local key=shortcuts.binding(id)
+                if key~="" and InputPressed(key) then action=id;count=count+1 end
+            end
+            if count==1 and not InputPressed("pause") and not InputPressed("esc") and not GetBool("game.paused") and GetPlayerCanUseTool(me) then
+                local own=findPlayer(me)
+                if pending then shortcutMessage(action,T("request_pending"))
+                elseif not s or not s.ready or not own or not IsPlayerValid(me) or (own.health or 0)<=0
+                    or type(own.profileChallenge)~="number" or (host() and own.profileReady~=true) then shortcutMessage(action,T("result_unavailable"))
+                elseif not admin() or not allowed(action,me) then shortcutMessage(action,T("result_denied"))
+                else
+                    local value=own[action]==true
+                    shortcutRequest={action=action,value=not value,challenge=own.profileChallenge}
+                    shortcutMessage(action,T("request_sent"),8)
+                    if not command(action,me,{expected=value,value=not value}) then
+                        shortcutRequest=nil;shortcutMessage(action,status or T("result_error"))
+                    end
+                end
+            end
+        end
     end
     function client.draw()
         C=OSP.Theme.colors()
@@ -824,12 +867,17 @@ function OSP.installClient()
         if menu then UiMakeInteractive();render();lmbPressed=false;return end
         lmbPressed=false
         local canvas=UiCanvasSize()
+        if shortcutNotice and GetTime()<shortcutUntil then
+            local w=math.min(460,canvas.w-40);local y=notice and GetTime()<noticeUntil and 164 or 40
+            UiPush();UiTranslate((canvas.w-w)/2,y);rect(0,0,w,72,C.side);rect(0,0,3,72,C.accent)
+            UiTranslate(14,12);UiFont("regular.ttf",15);UiAlign("left top");UiTextDisableWildcards(true);UiWordWrap(w-28);rgb(C.text);UiText(shortcutNotice);UiPop()
+        end
         if notice and GetTime()<noticeUntil then
             local w=math.min(700,canvas.w-40);UiPush();UiTranslate((canvas.w-w)/2,40);UiWindow(w,112,true)
             rect(0,0,w,112,C.back);rect(0,0,4,112,C.accent);UiTranslate(18,14);UiWordWrap(w-36)
             UiFont("regular.ttf",18);UiAlign("left top");UiTextDisableWildcards(true);rgb(C.text);UiText(notice);UiPop()
         end
     end
-    OSP.UI={getState=function() return {open=menu,tab=tab,selected=selected,confirm=confirm,movementPopup=OSP.copy(movementSettings),toolsPopup=OSP.copy(toolsPopup),searchQuery=search.query,searchFocused=search.focused,keyCapture=capturing,typing=typing,language=lang(),menuKey=keybind(),requestPending=pending~=nil,pendingId=pending,status=status,layout=OSP.copy(layout),controls=OSP.copy(controls),tooltip=OSP.copy(tooltip),scroll=scroll,maxScroll=maxScroll,filter=filter,toolMode=toolMode} end,
-        open=function(v) resetTooltip();menu=v==true;if not menu then closeMovement();closeTools();confirm=nil;typing=false;capturing=false;OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end end,selectTab=setTab}
+    OSP.UI={getState=function() return {open=menu,tab=tab,selected=selected,confirm=confirm,movementPopup=OSP.copy(movementSettings),toolsPopup=OSP.copy(toolsPopup),searchQuery=search.query,searchFocused=search.focused,keyCapture=shortcuts.capture~=nil,shortcutNotice=shortcutNotice,typing=typing,language=lang(),menuKey=keybind(),requestPending=pending~=nil,pendingId=pending,status=status,layout=OSP.copy(layout),controls=OSP.copy(controls),tooltip=OSP.copy(tooltip),scroll=scroll,maxScroll=maxScroll,filter=filter,toolMode=toolMode} end,
+        open=function(v) shortcuts.cancel();capturing=false;resetTooltip();menu=v==true;if not menu then closeMovement();closeTools();confirm=nil;typing=false;capturing=false;OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end end,selectTab=setTab}
 end

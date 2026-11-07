@@ -41,9 +41,9 @@ local function world(width, height)
         w.windows[#w.windows+1]={x=w.x,y=w.y,width=windowWidth,height=windowHeight,scale=w.scale,clip=clip,scrollbar=scrollbar}
     end
     for _,name in ipairs({'UiColor','UiRect','UiAlign','UiFont','UiText','UiWordWrap','UiTextDisableWildcards'}) do env[name]=function() end end
-    env.InputPressed=function(k) return k=='lmb' and w.pressed end
+    env.InputPressed=function(k) return (k=='lmb' and w.pressed) or (w.physical and w.physical[k]) or false end
     env.InputLastPressedKey=function() return w.key end
-    env.InputDown=function(k) return k=='lmb' and w.pressed end
+    env.InputDown=function(k) return (k=='lmb' and w.pressed) or (w.mods and w.mods[k]) or false end
     env.InputClear=function() w.key='';w.pressed=false end
     env.Menu=function() w.back=true end
     env.GetLocalPlayer=function() error('Options must not need a loaded map') end
@@ -126,6 +126,28 @@ for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
     w.click(30,124);w.click(30,660);w.click(30,315)
     check(env.OSP.Navigation.visible('players'),'personal reset includes navigation')
     check(w.registry[r..'identity.host']=='keep' and w.registry[r..'tools.abc']==2,'navigation reset preserves host data')
+ end
+end
+-- The real Options entry shares binding/capture/conflict rules without a map.
+for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
+ for _,language in ipairs({'en','pt'}) do
+    local w,r,e=world(unpack(size));w.registry[r..'language']=language
+    w.registry[r..'identity.host']='keep';w.registry[r..'tools.abc']=2
+    w.click(410,570);w.click(327,149);check(e.OSP.Shortcuts.capture=='god','Options starts personal capture')
+    w.draw();check(e.OSP.Shortcuts.capture=='god','idle frame keeps capture')
+    w.type('w');check(e.OSP.Shortcuts.capture=='god','invalid key permits retry')
+    w.physical={f8=true};w.draw();w.physical={};check(e.OSP.Shortcuts.binding('god')=='f8','physical-only capture works in real Options')
+    w.click(327,193);w.type('f8');check(e.OSP.Shortcuts.capture=='fly' and e.OSP.Shortcuts.message=='shortcut_conflict','Options duplicate refused')
+    w.type('f9');check(e.OSP.Shortcuts.binding('fly')=='f9')
+    w.click(327,237);w.mods={ctrl=true};w.type('f10');w.mods={}
+    check(e.OSP.Shortcuts.capture=='noclip' and e.OSP.Shortcuts.binding('noclip')=='','Options modifier rejected')
+    w.click(327,237);check(e.OSP.Shortcuts.capture==nil,'binding button cancels explicitly')
+    w.click(625,149);check(e.OSP.Shortcuts.binding('god')=='','clear one binding')
+    w.click(30,660);w.click(30,245);w.type('f9');check(e.OSP.Shortcuts.capture=='menu','menu collision keeps capture')
+    w.click(30,245);check(e.OSP.Shortcuts.capture==nil,'menu cancel preserves prior key')
+    local other,_,oe=world(unpack(size));other.registry=w.registry;check(oe.OSP.Shortcuts.binding('fly')=='f9','binding survives a new Options context')
+    w.click(30,315);check(e.OSP.Shortcuts.binding('fly')=='','personal reset clears action bindings')
+    check(w.registry[r..'identity.host']=='keep' and w.registry[r..'tools.abc']==2,'personal reset preserves session data')
  end
 end
 print('PASS main-menu options without a map: '..assertions..' assertions')

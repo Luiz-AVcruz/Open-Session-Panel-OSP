@@ -6,6 +6,10 @@ OSP = OSP or {}
 
 OSP.languages = {
 	en = {
+        personal_shortcuts="Personal shortcuts",shortcuts_help="Your player only. No default keys.",shortcut_unset="Not set",shortcut_clear="Clear",
+        shortcuts_reset="Clear personal shortcuts",shortcuts_conflict_help="Check whether the key is used by the game or another mod.",
+        shortcut_conflict="Key already assigned in this panel.",shortcut_single_key="Choose one key without Shift, Ctrl or Alt.",
+        shortcut_state_changed="State changed. Wait for the update and try again.",
         tip_no_vehicle="This player is not in a vehicle.",tip_temporary="Changes made by delegated admins are temporary.",
         tip_fly="Enables flight with collision. Double-tap Jump to start or stop flying. Only the ability is saved, not active flight.",
         tip_noclip="Move through geometry. Enabling Noclip disables Fly.",
@@ -184,7 +188,7 @@ OSP.languages = {
 		controls = "Controls",
 		menu_key = "Panel shortcut",
 		change_key = "Change shortcut",
-		press_key = "Press a letter or number key. Esc cancels.",
+		press_key = "Press one key. Use Cancel to stop.",
 		invalid_key = "That key cannot be used. Choose a non-movement key.",
 		shortcut_saved = "Shortcut saved.",
 		about_title = "About this mod",
@@ -204,6 +208,10 @@ OSP.languages = {
 		read_only = "Settings and source information are available to every player.",
 	},
 	pt = {
+        personal_shortcuts="Atalhos pessoais",shortcuts_help="Só no próprio jogador. Sem teclas padrão.",shortcut_unset="Não definido",shortcut_clear="Limpar",
+        shortcuts_reset="Limpar atalhos pessoais",shortcuts_conflict_help="Confira se a tecla está em uso no jogo ou em outro mod.",
+        shortcut_conflict="Tecla já atribuída neste painel.",shortcut_single_key="Escolha uma tecla sem Shift, Ctrl ou Alt.",
+        shortcut_state_changed="O estado mudou. Aguarde a atualização e tente novamente.",
         tip_no_vehicle="Este jogador não está em um veículo.",tip_temporary="Alterações feitas por administradores delegados são temporárias.",
         tip_fly="Habilita voo com colisão. Dois toques no salto iniciam ou encerram o voo. Só a habilidade é salva, não o voo ativo.",
         tip_noclip="Permite atravessar objetos. Habilitar Noclip desabilita Fly.",
@@ -382,7 +390,7 @@ OSP.languages = {
 		controls = "Controles",
 		menu_key = "Atalho do painel",
 		change_key = "Alterar atalho",
-		press_key = "Pressione uma letra ou número. Esc cancela.",
+		press_key = "Pressione uma tecla. Use Cancelar para sair.",
 		invalid_key = "Essa tecla não pode ser usada. Escolha uma fora do movimento.",
 		shortcut_saved = "Atalho salvo.",
 		about_title = "Sobre o mod",
