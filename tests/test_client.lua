@@ -760,4 +760,34 @@ for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
   end
  end
 end
+-- Hiding tabs reflows navigation and survives new client contexts.
+for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
+ for _,language in ipairs({'en','pt'}) do
+    local w=world(unpack(size));local e=w.api;w.reg['savegame.mod.osp.language']=language;e.OSP.UI.open(true)
+    local before=w:draw();local session=before.controls.tab_session
+    w:clickControl('tab_settings');w:clickControl('navigation_players');local st=w:draw()
+    eq(st.controls.tab_players,nil,'hidden tab has no click target')
+    eq(st.controls.tab_session.x,before.controls.tab_players.x,'remaining tabs move left/up')
+    eq(st.controls.tab_session.y,before.controls.tab_players.y,'no empty first slot')
+    w:clickControl('navigation_permissions');w:clickControl('tab_tools');e.OSP.UI.open(false);e.OSP.UI.open(true)
+    eq(w:draw().tab,'tools','reopen preserves last visible tab')
+    e.OSP.Navigation.setVisible('tools',false);w:tick();st=w:draw()
+    eq(st.tab,'session','hidden active tab falls back to first accessible tab')
+    local nextMap=world(size[1],size[2],w.reg);nextMap.api.OSP.UI.open(true)
+    eq(nextMap:draw().controls.tab_players,nil,'hidden choices survive new mission')
+    w:clickControl('tab_settings')
+    for _,id in ipairs(e.OSP.Navigation.tabs) do if id~='settings' then e.OSP.Navigation.setVisible(id,false) end end
+    st=w:draw();eq(st.tab,'settings');check(st.controls.tab_settings~=nil)
+    if st.layout.narrow then check(st.layout.contentY<before.layout.contentY,'single navigation row releases content height') end
+    for id in pairs(st.controls) do if id:match('^tab_') then eq(id,'tab_settings') end end
+    w:clickControl('navigation_restore');st=w:draw();check(st.controls.tab_players~=nil,'restore exposes all tabs')
+    -- Hide a page while it owns a draft/modal, before it can consume more input.
+    w:clickControl('tab_players');w:clickControl('fly_settings');w:clickControl('fly_speed_value');w:tick('4')
+    e.OSP.Navigation.setVisible('players',false);w:tick('return')
+    eq(e.OSP.UI.getState().movementPopup,nil);eq(e.OSP.NumberInput.active(),false);eq(#w.sent,0,'hidden page draft never dispatches')
+    e.IsPlayerHost=function() return false end;e.shared.osp.players[1].admin=false
+    e.OSP.Navigation.setVisible('settings',false);e.OSP.Navigation.setVisible('about',false);w:tick();st=w:draw()
+    eq(st.tab,'settings','guest fallback stays accessible');eq(st.controls.tab_session.disabled,true,'showing tabs never grants permissions')
+ end
+end
 print('PASS client interaction, viewport and translation contracts: '..assertions..' assertions (mock UI)')

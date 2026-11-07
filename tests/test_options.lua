@@ -113,4 +113,19 @@ for _,size in ipairs({{840,760},{1280,720},{1024,768},{1920,1080}}) do
     w.click(30,315);check(w.registry[r..'theme.mode']=='classic','personal reset restores palette')
     w.click(30,660);check(w.back,'back to Mod Manager')
 end
+for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
+ for _,language in ipairs({'en','pt'}) do
+    local w,r,env=world(unpack(size));w.registry[r..'language']=language
+    w.registry[r..'identity.host']='keep';w.registry[r..'tools.abc']=2
+    w.click(30,570);w.click(30,124)
+    check(w.registry[r..'navigation.hidden.players']=='1','Options hides tab without map')
+    check(not env.OSP.Navigation.visible('players'),'Options uses shared preference contract')
+    local other,_,otherEnv=world(unpack(size));other.registry=w.registry
+    check(not otherEnv.OSP.Navigation.visible('players'),'new Options context keeps visibility')
+    w.click(30,286);check(env.OSP.Navigation.visible('players'),'show all from Options')
+    w.click(30,124);w.click(30,660);w.click(30,315)
+    check(env.OSP.Navigation.visible('players'),'personal reset includes navigation')
+    check(w.registry[r..'identity.host']=='keep' and w.registry[r..'tools.abc']==2,'navigation reset preserves host data')
+ end
+end
 print('PASS main-menu options without a map: '..assertions..' assertions')

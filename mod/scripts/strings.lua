@@ -6,6 +6,7 @@ OSP = OSP or {}
 
 OSP.languages = {
 	en = {
+        navigation_title="Panel tabs",navigation_shown="Shown",navigation_hidden="Hidden",navigation_settings_fixed="Settings always stays visible.",navigation_restore="Show all tabs",
         tools_group_counts="Category: %d tools · Search: %d",tools_group_actions="Group actions",tools_enable_results="Enable results",tools_disable_results="Block results",tools_search="Search tools by name or ID",tools_actions="Actions",tools_results="%d found / %d in category",tools_no_match="No matching tools. Clear the search or change category.",tools_selection_count="%d tools (all pages)",tools_confirm_selection="Apply to this fixed selection of %d tools?",tools_present="All current players",tools_present_except_host="All current players except host",
         permissions="Permissions", permissions_subtitle="Assign roles by player and manage custom roles. Host only.",
         role_assignment_title="Assign a role",
@@ -197,6 +198,7 @@ OSP.languages = {
 		read_only = "Settings and source information are available to every player.",
 	},
 	pt = {
+        navigation_title="Abas do painel",navigation_shown="Visível",navigation_hidden="Oculta",navigation_settings_fixed="Configurações permanece sempre visível.",navigation_restore="Mostrar todas as abas",
         tools_group_counts="Categoria: %d ferramentas · Busca: %d",tools_group_actions="Ações em grupo",tools_enable_results="Ativar resultados",tools_disable_results="Bloquear resultados",tools_search="Pesquisar ferramentas por nome ou ID",tools_actions="Ações",tools_results="%d encontradas / %d na categoria",tools_no_match="Nenhuma ferramenta encontrada. Limpe a busca ou mude a categoria.",tools_selection_count="%d ferramentas (todas as páginas)",tools_confirm_selection="Aplicar a esta seleção fixa de %d ferramentas?",tools_present="Todos os jogadores presentes",tools_present_except_host="Presentes, exceto o host",
         permissions="Permissões", permissions_subtitle="Atribua Roles por jogador e gerencie Roles customizadas. Apenas o host.",
         role_assignment_title="Atribuir role",

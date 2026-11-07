@@ -193,3 +193,13 @@ Fechar e abas inativas usam uma superfície de botão e contorno permanente de 1
 Verificação automatizada cobre desenho sem hover, estados selecionado/hover/desabilitado, alinhamento do cabeçalho, dois idiomas, 640×480/1024×768/1920×1080 e todas as paletas, incluindo uma customizada. Os testes existentes de pressionamento nas bordas, bloqueio por modais e permissões continuam aplicáveis. Prévias sintéticas complementam a inspeção; a aparência nativa permanece para conferência no jogo.
 
 Próximos ciclos de usabilidade/QoL: dicas contextuais, atalhos opcionais sem tecla padrão, ocultar/mostrar abas e importar/exportar configurações. Tamanho de fonte e janela ficam adiados para uma revisão futura. Bloquear Bring here e Go there no próprio jogador fica para o fechamento do backlog, junto de pequenas pendências restantes.
+
+### Ciclo 4 do bundle 1.4.0: visibilidade pessoal das abas
+
+A seção Abas do painel permite ocultar/reexibir Jogadores, Sessão, Ferramentas, Permissões, Atividade e Sobre, pelo painel ou por uma página própria no Options do gerenciador. Configurações fica sempre visível. Todas começam visíveis; os indicadores locais são strings em savegame.mod.osp.navigation.hidden.<aba>, com "1" para oculta e ausência/string vazia para visível. São preferências do cliente, sem migração ou comandos de servidor. Mostrar todas as abas afeta só esses indicadores; restaurar preferências pessoais pelo Options também os restaura, preservando identidade e regras do host.
+
+A navegação mantém a ordem e remove os espaços deixados por abas ocultas. Em telas estreitas recalcula colunas, linhas e altura do conteúdo. Abertura por atalho ou pausa preserva a última aba visível e acessível; caso contrário, escolhe a primeira permitida. Troca automática usa o mesmo encerramento de edições, confirmações e popups. Ocultar não altera permissões nem desfaz ações ou configurações de sessão. O estado novo é compartilhado entre as duas entradas por scripts/navigation.lua.
+
+Validação local cobre os dois idiomas, 640×480/1024×768/1920×1080, persistência em novo contexto, somente Configurações visível, reorganização, restauração, acesso de convidados e cancelamento de edição ao ocultar a página ativa. Options foi exercitado sem APIs de mapa/servidor. Prévias sintéticas complementam a inspeção; apresentação nativa e persistência após reiniciar o jogo permanecem para conferência no Teardown.
+
+Continuam pendentes dicas contextuais, atalhos opcionais e importação/exportação de configurações. Fonte/janela permanecem adiados; impedir Bring here/Go there no próprio jogador fica para o fechamento do backlog.

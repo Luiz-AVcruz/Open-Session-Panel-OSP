@@ -3,12 +3,14 @@
 -- The Mod Manager runs this legacy draw entry point without a map or server.
 #include "scripts/common.lua"
 #include "scripts/strings.lua"
+#include "scripts/navigation.lua"
 #include "scripts/number_input.lua"
 #include "scripts/theme.lua"
 
 local root = "savegame.mod.osp."
 local capturing = false
 local appearance = false
+local navigation = false
 local colors = OSP.Theme.colors()
 local confirming = false
 local message = nil
@@ -87,6 +89,14 @@ function draw()
     UiColor(unpack(colors.back))
     UiRect(width, height)
     label(28, 22, text("app_title"), 30)
+    if navigation then
+        OSP.Navigation.draw({
+            label=label,
+            button=function(id,x,y,width,height,value,kind) return button(x,y,width,value,kind=="active") end,
+        },28,90,744)
+        if button(28,658,220,text("back")) then navigation=false end
+        UiPop();return
+    end
     if appearance then
         OSP.Theme.draw({
             label=label,
@@ -133,6 +143,7 @@ function draw()
         SetString(root .. "menu_key", "p")
         capturing = false
         OSP.Theme.reset()
+        OSP.Navigation.reset()
         message = text("preferences_reset")
     end
     if button(28, 374, 744, text("reset_saved_host")) then
@@ -142,6 +153,7 @@ function draw()
     end
     label(28, 428, text("reset_saved_host_help"), 17, 744)
     if message then label(28, 508, message, 17, 744) end
+    if button(28, 568, 744, text("navigation_title")) then navigation=true;capturing=false;OSP.NumberInput.cancel() end
     if button(28, 658, 170, text("back")) then Menu() end
     if button(210,658,350,text("palette")) then appearance=true;capturing=false end
     label(610, 668, text("version", OSP.version), 16)

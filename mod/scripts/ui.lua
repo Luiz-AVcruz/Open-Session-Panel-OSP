@@ -23,7 +23,7 @@ function OSP.installClient()
     local lmbPressed=false
     local clip=nil
     local C=OSP.Theme.colors()
-    local tabs={"players","session","tools","permissions","activity","settings","about"}
+    local navigation=OSP.Navigation
     local function lang() return GetString(ROOT.."language")=="pt" and "pt" or "en" end
     OSP.getLanguage=lang
     local function T(k,...) return OSP.L(k,...) end
@@ -76,6 +76,7 @@ function OSP.installClient()
     local function closeMovement() movementSettings=nil;OSP.NumberInput.cancel() end
     local function closeTools() toolsPopup=nil;search.blur() end
     local function setTab(t)
+        t=navigation.choose(t,function(id) return id=="settings" or id=="about" or admin() and (id~="permissions" or host()) end)
         if tab~=t then closeMovement();closeTools();tab=t;scroll=0;confirm=nil;typing=false;capturing=false;OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end
     end
     local function command(action,target,arg)
@@ -464,6 +465,10 @@ function OSP.installClient()
         elseif button("rebind",130,y,math.min(220,w-130),38,T("change_key"),"plain",false) then capturing=true;typing=false;confirm=nil end
         y=y+59;rect(0,y,w,1,C.line);y=y+20
         y=y+10
+        y=y+navigation.draw({
+            label=function(x,py,value,size,width) label(x,py,value,size,C.text,width) end,
+            button=function(id,x,py,width,height,value,kind) return button(id,x,py,width,height,value,kind,false) end,
+        },0,y,w)+12
         local height=OSP.Theme.draw({
             label=function(x,py,value,size,width,color) label(x,py,value,size,color or C.text,width) end,
             button=function(id,x,py,width,height,value,kind) return button(id,x,py,width,height,value,kind,false) end,
@@ -602,9 +607,11 @@ function OSP.installClient()
         if confirm then confirm.ready=true end
     end
     local function render()
+        setTab(tab)
+        local tabs=navigation.list();local navCols=math.min(4,#tabs)
         local canvas=UiCanvasSize();local W=math.min(1120,canvas.w*.85);local H=math.min(720,canvas.h*.82)
         local ox=(canvas.w-W)/2;local oy=(canvas.h-H)/2;local narrow=W<900
-        local header=58;local headerCenter=header/2;local side=narrow and 0 or 174;local navH=narrow and 78 or 0
+        local header=58;local headerCenter=header/2;local side=narrow and 0 or 174;local navH=narrow and (6+math.ceil(#tabs/navCols)*36) or 0
         local cx=narrow and 18 or side+22;local cy=header+navH+18
         local cw=W-cx-18;local ch=H-cy-18
         layout={w=W,h=H,ox=ox,oy=oy,contentX=cx,contentY=cy,contentW=cw,contentH=ch,narrow=narrow}
@@ -621,7 +628,7 @@ function OSP.installClient()
         if not narrow then rect(0,header,side,H-header,C.side);rect(side,header,1,H-header,C.line) end
         for i,t in ipairs(tabs) do
             local x,y,w,h
-            if narrow then w=(W-48)/4;h=32;x=18+((i-1)%4)*(w+4);y=header+7+math.floor((i-1)/4)*36
+            if narrow then w=(W-36-(navCols-1)*4)/navCols;h=32;x=18+((i-1)%navCols)*(w+4);y=header+7+math.floor((i-1)/navCols)*36
             else x=12;y=header+19+(i-1)*43;w=side-24;h=37 end
             if button("tab_"..t,x,y,w,h,T(t),tab==t and "active" or "outlined",not admin() and t~="settings" and t~="about") then setTab(t) end
         end
@@ -698,6 +705,7 @@ function OSP.installClient()
     end
     function client.tick(dt)
         -- Preserve a simultaneous click before keyboard capture calls InputClear.
+        setTab(tab)
         lmbPressed=InputPressed("lmb")
         if me==0 then me=GetLocalPlayer() end
         local s=state()
@@ -746,7 +754,7 @@ function OSP.installClient()
             local delta=InputValue("mousewheel")
             if delta~=0 then scroll=math.max(0,math.min(maxScroll,scroll-delta*48)) end
         end
-        if PauseMenuButton(T("pause_button"),"bottom_bar",false) then menu=true;setTab(admin() and "players" or "settings");confirm=nil end
+        if PauseMenuButton(T("pause_button"),"bottom_bar",false) then menu=true;setTab(tab);confirm=nil end
         if not admin() and tab~="settings" and tab~="about" then setTab("settings") end
     end
     function client.draw()

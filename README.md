@@ -4,7 +4,7 @@ An independently written Teardown administration panel for solo and multiplayer.
 
 ## Panel and controls
 
-Open with **P** or the pause menu. The centered panel adapts its layout to the available canvas instead of enlarging a fixed screen. Players, Session, Tools and Activity are administrative areas. **Settings** contains language, shortcut and the color palette; **About** contains version, license and source information. Both remain available to ordinary guests.
+Open with **P** or the pause menu. In **Settings → Panel tabs**, hide tabs you do not use; the remaining tabs move into the freed spaces. Settings always stays visible. The same controls are available from the Mod Manager Options, and choices are saved locally across missions and restarts. **Show all tabs** restores visibility without changing session rules or permissions. The centered panel adapts its layout to the available canvas instead of enlarging a fixed screen. Players, Session, Tools and Activity are administrative areas. **Settings** contains language, shortcut and the color palette; **About** contains version, license and source information. Both remain available to ordinary guests.
 
 Only the host can save player options and global tool policies, grant access, restart the map or directly change the host. A delegate may use the host as a teleport destination but cannot move or change the host. Bulk actions skip the host when issued by a delegate.
 
