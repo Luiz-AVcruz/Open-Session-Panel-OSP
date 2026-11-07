@@ -33,7 +33,7 @@ local function world(width,height,previousRegistry)
     env.InputValue=function(k) assert(k=='mousewheel');return w.wheel end
     env.InputClear=function() w.input='';w.click=false;w.held=false;w.released=false;w.wheel=0 end
     env.SetFloat=function() error('HUD must never write health or gameplay') end
-    env.UiPush=function() local t=w.t;w.stack[#w.stack+1]={x=t.x,y=t.y,s=t.s,font=t.font} end
+    env.UiPush=function() local t=w.t;w.stack[#w.stack+1]={x=t.x,y=t.y,s=t.s,font=t.font,color=t.color} end
     env.UiPop=function() assert(#w.stack>0,'balanced UI stack');w.t=table.remove(w.stack) end
     env.UiTranslate=function(x,y) w.t.x=w.t.x+x*w.t.s;w.t.y=w.t.y+y*w.t.s end
     env.UiScale=function(s) w.t.s=w.t.s*s end
@@ -41,7 +41,7 @@ local function world(width,height,previousRegistry)
     env.UiWidth=function() return width end;env.UiHeight=function() return height end
     env.UiFont=function(path,size) assert(path=='regular.ttf' or path=='bold.ttf');w.t.font=size end
     env.UiGetTextSize=function(s) return #s*(w.t.font or 20)*.55,(w.t.font or 20) end
-    env.UiText=function(s) assert(w.drawn);w.texts[#w.texts+1]=s;return #s*(w.t.font or 20)*.55,w.t.font or 20 end
+    env.UiText=function(s) assert(w.drawn);w.texts[#w.texts+1]=s;if w.capturePaint then w.paints[#w.paints+1]={kind='text',x=w.t.x,y=w.t.y,font=w.t.font,color=w.t.color,text=s} end;return #s*(w.t.font or 20)*.55,w.t.font or 20 end
     env.UiGetMousePos=function() return (w.mouse.x-w.t.x)/w.t.s,(w.mouse.y-w.t.y)/w.t.s end
     -- A completed native click may be reported on release. InputPressed is
     -- a separate engine event; a press must not wait for this return value.
@@ -55,12 +55,17 @@ local function world(width,height,previousRegistry)
     for _,name in ipairs({'UiColor','UiRect','UiWindow','UiAlign','UiMakeInteractive','UiWordWrap','UiTextDisableWildcards'}) do
         env[name]=function() assert(w.drawn,name..' outside draw') end
     end
+    env.UiColor=function(...) assert(w.drawn);if w.capturePaint then w.t.color={...} end end
+    env.UiRect=function(width,height)
+        assert(w.drawn)
+        if w.capturePaint then w.paints[#w.paints+1]={kind='rect',x=w.t.x,y=w.t.y,w=width*w.t.s,h=height*w.t.s,color=w.t.color} end
+    end
     local chunk=assert(loadfile(arg[1]));setfenv(chunk,env);chunk();env.client.init();w.api=env
     function w:tick(key,wheel)
         self.now=self.now+.1;self.input=key or '';self.wheel=wheel or 0;env.client.tick(.1);self.input='';self.wheel=0
     end
     function w:draw()
-        self.texts={};self.drawn=true;self.t={x=0,y=0,s=1};self.stack={}
+        self.texts={};self.paints={};self.drawn=true;self.t={x=0,y=0,s=1};self.stack={}
         env.client.draw();self.drawn=false;eq(#self.stack,0,'UI stack balanced')
         return env.OSP.UI.getState()
     end
@@ -711,5 +716,48 @@ do
     me.permissions=e.OSP.Permissions.normalize({});w:draw()
     eq(e.OSP.UI.getState().controls.tools_enable_results.disabled,true,'revocation disables already open result actions')
     eq(#w.sent,0)
+end
+-- Navigation must be recognizable without a pointer, across palettes and layouts.
+for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
+ for _,language in ipairs({'en','pt'}) do
+  for _,palette in ipairs({'classic','ocean','forest','violet','light','custom'}) do
+    local w=world(unpack(size));local e=w.api;w.capturePaint=true
+    w.reg['savegame.mod.osp.language']=language;w.reg['savegame.mod.osp.theme.mode']=palette
+    if palette=='custom' then w.reg['savegame.mod.osp.theme.custom.surface']='334155';w.reg['savegame.mod.osp.theme.custom.line']='94a3b8' end
+    e.OSP.UI.open(true);local st=w:draw();local c=e.OSP.Theme.colors()
+    local close=st.controls.close
+    for _,p in ipairs(w.paints) do
+        if p.kind=='text' and (p.text==e.OSP.L('app_title') or p.text==e.OSP.L('close') or p.text:find(e.OSP.L('selected_short')..':',1,true)==1) then
+            check(math.abs(p.y+p.font/2-(close.y+close.h/2))<.01,'header text shares the close button center')
+        end
+    end
+    local function painted(r,color)
+        for _,p in ipairs(w.paints) do
+            if p.kind=='rect' and math.abs(p.x-r.x)<.01 and math.abs(p.y-r.y)<.01 and math.abs(p.w-r.w)<.01 and math.abs(p.h-r.h)<.01 then
+                local same=true;for i=1,4 do if p.color[i]~=color[i] then same=false end end
+                if same then return true end
+            end
+        end
+        return false
+    end
+    for _,id in ipairs({'close','tab_settings'}) do
+        local r=st.controls[id]
+        check(painted(r,c.surface),'idle navigation has a visible button surface: '..id)
+        check(painted({x=r.x,y=r.y,w=r.w,h=1},c.line),'idle navigation has a permanent outline: '..id)
+    end
+    local active=st.controls.tab_players
+    check(painted(active,c.selected),'selected tab keeps its selected surface')
+    check(painted({x=active.x,y=active.y,w=3,h=active.h},c.accent),'selected tab keeps its accent marker')
+    local r=st.controls.tab_settings;w.mouse={x=r.x+2,y=r.y+2};w:draw()
+    check(painted(r,c.hover),'hover highlights the button surface')
+    check(painted({x=r.x,y=r.y,w=r.w,h=1},c.accent),'hover highlights the outline')
+    e.IsPlayerHost=function() return false end;e.shared.osp.players[1].admin=false;w:tick()
+    st=w:draw();r=st.controls.tab_players;w.mouse={x=r.x+2,y=r.y+2};st=w:draw()
+    eq(st.controls.tab_players.disabled,true)
+    check(painted(r,c.surface),'disabled navigation stays visible without hover activation')
+    check(painted({x=r.x,y=r.y,w=r.w,h=1},c.line),'disabled navigation keeps neutral outline')
+    w:pressAt(r.x+2,r.y+2);eq(e.OSP.UI.getState().tab,'settings','disabled navigation cannot change tabs')
+  end
+ end
 end
 print('PASS client interaction, viewport and translation contracts: '..assertions..' assertions (mock UI)')

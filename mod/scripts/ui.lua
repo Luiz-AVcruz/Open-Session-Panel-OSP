@@ -139,6 +139,11 @@ function OSP.installClient()
         if clicked then col=C.selected end
         if kind=="recovery" then col={.08,.08,.08,1} end
         rect(x,y,w,h,col)
+        if kind=="outlined" then
+            local edge=hover and C.accent or C.line
+            rect(x,y,w,1,edge);rect(x,y+h-1,w,1,edge)
+            rect(x,y,1,h,edge);rect(x+w-1,y,1,h,edge)
+        end
         if kind=="active" then rect(x,y,3,h,C.accent) end
         local textColor=controlDisabled and C.disabled or (kind=="danger" and C.danger or C.text)
         if kind=="recovery" then textColor={1,1,1,1} end
@@ -599,26 +604,26 @@ function OSP.installClient()
     local function render()
         local canvas=UiCanvasSize();local W=math.min(1120,canvas.w*.85);local H=math.min(720,canvas.h*.82)
         local ox=(canvas.w-W)/2;local oy=(canvas.h-H)/2;local narrow=W<900
-        local header=58;local side=narrow and 0 or 174;local navH=narrow and 78 or 0
+        local header=58;local headerCenter=header/2;local side=narrow and 0 or 174;local navH=narrow and 78 or 0
         local cx=narrow and 18 or side+22;local cy=header+navH+18
         local cw=W-cx-18;local ch=H-cy-18
         layout={w=W,h=H,ox=ox,oy=oy,contentX=cx,contentY=cy,contentW=cw,contentH=ch,narrow=narrow}
         controls={};UiPush();UiTranslate(ox,oy);UiAlign("left top");UiWindow(W,H,true)
         mouseX,mouseY=UiGetMousePos();drawOx,drawOy=ox,oy
         rect(0,0,W,H,C.back);rect(0,0,W,header,C.side);rect(0,header-1,W,1,C.line)
-        rect(18,17,4,24,C.accent);label(31,15,T("app_title"),21,C.text,W-215,true)
+        rect(18,headerCenter-12,4,24,C.accent);label(31,headerCenter-21/2,T("app_title"),21,C.text,W-215,true)
         if tab=="players" or (tab=="tools" and toolMode=="player") then
             local target=findPlayer(selected) or roster()[1]
             local x=math.max(260,W-490)
-            if target and W-145-x>=90 then label(x,21,T("selected_short")..": "..target.name,14,C.muted,W-145-x) end
+            if target and W-145-x>=90 then label(x,headerCenter-14/2,T("selected_short")..": "..target.name,14,C.muted,W-145-x) end
         end
-        if button("close",W-122,12,104,34,T("close"),"plain",false) then menu=false;closeTools();confirm=nil;typing=false;capturing=false;OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end
+        if button("close",W-122,headerCenter-34/2,104,34,T("close"),"outlined",false) then menu=false;closeTools();confirm=nil;typing=false;capturing=false;OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end
         if not narrow then rect(0,header,side,H-header,C.side);rect(side,header,1,H-header,C.line) end
         for i,t in ipairs(tabs) do
             local x,y,w,h
             if narrow then w=(W-48)/4;h=32;x=18+((i-1)%4)*(w+4);y=header+7+math.floor((i-1)/4)*36
             else x=12;y=header+19+(i-1)*43;w=side-24;h=37 end
-            if button("tab_"..t,x,y,w,h,T(t),tab==t and "active" or "plain",not admin() and t~="settings" and t~="about") then setTab(t) end
+            if button("tab_"..t,x,y,w,h,T(t),tab==t and "active" or "outlined",not admin() and t~="settings" and t~="about") then setTab(t) end
         end
         if not narrow then label(22,H-32,T("version",OSP.version),13,C.muted,side-44) end
         clip={x=cx,y=cy,w=cw,h=ch};bodyHovered=inside(cx,cy,cw,ch,mouseX,mouseY)
