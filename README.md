@@ -40,7 +40,7 @@ The host's **Global rules** are saved per tool: game default, enabled or blocked
 
 **Selected player** changes made by the host are saved per player; delegate changes remain temporary. They cannot enable a globally blocked tool. A global rule change clears related personal overrides, including saved profiles of offline players; a personal restriction can subsequently narrow an enabled global rule. Resetting a global tool rule restores its state captured before the first intervention in the current map; subsequent maps follow their own defaults. Native campaign unlock data is never changed.
 
-Player controls show contextual help after a 0.6-second hover, including reasons for unavailable actions. Host persistence and delegated temporary changes are explained beside the relevant controls. Hints disappear during editing, dialogs and scrolling.
+Player controls show contextual help after a 0.6-second hover, including reasons for unavailable actions. A small note beneath the player summary explains host persistence or delegated temporary changes once; individual hints do not repeat it. Hints disappear during editing, dialogs and scrolling.
 
 ## Numeric values
 

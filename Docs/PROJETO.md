@@ -213,3 +213,5 @@ As dicas usam os retângulos recortados dos controles, fonte 14, quebra por pala
 Testes locais cobrem prazo, troca de controle/entrada, rolagem, popups/edição/confirmação, motivos de bloqueio, permissões delegadas, ausência de comandos por hover e limites do texto em português/inglês e 640×480/1024×768/1920×1080. O mock mede linhas e caracteres UTF-8. Prévias sintéticas complementam a inspeção; aparência, métricas da fonte e temporização nativas ainda precisam de conferência no jogo.
 
 Pendentes: atalhos opcionais e importação/exportação de configurações. Fonte/janela continuam adiados; Bring here/Go there no próprio jogador fica para o fechamento. Antes do plano detalhado de cada ciclo, informar complexidade e esforço recomendado (high/xhigh/max) para escolha do responsável.
+
+Revisão de apresentação: a mensagem comum de persistência (ou de alterações temporárias para delegados) agora aparece uma única vez no resumo do jogador, abaixo de vida/role, em fonte 12 e cor secundária, sem caixa. Não gera tooltips sozinha nem é anexada às dicas específicas. Explicações de Fly/Noclip, restauração, acesso e motivos de bloqueio continuam contextuais.

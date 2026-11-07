@@ -210,6 +210,7 @@ function OSP.installClient()
         label(ax,top,p.name,22,C.text,aw,true)
         local life=math.floor((p.health or 0)*100+0.5)
         label(ax,top+31,T("health",life).."  ·  "..roleLabel(p),15,C.muted,aw)
+        label(ax,top+53,T(host() and "player_options_saved" or "tip_temporary"),12,C.muted,aw)
         local blocked=p.host and not host();local waiting=host() and p.profileReady==false;local gap=8
         local cols=aw>=400 and 2 or 1;local bw=(aw-gap*(cols-1))/cols
         local buttons={
@@ -218,7 +219,7 @@ function OSP.installClient()
             {"god_mode","god",not p.god},{"freeze","freeze",not p.freeze},
             {"fly","fly",not p.fly},{"noclip","noclip",not p.noclip},
         }
-        local by=top+69
+        local by=top+82
         for i,item in ipairs(buttons) do
             local x=ax+((i-1)%cols)*(bw+gap);local y=by+math.floor((i-1)/cols)*43
             local verb=item[2];local cap=T(verb=="god" and "god_short" or item[1])
@@ -292,10 +293,6 @@ function OSP.installClient()
                         elseif action=="noclip" then text=T("tip_noclip")
                         elseif id=="player_admin" then text=T("tip_admin")
                         elseif id=="reset_player" then text=T("tip_reset") end
-                        if persistent[action] or id=="player_admin" or id=="reset_player" then
-                            local saved=T(host() and "player_options_saved" or "tip_temporary")
-                            text=text and text.." "..saved or saved
-                        end
                     end
                     if text then candidate={id=id,r=r};break end
                 end

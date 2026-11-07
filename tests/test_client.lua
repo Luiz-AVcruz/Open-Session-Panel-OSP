@@ -806,10 +806,11 @@ for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
     local function wait() w.now=w.now+.61;return w:draw() end
     local initial=w:draw();local joined=table.concat(w.texts,'|')
     check(not joined:find(e.OSP.L('protects_host'),1,true),'host reminder no longer occupies page')
-    check(not joined:find(e.OSP.L('player_options_saved'),1,true),'saved reminder no longer occupies page')
+    local savedCount=0;for _,value in ipairs(w.texts) do if value==e.OSP.L('player_options_saved') then savedCount=savedCount+1 end end
+    eq(savedCount,1,'persistence appears once as a page note')
     hover('player_action_fly');w.now=w.now+.59;eq(w:draw().tooltip,nil,'no tooltip before delay')
     w.now=w.now+.02;local st=w:draw();local t=st.tooltip;check(t~=nil,'tooltip appears after delay')
-    eq(t.id,'player_action_fly');check(t.text:find(e.OSP.L('player_options_saved'),1,true)~=nil)
+    eq(t.id,'player_action_fly');check(t.text:find(e.OSP.L('player_options_saved'),1,true)==nil,'specific hints do not repeat persistence')
     check(t.x>=st.layout.ox and t.y>=st.layout.oy and t.x+t.w<=st.layout.ox+st.layout.w and t.y+t.h<=st.layout.oy+st.layout.h,'wrapped tip inside panel')
     for _,line in ipairs(t.lines) do local _,bytes=line:gsub('[\128-\191]','');check((#line-bytes)*14*.55<=t.w-24,'every wrapped line fits') end
     hover('player_action_noclip');eq(w:draw().tooltip,nil,'changing control resets delay');wait();check(w:draw().tooltip~=nil)
@@ -839,7 +840,8 @@ do
     local function hint(id)
         local r=w:scrollTo(id);w.mouse={x=r.x+r.w/2,y=r.y+r.h/2};w:draw();w.now=w.now+.61;return w:draw().tooltip
     end
-    check(hint('player_action_god').text:find(e.OSP.L('tip_temporary'),1,true)~=nil)
+    eq(hint('player_action_god'),nil,'persistence alone does not create a tooltip')
+    check(table.concat(w.texts,'|'):find(e.OSP.L('tip_temporary'),1,true)~=nil,'delegate sees temporary note in page')
     w:clickControl('player_23');eq(hint('player_action_god').text,e.OSP.L('protects_host'))
     w:clickControl('player_11');me.permissions=e.OSP.Permissions.normalize({})
     eq(hint('player_action_god').text,e.OSP.L('result_denied'))
