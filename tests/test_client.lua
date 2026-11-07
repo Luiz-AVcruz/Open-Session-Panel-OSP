@@ -932,4 +932,58 @@ for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
     eq(#w.sent,0,'opening and closing shortcut settings sends no gameplay commands')
  end
 end
+-- Shortcut feedback sizes to measured text and keeps its top-center anchor.
+for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
+ for _,language in ipairs({'en','pt'}) do
+    local w=world(unpack(size));local e=w.api;e.OSP.UI.open(false);e.shared.osp.players[1].profileReady=true;w.reg['savegame.mod.osp.language']=language
+    e.OSP.Shortcuts.assign('god','f8');e.OSP.Shortcuts.assign('fly','f9');w.capturePaint=true
+    local function geometry(expectedY,compact)
+        local st=w:draw();local box,band=w.paints[1],w.paints[2];local paintedText
+        check(box and box.kind=='rect' and band and band.kind=='rect','shortcut notice background and accent are drawn')
+        for _,paint in ipairs(w.paints) do if paint.kind=='text' then paintedText=paint;break end end
+        check(paintedText~=nil,'shortcut notice text is drawn')
+        eq(paintedText.text:gsub('\n',' '),st.shortcutNotice,'wrapped text preserves the notice')
+        eq(paintedText.font,15,'shortcut notice keeps its font size')
+        check(box.x>=20 and box.x+box.w<=size[1]-20,'notice keeps side margins')
+        check(math.abs(box.x-(size[1]-box.w)/2)<.01,'notice stays horizontally centered')
+        eq(box.y,expectedY,'notice keeps its top anchor and announcement offset')
+        check(box.y+box.h<=size[2],'notice box fits canvas height')
+        eq(band.x,box.x);eq(band.y,box.y);eq(band.w,3);eq(band.h,box.h)
+        eq(paintedText.x,box.x+12,'notice uses horizontal padding')
+        eq(paintedText.y,box.y+8,'notice uses vertical padding')
+        w.t.font=15
+        local _,textHeight=e.UiGetTextSize(paintedText.text)
+        eq(box.h,textHeight+16,'notice height follows measured text and vertical padding')
+        local lineCount,maxLineWidth=0,0
+        for line in (paintedText.text..'\n'):gmatch('(.-)\n') do
+            lineCount=lineCount+1;local lineWidth=e.UiGetTextSize(line);maxLineWidth=math.max(maxLineWidth,lineWidth)
+            check(lineWidth<=box.w-24+.01,'each notice line fits its measured content width')
+        end
+        check(box.w<=math.min(360,size[1]-40)+.01,'notice respects maximum width')
+        check(math.abs(box.w-(maxLineWidth+24))<.01,'notice width follows its widest line and padding')
+        if compact then check(box.w<360 and box.h<72,'short and pending notices remain compact') end
+        return st,paintedText,box,lineCount
+    end
+    w:tick('f8');w:ack();local st,text,box,lines=geometry(40,true)
+    eq(lines,1,'short ACK notice stays on one line')
+    check(st.shortcutNotice:find(e.OSP.L('on'),1,true)~=nil,'short ACK notice shows confirmed value')
+    e.client.ospAnnouncement('Host','Session announcement stays visible')
+    w:tick('f8');w:tick('f9');st,text,box,lines=geometry(164,true)
+    check(st.shortcutNotice:find(e.OSP.L('request_pending'),1,true)~=nil,'pending notice keeps its pending message')
+    check(w.paints[4] and w.paints[4].kind=='rect' and w.paints[4].y==40,'session announcement keeps its existing position')
+    w:ack();w.now=w.now+7
+    local originalL=e.OSP.L;local longText={
+        en='The server confirmed the requested value after checking the current player and session state.',
+        pt='O servidor confirmou o valor solicitado após verificar o jogador atual e o estado da sessão.'
+    }
+    e.OSP.L=function(key,...)
+        if key=='on' then return longText[language] end
+        return originalL(key,...)
+    end
+    w:tick('f8');w:ack();st,text,box,lines=geometry(40,false)
+    check(lines>1,'long translated notice wraps across measured lines')
+    check(text.text:find('\n',1,true)~=nil,'long notice contains explicit line breaks')
+    e.OSP.L=originalL
+ end
+end
 print('PASS client interaction, viewport and translation contracts: '..assertions..' assertions (mock UI)')

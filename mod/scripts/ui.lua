@@ -878,9 +878,19 @@ function OSP.installClient()
         lmbPressed=false
         local canvas=UiCanvasSize()
         if shortcutNotice and GetTime()<shortcutUntil then
-            local w=math.min(460,canvas.w-40);local y=notice and GetTime()<noticeUntil and 164 or 40
-            UiPush();UiTranslate((canvas.w-w)/2,y);rect(0,0,w,72,C.side);rect(0,0,3,72,C.accent)
-            UiTranslate(14,12);UiFont("regular.ttf",15);UiAlign("left top");UiTextDisableWildcards(true);UiWordWrap(w-28);rgb(C.text);UiText(shortcutNotice);UiPop()
+            local maxWidth=math.min(360,canvas.w-40);local textWidth=maxWidth-24;local lines={};local line=""
+            UiPush();UiFont("regular.ttf",15)
+            for word in shortcutNotice:gmatch("%S+") do
+                local nextLine=line=="" and word or line.." "..word
+                if line~="" and UiGetTextSize(nextLine)>textWidth then lines[#lines+1]=line;line=word else line=nextLine end
+            end
+            if line~="" then lines[#lines+1]=line end
+            local text=table.concat(lines,"\n");local measuredWidth,measuredHeight=UiGetTextSize(text)
+            local w=math.min(maxWidth,measuredWidth+24);local h=measuredHeight+16
+            UiPop()
+            local y=notice and GetTime()<noticeUntil and 164 or 40
+            UiPush();UiTranslate((canvas.w-w)/2,y);rect(0,0,w,h,C.side);rect(0,0,3,h,C.accent)
+            UiTranslate(12,8);UiFont("regular.ttf",15);UiAlign("left top");UiTextDisableWildcards(true);UiWordWrap(w-24);rgb(C.text);UiText(text);UiPop()
         end
         if notice and GetTime()<noticeUntil then
             local w=math.min(700,canvas.w-40);UiPush();UiTranslate((canvas.w-w)/2,40);UiWindow(w,112,true)
