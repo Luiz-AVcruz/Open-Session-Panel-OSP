@@ -7,7 +7,7 @@ local function eq(a,b,msg) check(a==b,(msg or 'equality')..': '..tostring(a)..' 
 local function world(width,height,previousRegistry)
     local w={reg=previousRegistry or {},sent={},texts={},now=0,input='',wheel=0,mouse={x=0,y=0},click=false,held=false,released=false,armed={},
         width=width,height=height,t={x=0,y=0,s=1},stack={},drawn=false,hp=1}
-    local env=setmetatable({client={},shared={osp={ready=true,version='1.3.0',rules={},log={},
+    local env=setmetatable({client={},shared={osp={ready=true,version='1.4.0',rules={},log={},
         tools={{id='gun',name='gun',nameKey='TOOL_NAME_GUN',origin='vanilla',policy='default'},
                {id='sledge',name='Sledge',origin='vanilla',policy='enabled'},
                {id='mytool',name=string.rep('X',90),origin='mod',policy='disabled'}},
@@ -288,7 +288,7 @@ do
     local w=world(1024,768);local e=w.api
     e.shared.osp.players[2].profileReady=false;e.OSP.UI.open(true)
     w:clickControl('player_23')
-    for _,id in ipairs({'player_action_god','player_action_fly','player_action_noclip','player_speed_value','player_action_freeze','speed_up','player_admin','reset_player'}) do
+    for _,id in ipairs({'player_action_god','player_action_fly','player_action_noclip','fly_settings','noclip_settings','player_speed_value','player_action_freeze','speed_up','player_admin','reset_player'}) do
         eq(w:scrollTo(id).disabled,true,'waiting profile disables '..id)
     end
     w:clickControl('tab_tools');w:clickControl('tool_mode_player')
@@ -460,6 +460,23 @@ for _,size in ipairs({{1024,768},{1920,1080}}) do
     edit('player_speed_value','99','speed',3)
     edit('player_speed_value','-8','speed',.5)
     edit('player_speed_value','1,75','speed',1.75)
+    eq(w:draw().controls.fly_speed_value,nil,'Fly tuning stays hidden until opened')
+    w:clickControl('fly_settings')
+    edit('fly_speed_value','12.5','fly_speed',12.5)
+    edit('fly_boost_value','32','fly_boost',32)
+    edit('fly_boost_value','999','fly_boost',100)
+    edit('fly_speed_value','0','fly_speed',.5)
+    local open=w:draw()
+    eq(open.controls.fly_boost_value.h,34,'opening reveals the complete Shift field')
+    w:clickControl('noclip_settings')
+    eq(w:draw().controls.fly_speed_value,nil,'opening Noclip closes Fly tuning')
+    edit('noclip_speed_value','25.5','noclip_speed',25.5)
+    edit('noclip_boost_value','41','noclip_boost',41)
+    edit('noclip_boost_value','999','noclip_boost',100)
+    edit('noclip_speed_value','0','noclip_speed',.5)
+    w:clickControl('noclip_settings');eq(w:draw().controls.noclip_speed_value,nil,'Noclip tuning can close')
+    w:clickControl('fly_settings')
+    w:clickControl('fly_settings');eq(w:draw().controls.fly_speed_value,nil,'Fly tuning can close')
     local before=#w.sent
     w:clickControl('player_speed_value');w:tick('2');w:tick('esc')
     eq(#w.sent,before,'Escape discards a numeric edit')
@@ -506,5 +523,22 @@ do
     w:clickControl('player_23');w:clickControl('player_speed_value');w:tick('2')
     p.profileChallenge=99;w:tick('return')
     eq(#w.sent,before,'a reused session player cannot receive an old numeric edit')
+end
+do
+    local w=world(1024,768);local e=w.api
+    e.GetLocalPlayer=function() return 23 end;e.client.init()
+    local p=e.shared.osp.players[2];p.admin=true;p.permissions=e.OSP.Permissions.normalize({fly=1})
+    e.OSP.UI.open(true);w:draw()
+    eq(w:scrollTo('noclip_settings').disabled,true,'Fly grants cannot edit Noclip')
+    w:clickControl('fly_settings');w:clickControl('fly_speed_value');w:tick('2')
+    p.permissions=e.OSP.Permissions.normalize({})
+    local before=#w.sent;w:tick('return');eq(#w.sent,before,'revocation blocks an open movement editor')
+    p.permissions=e.OSP.Permissions.normalize({noclip=1});w:draw()
+    eq(w:scrollTo('fly_settings').disabled,true,'Noclip grants cannot edit Fly')
+    w:clickControl('noclip_settings');w:clickControl('noclip_boost_value');w:tick('4')
+    p.profileChallenge=77;w:tick('return');eq(#w.sent,before,'movement tuning checks the target join before sending')
+    w:clickControl('noclip_speed_value');w:tick('5');w:clickControl('player_11');w:tick('return')
+    eq(#w.sent,before,'switching target discards movement drafts')
+    eq(w:scrollTo('noclip_settings').disabled,true,'self-only Noclip cannot edit host settings')
 end
 print('PASS client interaction, viewport and translation contracts: '..assertions..' assertions (mock UI)')

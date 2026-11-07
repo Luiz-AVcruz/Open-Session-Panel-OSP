@@ -1,6 +1,6 @@
 # Open Session Panel
 
-An independently written Teardown administration panel for solo and multiplayer. Development bundle **1.3.0**, by **Luiz-AVcruz**, uses Lua 5.1 and multiplayer scripting version 2. English is the default; Brazilian Portuguese is available.
+An independently written Teardown administration panel for solo and multiplayer. Development bundle **1.4.0**, by **Luiz-AVcruz**, uses Lua 5.1 and multiplayer scripting version 2. English is the default; Brazilian Portuguese is available.
 
 ## Panel and controls
 
@@ -8,7 +8,7 @@ Open with **P** or the pause menu. The centered panel adapts its layout to the a
 
 Only the host can save player options and global tool policies, grant access, restart the map or directly change the host. A delegate may use the host as a teleport destination but cannot move or change the host. Bulk actions skip the host when issued by a delegate.
 
-**Fly** enables collision-preserving flight: double-tap the logical Jump binding (Space by default) within 0.3 seconds to start/stop, then hold Jump to rise or Crouch to descend. Forward movement follows horizontal camera direction. **Noclip** retains the former Fly behavior, including movement through geometry. Enabling either mode turns the other off. Only the ability is saved; active Fly ends on death, respawn, freeze, vehicle entry or a new mission. Existing Fly settings and custom-role grants keep their former meaning as Noclip. Announcements are entered in Session using ASCII keyboard characters (up to 240 bytes); clipboard and accented text input are not supported.
+**Fly** enables collision-preserving flight: double-tap the logical Jump binding (Space by default) within 0.3 seconds to start/stop, then hold Jump to rise or Crouch to descend. Forward movement follows horizontal camera direction. Hold **Shift** to use the configured boost speed; releasing it restores normal flight speed. The **...** buttons beside Fly and Noclip open their independent normal and Shift speed fields (defaults 9 and 18 m/s for each mode, each bounded to 0.5–100). These are final speeds: the general player multiplier affects ordinary movement only. Host tuning persists per player; delegated tuning stays temporary and follows the corresponding Fly or Noclip permission scope. Only one movement editor is shown at a time; its hints stay inside that editor. Changing a speed does not activate a mode. Shift selects the second configured speed, which may also be set lower than normal. **Noclip** keeps movement through geometry and its existing panel activation, with its own configurable Shift speed. Enabling either mode turns the other off. Only the ability is saved; active Fly ends on death, respawn, freeze, vehicle entry or a new mission. Existing Fly settings and custom-role grants keep their former meaning as Noclip. Announcements are entered in Session using ASCII keyboard characters (up to 240 bytes); clipboard and accented text input are not supported.
 
 Buttons use their full visible rectangle and react on press. Holding or releasing does not repeat an action. Gameplay commands show immediate pending feedback and still wait for the server's acknowledgement.
 
@@ -40,7 +40,7 @@ The host's **Global rules** are saved per tool: game default, enabled or blocked
 
 ## Numeric values
 
-Click the value for movement speed, time scale, rain, fog or an RGB channel to type it. Enter applies and Esc cancels; clicking another control discards the unfinished edit. Values are rounded to the field precision and clamped to its range: speed 0.5–3, time scale 0.1–2, rain 0–1, fog 10–1000 m and RGB 0–255. Decimal points and commas are accepted. The +/- buttons and RGB bars remain available. Commands still require the appropriate role permission.
+Click the value for movement speed, time scale, rain, fog or an RGB channel to type it. Enter applies and Esc cancels; clicking another control discards the unfinished edit. Values are rounded to the field precision and clamped to its range: player speed 0.5–3, Fly/Noclip speeds 0.5–100, time scale 0.1–2, rain 0–1, fog 10–1000 m and RGB 0–255. Decimal points and commas are accepted. The +/- buttons and RGB bars remain available. Commands still require the appropriate role permission.
 
 ## Settings before loading a map
 
@@ -58,9 +58,9 @@ Custom lets you choose each interface color with the previous/next role arrows, 
 
 ## Install and develop
 
-All current work belongs to the **1.3.0 development bundle**. Commits record ongoing changes; the product version changes only when Luiz-AVcruz explicitly decides to start a new version. Packaging or installing a revision does not automatically bump it.
+All current work belongs to the **1.4.0 development bundle**. Commits record ongoing changes; the product version stays at 1.4.0 until Luiz-AVcruz explicitly closes this bundle. Packaging or installing a revision does not automatically bump it.
 
-Players do not need Python or LuaJIT. Extract `dist/OpenSessionPanel-1.3.0.zip` as its own folder in Teardown's local mods directory and enable **Open Session Panel**. After updating an already loaded mod, reload the map to load the new scripts. Keep only one administration panel active while testing conflicting gameplay controls.
+Players do not need Python or LuaJIT. Extract `dist/OpenSessionPanel-1.4.0.zip` as its own folder in Teardown's local mods directory and enable **Open Session Panel**. After updating an already loaded mod, reload the map to load the new scripts. Keep only one administration panel active while testing conflicting gameplay controls.
 
 Before disabling or removing the mod, restore session/tool defaults as desired, then reload the map to clear temporary effects. A global mod's `server.destroy` callback is not guaranteed cleanup. Remove only this mod's folder; no game files or campaign saves are included.
 

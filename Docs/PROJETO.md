@@ -6,7 +6,7 @@ Painel independente de administração de Teardown, modificável e redistribuív
 
 A v1.0 foi implementada e copiada para mods locais. O log confirma seu carregamento; o usuário observou que o menu era grande, pouco adaptável e visualmente insatisfatório. O layout anterior de 1400×880 era redimensionado inteiro. A revisão 1.1 trata esses problemas sem alegar que os testes anteriores demonstraram usabilidade.
 
-## Escopo da versão 1.3.0
+## Escopo da versão 1.4.0
 
 - Jogadores: cura, morte confirmada, respawn, ir até/trazer jogador, retirada de veículo, congelamento, invencibilidade, Fly com colisão, Noclip e velocidade.
 - Sessão: cura coletiva, trazer participantes, regeneração nativa, tempo, chuva, neblina, restauração de padrões, reinício confirmado e anúncios.
@@ -40,14 +40,14 @@ Antes de remover o mod, restaurar regras conforme desejado e recarregar o mapa. 
 
 ## Organização e comandos
 
-Lua 5.1, scripting version 2 do Teardown, sem dependências no runtime. Código jogável em `mod/`, teste do contrato do servidor/cliente em `tests/`, ferramentas locais em `tools/`. A versão de produto é **1.3.0**; `version = 2` no manifesto continua significando a geração do scripting.
+Lua 5.1, scripting version 2 do Teardown, sem dependências no runtime. Código jogável em `mod/`, teste do contrato do servidor/cliente em `tests/`, ferramentas locais em `tools/`. A versão de produto é **1.4.0**; `version = 2` no manifesto continua significando a geração do scripting.
 
 ```sh
 python3 tools/check.py
 python3 tools/package.py
 ```
 
-Por decisão explícita do usuário, todo o trabalho atual pertence ao bundle de desenvolvimento **1.3.0**. Não incrementar a versão por edição, commit, empacotamento ou instalação. Somente abrir outra versão quando o usuário decidir. As numerações maiores usadas nas iterações anteriores foram consolidadas neste bundle; manter o histórico Git, sem reescrevê-lo.
+O usuário informou que publicou a revisão anterior e abriu o bundle de desenvolvimento **1.4.0**. Manter esse número até ele dizer que o bundle está encerrado. Não incrementar por edição, commit, empacotamento ou instalação; não reescrever o histórico Git.
 
 O empacotador produz ZIP instalável, ZIP de fontes e hashes determinísticos. O pacote não inclui `.git`, identificadores de Workshop, backups, tokens ou assets proprietários. Não é necessário Python para jogar.
 
@@ -155,3 +155,18 @@ Compatibilidade de movimento: o antigo campo de jogador fly é interpretado como
 Os valores de velocidade (0,5–3), escala de tempo (0,1–2), chuva (0–1), neblina (10–1000 m) e canais RGB (0–255) podem ser digitados. Enter confirma, Esc descarta e selecionar outro controle descarta a edição incompleta. O valor é arredondado conforme a precisão do campo e limitado à faixa permitida. Ponto e vírgula decimal são aceitos; entrada vazia/inválida não grava. Os botões de ajuste e barras continuam disponíveis. A edição usa scripts/number_input.lua, compartilhado entre o painel e Options; controles de gameplay mantêm a validação de acesso no servidor.
 
 Verificação desta etapa: testes locais de modos separados, descarte/ACK e captura de nome; limites e confirmação de números; migração dos dois modos de movimento e capacidades; duplo salto, pausa/UI, velocidade diagonal, gravidade, congelamento, veículo e morte/respawn. A revisão independente encontrou voo ativo sobrevivendo a respawn explícito ou kill+heal antes de outro tick; os comandos e a transição de vida passaram a cancelá-lo, com regressões dos dois casos. Prévias sintéticas da atribuição, do editor de roles e dos campos numéricos foram inspecionadas em 1024×768 e 1920×1080. O mock comprova os parâmetros e a aritmética; não comprova a ordem interna do controlador de personagem do motor. Conferir no jogo: parede e teto seguram Fly, o personagem paira sem deriva, dois saltos alternam sem repetir ao segurar, e Noclip atravessa a mesma parede. Aparência nativa, hover, colisão e sincronização multiplayer continuam pendentes de observação.
+
+
+### Ciclo 1 do bundle 1.4.0: velocidades finais de Fly e Noclip
+
+O usuário confirmou colisão e comandos de Fly no jogo antes desta revisão. O ciclo aprovado conclui o ajuste pendente de Fly e acrescenta o mesmo fluxo ao Noclip. Não inclui outros itens do backlog.
+
+Cada modo tem seus próprios valores normal/Shift: padrões 9/18 m/s, faixa 0,5–100, duas casas decimais. São velocidades finais, independentes do multiplicador geral do jogador, que continua funcionando no movimento normal. Shift seleciona o segundo valor enquanto estiver pressionado; soltar restaura o normal. O segundo valor pode ser menor por escolha do usuário. Sem direção de movimento, Shift não causa deslocamento; a compensação de gravidade do Fly não é multiplicada.
+
+Os botões de reticências ao lado dos toggles On/Off abrem uma única seção de configuração por vez. Campos e instruções específicas aparecem nessa seção, com rolagem para revelá-los. Reutilizam NumberInput: Enter confirma, Esc descarta, ponto/vírgula decimal e limitação à faixa. Configurar não ativa o modo. Duplo salto do Fly, ativação atual do Noclip, colisão e exclusão mútua dos modos permanecem.
+
+O servidor mantém flight_speed/flight_boost e acrescenta noclip_speed/noclip_boost por perfil. Campos ausentes ou inválidos usam os padrões; não há migração destrutiva. Identidades, roles e flags legadas permanecem. Os comandos fly_speed/fly_boost e noclip_speed/noclip_boost usam a capacidade correspondente, incluindo alcance, proteção do host e identificação antes de persistir. Escolhas do host persistem; delegados alteram temporariamente. Restaurar o jogador devolve os quatro padrões; alternar modos não apaga seus ajustes.
+
+Validação local cobre velocidades finais, Shift/soltura, diagonais, repouso, restauração do multiplicador de caminhada, independência dos modos, nova missão/ID, dados inválidos e autorização. A UI cobre os dois idiomas, abrir/fechar/alternar editores, campos inteiros visíveis, limites e captura de alvo. A confirmação anterior de colisão não prova as novas velocidades/Shift ou a sincronização multiplayer: conferir no jogo cada modo normal/Shift, multiplicador geral 2× sem alterar o voo e persistência após missão. O pacote e a instalação continuam com fonte legível e identidade do Workshop preservada.
+
+Backlog restante, para ciclos posteriores após avaliar este: impedir Bring here no próprio jogador; pesquisar ferramentas e reorganizar Tools; melhorar identificação dos botões Close/navegação; tamanho de fonte/janela; importar/exportar configurações; dicas contextuais globais; shortcuts opcionais sem padrão; ocultar/mostrar abas com reajuste da navegação. Não há plano de implementação desses itens neste ciclo.

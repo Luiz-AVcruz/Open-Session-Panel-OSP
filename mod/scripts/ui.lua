@@ -5,6 +5,8 @@ function OSP.installClient()
     local ROOT="savegame.mod.osp."
     local menu,tab,selected=false,"players",nil
     local toolMode,filter="global","all"
+    local movementSettings=nil
+    local revealMovementSettings=false
     local pages={players=1,tools=1,activity=1}
     local scroll,maxScroll,bodyHovered=0,0,false
     local typing,capturing,draft=false,false,""
@@ -43,6 +45,8 @@ function OSP.installClient()
         if verb then return allowed(verb,target) end
         if id=="speed_down" or id=="speed_up" then return allowed("speed",target) end
         if id=="player_speed_value" then return allowed("speed",target) end
+        if id=="fly_settings" or id=="fly_speed_value" or id=="fly_boost_value" then return allowed("fly",target) end
+        if id=="noclip_settings" or id=="noclip_speed_value" or id=="noclip_boost_value" then return allowed("noclip",target) end
         if id=="player_admin" or id=="reset_player" then return host() end
         if id=="heal_all" or id=="bring_all" or id=="restart" or id=="reset_rules" then return allowed(id,0) end
         local key=id:match("^rule_(%a+)_")
@@ -206,9 +210,39 @@ function OSP.installClient()
             if verb=="god" or verb=="fly" or verb=="noclip" or verb=="freeze" then cap=cap.."  ·  "..T(p[verb] and "on_short" or "off_short") end
             local persistent=verb=="god" or verb=="fly" or verb=="noclip" or verb=="freeze"
             local dis=(blocked and verb~="goto") or (waiting and persistent) or (verb=="eject" and not p.vehicle)
-            if button("player_action_"..verb,x,y,bw,37,cap,item[4],dis) then actionForPlayer(p,verb,cap,item[3],item[4]) end
+            local movement=verb=="fly" or verb=="noclip"
+            local configuring=movementSettings and movementSettings.player==p.id and movementSettings.mode==verb
+            local actionWidth=movement and bw-46 or bw
+            if button("player_action_"..verb,x,y,actionWidth,37,cap,item[4],dis) then actionForPlayer(p,verb,cap,item[3],item[4]) end
+            if movement and button(verb.."_settings",x+bw-40,y,40,37,"...",configuring and "active" or "plain",blocked or waiting) then
+                if configuring then movementSettings=nil else movementSettings={player=p.id,mode=verb} end
+                revealMovementSettings=movementSettings~=nil
+            end
         end
         local y=by+math.ceil(#buttons/cols)*43+7
+        if movementSettings and movementSettings.player==p.id then
+            local mode=movementSettings.mode
+            if revealMovementSettings then
+                local height=165+(mode=="fly" and 22 or 0)
+                scroll=math.max(scroll,y+height-layout.contentH);revealMovementSettings=false
+            end
+            label(ax,y,T(mode.."_settings_title"),17,C.text,aw,true);y=y+30
+            local challenge=p.profileChallenge
+            for _,field in ipairs({{mode.."_speed_value","fly_speed_label",mode.."_speed",p[mode.."Speed"] or OSP.flight.normal},
+                {mode.."_boost_value","fly_boost_label",mode.."_boost",p[mode.."Boost"] or OSP.flight.shift}}) do
+                label(ax,y+8,T(field[2]),15,C.muted,aw-150)
+                numberField(field[1],ax+aw-140,y,140,34,field[4],OSP.flight.min,OSP.flight.max,2,
+                    function(value)
+                        local current=findPlayer(p.id)
+                        if current and current.profileChallenge==challenge then command(field[3],p.id,value)
+                        else setStatus(T("result_unavailable")) end
+                    end,blocked or waiting)
+                y=y+42
+            end
+            label(ax,y,T("fly_speed_note"),13,C.muted,aw);y=y+29
+            if mode=="fly" then label(ax,y,T("fly_help"),14,C.muted,aw);y=y+22 end
+            label(ax,y,T("fly_controls"),14,C.muted,aw);y=y+22
+        end
         label(ax,y+8,T("speed_short"),16,C.muted,88)
         local challenge=p.profileChallenge
         numberField("player_speed_value",ax+96,y,aw-208,34,p.speed or 1,.5,3,2,
@@ -220,11 +254,6 @@ function OSP.installClient()
         if button("speed_down",ax+aw-104,y,48,34,"-","plain",blocked or waiting) then command("speed",p.id,math.max(.5,(p.speed or 1)-.25)) end
         if button("speed_up",ax+aw-50,y,48,34,"+","plain",blocked or waiting) then command("speed",p.id,math.min(3,(p.speed or 1)+.25)) end
         y=y+43
-        if p.fly then
-            label(ax,y,T("fly_help"),14,C.muted,aw)
-            label(ax,y+21,T("fly_controls"),14,C.muted,aw)
-            y=y+49
-        end
         if host() and not p.host then
             if button("player_admin",ax,y,aw,37,T(p.admin and "revoke_admin" or "grant_admin"),"plain",waiting) then command("admin",p.id,not p.admin) end
         else label(ax,y+9,T("protects_host"),14,C.muted,aw) end
@@ -415,7 +444,7 @@ function OSP.installClient()
             if e then
                 local actor=math.min(140,w*.21);local result=math.min(105,w*.16);local target=math.min(125,w*.18)
                 local actionW=math.max(100,w-actor-result-target-24)
-                local key=({heal="heal",kill="kill",respawn="respawn",["goto"]="go_to",bring="bring",eject="eject",god="god_mode",fly="fly",noclip="noclip",freeze="freeze",speed="speed",admin="admin_access",role_assign="permissions",role_save="permissions",role_delete="permissions",reset_player="reset_player",heal_all="heal_all",bring_all="bring_all",rule="session_rules",reset_rules="reset_rules",restart="restart",announce="announcement",tool="tools",tool_all="tools",tools="tools",tools_all="tools",tool_policy="global_rules",tool_policy_bulk="global_rules",tools_filtered="tools",tools_filtered_all="tools"})[e.action] or "status"
+                local key=({heal="heal",kill="kill",respawn="respawn",["goto"]="go_to",bring="bring",eject="eject",god="god_mode",fly="fly",fly_speed="fly_normal_action",fly_boost="fly_shift_action",noclip_speed="noclip_normal_action",noclip_boost="noclip_shift_action",noclip="noclip",freeze="freeze",speed="speed",admin="admin_access",role_assign="permissions",role_save="permissions",role_delete="permissions",reset_player="reset_player",heal_all="heal_all",bring_all="bring_all",rule="session_rules",reset_rules="reset_rules",restart="restart",announce="announcement",tool="tools",tool_all="tools",tools="tools",tools_all="tools",tool_policy="global_rules",tool_policy_bulk="global_rules",tools_filtered="tools",tools_filtered_all="tools"})[e.action] or "status"
                 local detail=T(key)
                 if type(e.argument)=="table" then
                     local a=e.argument

@@ -1,6 +1,7 @@
 -- Copyright (C) 2026 Luiz-AVcruz
 -- AGPL-3.0-or-later; additional Teardown permission: see ADDITIONAL-PERMISSION.
-OSP = { version = "1.3.0" }
+OSP = { version = "1.4.0" }
+OSP.flight = {normal=9,shift=18,min=.5,max=100}
 
 function OSP.finite(n)
     return type(n) == "number" and n == n and n > -math.huge and n < math.huge

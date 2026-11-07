@@ -13,7 +13,8 @@ P.spec = {
 }
 P.reserved = {admin=true,reset_player=true,restart=true,tool_policy=true,tool_policy_bulk=true,
     role_assign=true,role_save=true,role_delete=true}
-local aliases = {tool="tools",tools_filtered="tools",tool_all="tools_all",tools_filtered_all="tools_all"}
+local aliases = {tool="tools",tools_filtered="tools",tool_all="tools_all",tools_filtered_all="tools_all",
+    fly_speed="fly",fly_boost="fly",noclip_speed="noclip",noclip_boost="noclip"}
 function P.normalize(values)
     if type(values)~="table" then return nil end
     local result,known={},{}

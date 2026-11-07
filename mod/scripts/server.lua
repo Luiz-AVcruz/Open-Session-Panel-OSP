@@ -36,6 +36,12 @@ function OSP.installServer()
         if HasKey(root.."noclip") then e.noclip=GetBool(root.."noclip")
         elseif HasKey(root.."fly") then e.noclip=GetBool(root.."fly") end
         e.fly=GetBool(root.."flight")
+        for key,field in pairs({flight_speed="flySpeed",flight_boost="flyBoost",noclip_speed="noclipSpeed",noclip_boost="noclipBoost"}) do
+            if HasKey(root..key) then
+                local value=GetFloat(root..key)
+                if OSP.finite(value) and value>=OSP.flight.min and value<=OSP.flight.max then e[field]=value end
+            end
+        end
         if HasKey(root.."role") then e.role=GetString(root.."role");e.admin=false
         else e.role=e.admin and "admin" or "guest" end
         if HasKey(root.."speed") then
@@ -63,6 +69,8 @@ function OSP.installServer()
         SetInt("savegame.mod.osp.nextjoin",join)
         local e={
             admin=false, god=nil, fly=false, noclip=nil, flying=false, freeze=false, speed=1,
+            flySpeed=OSP.flight.normal,flyBoost=OSP.flight.shift,
+            noclipSpeed=OSP.flight.normal,noclipBoost=OSP.flight.shift,
             baseSpeed=GetPlayerWalkingSpeed(p),
             baseGod=GetPlayerParam("godMode", p),
             baseFly=GetPlayerParam("flyMode", p),
@@ -85,7 +93,8 @@ function OSP.installServer()
             if e then
                 view.players[#view.players+1]={id=p,name=GetPlayerName(p),health=GetPlayerHealth(p),
                     vehicle=GetPlayerVehicle(p)~=0,host=isHost(p),admin=isAdmin(p),god=e.god==true or (e.god==nil and e.baseGod==true),
-                    fly=e.fly==true,flying=e.flying==true,noclip=e.noclip==true or (e.noclip==nil and e.baseFly==true),
+                    fly=e.fly==true,flying=e.flying==true,flySpeed=e.flySpeed,flyBoost=e.flyBoost,
+                    noclip=e.noclip==true or (e.noclip==nil and e.baseFly==true),noclipSpeed=e.noclipSpeed,noclipBoost=e.noclipBoost,
                     freeze=e.freeze,speed=e.speed,role=playerRole(p).id,permissions=OSP.copy(playerRole(p).permissions),profileReady=e.profile~=nil,profileChallenge=e.challenge}
             end
         end
@@ -266,6 +275,18 @@ function OSP.installServer()
             e.noclip=false;SetPlayerParam("flyMode",false,p);saveNoclip(c,p,false)
         end
     end,{target=true,persistent=true})
+    add("fly_speed",function(v) return numberIn(v,OSP.flight.min,OSP.flight.max) end,function(c,p,v)
+        players[p].flySpeed=v;saveField(c,p,"flight_speed",v)
+    end,{target=true,persistent=true})
+    add("fly_boost",function(v) return numberIn(v,OSP.flight.min,OSP.flight.max) end,function(c,p,v)
+        players[p].flyBoost=v;saveField(c,p,"flight_boost",v)
+    end,{target=true,persistent=true})
+    add("noclip_speed",function(v) return numberIn(v,OSP.flight.min,OSP.flight.max) end,function(c,p,v)
+        players[p].noclipSpeed=v;saveField(c,p,"noclip_speed",v)
+    end,{target=true,persistent=true})
+    add("noclip_boost",function(v) return numberIn(v,OSP.flight.min,OSP.flight.max) end,function(c,p,v)
+        players[p].noclipBoost=v;saveField(c,p,"noclip_boost",v)
+    end,{target=true,persistent=true})
     add("freeze",boolean,function(c,p,v)
         players[p].freeze=v
         stopFlight(players[p])
@@ -349,6 +370,8 @@ function OSP.installServer()
         -- Keep the assigned identity, so reconnecting does not allocate a new one.
         SetBool(profileSave..e.profile..".exists",true)
         e.admin=false;e.role="guest";e.god=nil;e.fly=false;e.noclip=nil;stopFlight(e);e.freeze=false;e.anchor=nil;e.speed=1;e.toolRules={}
+        e.flySpeed=OSP.flight.normal;e.flyBoost=OSP.flight.shift
+        e.noclipSpeed=OSP.flight.normal;e.noclipBoost=OSP.flight.shift
         SetPlayerParam("godMode",e.baseGod,p);SetPlayerParam("flyMode",e.baseFly,p)
         for id,on in pairs(e.toolBase) do if known[id] then applyTool(p,id,on) end end
         enforceTools(p)
@@ -516,7 +539,7 @@ function OSP.installServer()
         if not alive then stopFlight(e);return end
         if e.god~=nil then SetPlayerParam("godMode",e.god,p) end
         if e.noclip~=nil then SetPlayerParam("flyMode",e.noclip,p) end
-        if e.speed~=1 then SetPlayerParam("walkingSpeed",e.baseSpeed*e.speed,p) end
+        if e.speed~=1 and not e.noclip then SetPlayerParam("walkingSpeed",e.baseSpeed*e.speed,p) end
         if rules.regen~=nil then SetPlayerRegenerationState(rules.regen,p) end
         local noclip=e.noclip==true or (e.noclip==nil and e.baseFly==true)
         if not e.fly or noclip or e.freeze or GetPlayerVehicle(p)~=0 then stopFlight(e)
@@ -550,7 +573,8 @@ function OSP.installServer()
             local length=VecLength(direction)
             if length>1 then direction=VecScale(direction,1/length) end
             SetPlayerVehicle(0,p)
-            SetPlayerVelocity(VecScale(direction,9*e.speed),p)
+            local speed=InputDown("shift",p) and e.noclipBoost or e.noclipSpeed
+            SetPlayerVelocity(VecScale(direction,speed),p)
         end
     end
     function server.ospIdentify(actor,namespace,challenge,id)
@@ -623,7 +647,8 @@ function OSP.installServer()
                     end
                     -- Cancel gravity for this physics step without changing the
                     -- scene's gravity, teleporting or disabling collisions.
-                    SetPlayerVelocity(VecAdd(VecScale(direction,9*e.speed),VecScale(GetGravity(),-dt)),p)
+                    local speed=InputDown("shift",p) and e.flyBoost or e.flySpeed
+                    SetPlayerVelocity(VecAdd(VecScale(direction,speed),VecScale(GetGravity(),-dt)),p)
                 end
             end
         end
