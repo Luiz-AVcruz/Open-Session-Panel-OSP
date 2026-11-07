@@ -630,4 +630,126 @@ registry['savegame.mod.osp.players.'..modeId..'.noclip_speed']=-4
 registry['savegame.mod.osp.players.'..modeId..'.noclip_boost']=math.huge
 local corruptModes=world({identities={[47]=modeId}})
 eq(corruptModes.api.shared.osp.players[3].noclipSpeed,9);eq(corruptModes.api.shared.osp.players[3].noclipBoost,18)
+-- Selection commands accept an exact cross-page subset and preserve unrelated
+-- tools, while the host's selected-player choices persist between missions.
+registry={}
+local selectionIds={}
+for i=1,20 do selectionIds[i]=string.format('tool%02d',i) end
+local selection=world({catalog=selectionIds})
+for _,p in ipairs({11,23,47}) do
+    for _,id in ipairs(selectionIds) do selection.players[p].tools[id]=true end
+    selection.players[p].tool='tool01'
+end
+local chosenTools={'tool01','tool12','tool20'}
+local chosenSet={tool01=true,tool12=true,tool20=true}
+local selectionPayload={category='all',ids=chosenTools,enabled=false}
+ok,code,details=selection.command(11,'tools_selection',23,selectionPayload)
+eq(ok,true);eq(details.tools,3);eq(details.affected,1);eq(details.skipped,0)
+for _,id in ipairs(selectionIds) do
+    eq(selection.players[23].tools[id],not chosenSet[id],'only captured selection changes: '..id)
+end
+local selectionLog=selection.api.shared.osp.log[#selection.api.shared.osp.log]
+eq(selectionLog.action,'tools_selection')
+eq(selectionLog.argument.category,'all');eq(selectionLog.argument.tools,3)
+eq(selectionLog.argument.ids,nil,'selection log does not expose raw IDs')
+eq(selectionLog.argument.query,nil,'selection log does not expose local search text')
+local persistedSelection=world({catalog=selectionIds,identities={[23]=selection.identities[23]}})
+for _,id in ipairs(selectionIds) do persistedSelection.players[23].tools[id]=true end
+persistedSelection.tick()
+for _,id in ipairs(selectionIds) do
+    eq(persistedSelection.players[23].tools[id],not chosenSet[id],'host selection persists only selected tools')
+end
+-- Shape errors and category mismatches are rejected before any selected tool
+-- changes. Unknown and recently removed IDs report unavailable, atomically.
+local badSelections={
+    {category='all',ids={},enabled=false},
+    {category='all',ids={[1]='tool03',[3]='tool04'},enabled=false},
+    {category='all',ids={'tool03','tool03'},enabled=false},
+    {category='vanilla',ids={'tool03'},enabled=false},
+    {category='all',ids={'tool03'},enabled=false,query='not an RPC field'},
+}
+for _,badSelection in ipairs(badSelections) do
+    ok,code=selection.command(11,'tools_selection',23,badSelection)
+    eq(ok,false);eq(code,'invalid');eq(selection.players[23].tools.tool03,true,'invalid selection is atomic')
+end
+ok,code=selection.command(11,'tools_selection',23,{category='all',ids={'tool03','missing_tool'},enabled=false})
+eq(ok,false);eq(code,'unavailable');eq(selection.players[23].tools.tool03,true,'unknown ID cannot partially apply')
+selection.catalog={}
+for _,id in ipairs(selectionIds) do if id~='tool12' then selection.catalog[#selection.catalog+1]=id end end
+ok,code=selection.command(11,'tools_selection',23,{category='all',ids={'tool03','tool12'},enabled=false})
+eq(ok,false);eq(code,'unavailable','removed ID is detected from the refreshed catalog')
+eq(selection.players[23].tools.tool03,true,'removed ID cannot partially apply')
+-- A newly registered ID is accepted immediately, even before the periodic
+-- catalog refresh, and the request still affects only its explicit IDs.
+selection.catalog[#selection.catalog+1]='newly_registered'
+selection.players[23].tools.newly_registered=true
+ok,code,details=selection.command(11,'tools_selection',23,{category='all',ids={'tool03','newly_registered'},enabled=false})
+eq(ok,true);eq(details.tools,2);eq(selection.players[23].tools.tool03,false)
+eq(selection.players[23].tools.newly_registered,false);eq(selection.players[23].tools.tool04,true)
+-- Capability aliases preserve targeted self scope and the separate all-player
+-- capability; host-only policy selection remains reserved.
+local _,_,selectionRole=selection.command(11,'role_save',0,{id='',name='Tool self',version=0,permissions={tools=1}})
+selection.command(11,'role_assign',23,{id=selectionRole.template.id})
+ok,code=selection.command(23,'tools_selection',23,{category='all',ids={'tool04'},enabled=false})
+eq(ok,true,'tools_selection maps to tools')
+ok,code=selection.command(23,'tools_selection',47,{category='all',ids={'tool04'},enabled=false})
+eq(ok,false);eq(code,'denied','self-scoped tool role cannot target others')
+ok,code=selection.command(23,'tools_selection_all',0,{category='all',ids={'tool05'},enabled=false})
+eq(ok,false);eq(code,'denied','targeted tools capability does not grant tools_all')
+local _,_,allToolsRole=selection.command(11,'role_save',0,{id='',name='Tool session',version=0,permissions={tools_all=2}})
+selection.command(11,'role_assign',47,{id=allToolsRole.template.id})
+ok,code,details=selection.command(47,'tools_selection_all',0,{category='all',ids={'tool05'},enabled=false})
+eq(ok,true);eq(details.tools,1);eq(details.affected,2);eq(details.skipped,1)
+eq(selection.players[11].tools.tool05,true,'delegated all-player selection protects host')
+ok,code=selection.command(47,'tool_policy_selection',0,{category='all',ids={'tool05'},mode='disabled'})
+eq(ok,false);eq(code,'denied','policy selection is host-only')
+local nextSelectionCatalog={}
+for _,id in ipairs(selectionIds) do nextSelectionCatalog[#nextSelectionCatalog+1]=id end
+nextSelectionCatalog[#nextSelectionCatalog+1]='newly_registered'
+local nextSelection=world({catalog=nextSelectionCatalog,identities=selection.identities})
+for _,p in ipairs({11,23,47}) do
+    for _,id in ipairs(nextSelectionCatalog) do nextSelection.players[p].tools[id]=true end
+end
+nextSelection.tick()
+eq(nextSelection.players[23].tools.tool01,false,'host choice survives map transition')
+eq(nextSelection.players[23].tools.tool12,false,'host subset survives map transition')
+eq(nextSelection.players[23].tools.tool20,false,'host subset reaches later page')
+eq(nextSelection.players[23].tools.tool04,true,'delegate target changes are temporary')
+eq(nextSelection.players[23].tools.tool05,true,'delegated all-player changes are temporary')
+eq(nextSelection.players[47].tools.tool05,true,'all-player delegate changes do not persist')
+-- Global policy changes clear saved overrides for the selected IDs only, even
+-- when their profiles are offline; other tools' overrides remain intact.
+registry={}
+local selectionPolicy=world({catalog={'tool01','tool02','tool03'}})
+selectionPolicy.command(11,'tool',23,{id='tool01',enabled=false})
+selectionPolicy.command(11,'tool',47,{id='tool02',enabled=false})
+local profile23=selectionPolicy.identities[23]
+local profile47=selectionPolicy.identities[47]
+local encodedTool01=('tool01'):gsub('.',function(c) return string.format('%02x',c:byte()) end)
+local encodedTool02=('tool02'):gsub('.',function(c) return string.format('%02x',c:byte()) end)
+local profileRoot='savegame.mod.osp.players.'
+eq(registry[profileRoot..profile23..'.tools.'..encodedTool01],2)
+eq(registry[profileRoot..profile47..'.tools.'..encodedTool02],2)
+selectionPolicy.players[47]=nil;selectionPolicy.removed={47};selectionPolicy.tick()
+ok,code,details=selectionPolicy.command(11,'tool_policy_selection',0,
+    {category='all',ids={'tool01'},mode='enabled'})
+eq(ok,true);eq(details.tools,1)
+eq(registry[profileRoot..profile23..'.tools.'..encodedTool01],nil,'selected policy clears matching online override')
+eq(registry[profileRoot..profile47..'.tools.'..encodedTool01],nil,'selected policy clears matching offline override')
+eq(registry[profileRoot..profile47..'.tools.'..encodedTool02],2,'unselected offline override is preserved')
+local selectionPolicyMap=world({catalog={'tool01','tool02','tool03'},identities={[23]=profile23,[47]=profile47}})
+for _,p in ipairs({11,23,47}) do
+    for _,id in ipairs({'tool01','tool02','tool03'}) do selectionPolicyMap.players[p].tools[id]=true end
+end
+selectionPolicyMap.tick()
+eq(selectionPolicyMap.players[23].tools.tool01,true,'selected global policy takes effect')
+eq(selectionPolicyMap.players[23].tools.tool02,true,'other profile keeps its own default')
+eq(selectionPolicyMap.players[47].tools.tool02,false,'unselected offline override survives')
+-- A globally blocked ID stays blocked when a later explicit selection requests
+-- enable; the server never falls back to applying the whole category.
+selectionPolicyMap.command(11,'tool_policy_selection',0,
+    {category='all',ids={'tool03'},mode='disabled'})
+ok,code=selectionPolicyMap.command(11,'tools_selection',23,
+    {category='all',ids={'tool03'},enabled=true})
+eq(ok,true);eq(selectionPolicyMap.players[23].tools.tool03,false,'global block dominates explicit enable')
 print('PASS server boundary: '..count..' assertions')

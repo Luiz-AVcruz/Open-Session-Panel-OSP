@@ -6,6 +6,7 @@
 #include "scripts/permissions.lua"
 #include "scripts/permissions_ui.lua"
 #include "scripts/server.lua"
+#include "scripts/tools_search.lua"
 #include "scripts/ui.lua"
 
 if server then OSP.installServer() end

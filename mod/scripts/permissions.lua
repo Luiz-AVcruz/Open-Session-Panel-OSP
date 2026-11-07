@@ -12,8 +12,9 @@ P.spec = {
     {id="rule_time"},{id="rule_rain"},{id="rule_fog"},{id="rule_regen"},{id="reset_rules"},
 }
 P.reserved = {admin=true,reset_player=true,restart=true,tool_policy=true,tool_policy_bulk=true,
-    role_assign=true,role_save=true,role_delete=true}
+    tool_policy_selection=true,role_assign=true,role_save=true,role_delete=true}
 local aliases = {tool="tools",tools_filtered="tools",tool_all="tools_all",tools_filtered_all="tools_all",
+    tools_selection="tools",tools_selection_all="tools_all",
     fly_speed="fly",fly_boost="fly",noclip_speed="noclip",noclip_boost="noclip"}
 function P.normalize(values)
     if type(values)~="table" then return nil end

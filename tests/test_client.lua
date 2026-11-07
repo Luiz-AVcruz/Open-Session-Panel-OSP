@@ -206,8 +206,8 @@ for _,size in ipairs({{1280,720},{1920,1080},{2560,1440},{1024,768},{2560,1080}}
     w:clickControl('restart');w:clickControl('confirm_accept');eq(w.sent[#w.sent].args[2],'restart');w:ack()
     w:clickControl('tab_tools');eq(e.OSP.UI.getState().toolMode,'global')
     w:clickControl('filter_mod');eq(e.OSP.UI.getState().filter,'mod')
-    w:clickControl('tools_disable_filtered');eq(e.OSP.UI.getState().confirm.action,'tool_policy_bulk')
-    w:clickControl('confirm_accept');eq(w.sent[#w.sent].args[2],'tool_policy_bulk');eq(w.sent[#w.sent].args[4].category,'mod');w:ack()
+    w:clickControl('tools_actions');w:clickControl('tools_disable_filtered');eq(e.OSP.UI.getState().confirm.action,'tool_policy_selection')
+    w:clickControl('confirm_accept');eq(w.sent[#w.sent].args[2],'tool_policy_selection');eq(w.sent[#w.sent].args[4].category,'mod');w:ack()
     for i=1,30 do
         e.shared.osp.tools[#e.shared.osp.tools+1]={id='mod'..i,name='Extra tool '..i,origin='mod',policy='default'}
     end
@@ -218,7 +218,7 @@ for _,size in ipairs({{1280,720},{1920,1080},{2560,1440},{1024,768},{2560,1080}}
     w:clickControl('filter_vanilla');w:clickControl('tool_gun');eq(w.sent[#w.sent].args[2],'tool_policy');eq(w.sent[#w.sent].args[4].id,'gun');eq(w.sent[#w.sent].args[4].mode,'enabled');w:ack()
     w:clickControl('tool_mode_player');eq(e.OSP.UI.getState().toolMode,'player')
     w:clickControl('tool_gun');eq(w.sent[#w.sent].args[2],'tool');eq(w.sent[#w.sent].args[3],23);w:ack()
-    w:clickControl('tools_disable_everyone');eq(e.OSP.UI.getState().confirm.action,'tools_filtered_all');w:clickControl('confirm_cancel')
+    w:clickControl('tools_actions');w:clickControl('tools_disable_everyone');eq(e.OSP.UI.getState().confirm.action,'tools_selection_all');w:clickControl('confirm_cancel')
     w:clickControl('tab_settings');eq(e.OSP.UI.getState().controls.health_toggle,nil,'health toggle removed')
     w:clickControl('palette_ocean');eq(w.reg['savegame.mod.osp.theme.mode'],'ocean')
     w:clickControl('palette_custom');w:clickControl('palette_R_plus')
@@ -292,8 +292,8 @@ do
         eq(w:scrollTo(id).disabled,true,'waiting profile disables '..id)
     end
     w:clickControl('tab_tools');w:clickControl('tool_mode_player')
-    eq(w:scrollTo('tools_enable_filtered').disabled,true)
-    eq(w:scrollTo('tool_gun').disabled,true)
+    w:clickControl('tools_actions');eq(w:scrollTo('tools_enable_filtered').disabled,true)
+    w:clickControl('tools_popup_close');eq(w:scrollTo('tool_gun').disabled,true)
 end
 -- An immediate host ACK must win over the provisional 'request sent' status.
 do
@@ -576,6 +576,41 @@ for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
         eq(w:draw().movementPopup,nil,'closing panel clears popup')
         e.OSP.UI.open(true)
     end
+ end
+end
+for _,size in ipairs({{1024,768},{1920,1080}}) do
+ for _,language in ipairs({'en','pt'}) do
+    local w=world(unpack(size));local e=w.api;e.OSP.UI.open(true)
+    w.reg['savegame.mod.osp.language']=language
+    for i=1,13 do e.shared.osp.tools[#e.shared.osp.tools+1]={id='kit'..i,name='Câmera '..i,origin='mod',policy='default'} end
+    w:clickControl('tab_tools');w:clickControl('tools_search')
+    for char in ('pistol'):gmatch('.') do w:tick(char) end
+    local st=w:draw();check(st.controls.tool_gun~=nil,'translated name searchable');eq(st.controls.tool_sledge,nil)
+    w:tick('esc');eq(w:draw().open,true,'Escape only blurs search');eq(e.OSP.ToolSearch.query,'pistol')
+    w:clickControl('tools_search_clear');w:clickControl('filter_mod');w:clickControl('tools_search')
+    for char in ('CAMERA'):gmatch('.') do w:tick(char) end
+    w:tick('return');st=w:draw();check(st.controls.tools_next and not st.controls.tools_next.disabled,'matches span pages')
+    w:clickControl('tools_next');w:clickControl('tools_actions')
+    st=w:draw();eq(#st.toolsPopup.ids,13,'batch snapshot includes every matching page')
+    eq(st.controls.tools_search.disabled,true,'popup blocks query changes')
+    e.shared.osp.tools[#e.shared.osp.tools+1]={id='late',name='Camera late',origin='mod',policy='default'}
+    w:clickControl('tools_disable_filtered');eq(#e.OSP.UI.getState().confirm.arg.ids,13,'confirmation freezes IDs')
+    w:clickControl('confirm_accept');local request=w.sent[#w.sent]
+    eq(request.args[2],'tool_policy_selection');eq(#request.args[4].ids,13)
+    for _,id in ipairs(request.args[4].ids) do check(id:find('kit',1,true)==1,'outside matches excluded') end
+    e.client.ospResult(false,'invalid',{},request.args[5]);local count=#w.sent
+    w:tick();w:draw();eq(#w.sent,count,'no fallback to broad category commands')
+    w:clickControl('tools_actions');local close=w:draw().controls.close
+    w:pressAt(close.x+2,close.y+2);w:releaseAt(close.x+2,close.y+2)
+    eq(w:draw().open,true);eq(e.OSP.UI.getState().toolsPopup,nil,'outside press closes actions without clicking through')
+    w:clickControl('tools_search_clear');w:clickControl('tools_search');w:tick('%');w:tick('return')
+    st=w:draw();eq(st.controls.tools_actions.disabled,true,'literal punctuation with no results cannot batch')
+    w:clickControl('tools_search_clear');w:clickControl('tool_more_mytool')
+    eq(w:draw().toolsPopup.tool.id,'mytool','row secondary menu uses exact tool')
+    w:tick('esc');eq(w:draw().toolsPopup,nil)
+    w:clickControl('tools_search');w:tick('k');e.OSP.UI.open(false);e.OSP.UI.open(true)
+    eq(w:draw().searchQuery,'k','term survives reopening this mission')
+    local nextMap=world(size[1],size[2],w.reg);eq(nextMap.api.OSP.ToolSearch.query,'','term is not saved between missions')
  end
 end
 print('PASS client interaction, viewport and translation contracts: '..assertions..' assertions (mock UI)')

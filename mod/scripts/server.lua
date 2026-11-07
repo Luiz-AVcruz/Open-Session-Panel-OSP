@@ -108,6 +108,10 @@ function OSP.installServer()
         elseif action=="tool_policy" then arg={id=arg.id,mode=arg.mode}
         elseif action=="tool_policy_bulk" then arg={category=arg.category,mode=arg.mode}
         elseif action=="tools_filtered" or action=="tools_filtered_all" then arg={category=arg.category,enabled=arg.enabled}
+        elseif action=="tools_selection" or action=="tools_selection_all" then
+            arg={category=arg.category,tools=#arg.ids,enabled=arg.enabled}
+        elseif action=="tool_policy_selection" then
+            arg={category=arg.category,tools=#arg.ids,mode=arg.mode}
         elseif type(arg)=="table" then arg=nil end
         logs[#logs+1]={seq=sequence,actor=IsPlayerValid(actor) and GetPlayerName(actor) or "?",
             action=action,target=type(target)=="number" and IsPlayerValid(target) and GetPlayerName(target) or "",
@@ -396,10 +400,10 @@ function OSP.installServer()
         if v.enabled and policies[v.id]==false then return "protected" end
     end
     add("tool",toolArg,function(c,p,v) setTool(c,p,v.id,v.enabled) end,{target=true,guard=toolGuard,persistent=true})
-    local function allTools(c,p,on,category)
+    local function allTools(c,p,on,category,selectedIds)
         if isHost(c) and not players[p].profile then return false end
         local applied=0
-        for _,id in ipairs(chooseCategory(category or "all")) do
+        for _,id in ipairs(selectedIds or chooseCategory(category or "all")) do
             if not on or policies[id]~=false then setTool(c,p,id,on);applied=applied+1 end
         end
         return applied>0
@@ -434,6 +438,47 @@ function OSP.installServer()
             for _,id in ipairs(ids) do setPolicy(id,v.mode) end
             return {affected=#ids>0 and #roster() or 0,skipped=0,tools=#ids}
         end,{host=true})
+    local function selectionArg(v,policy)
+        if type(v)~="table" or not category(v.category) then return false end
+        local allowed=policy and {category=true,ids=true,mode=true} or {category=true,ids=true,enabled=true}
+        for key in pairs(v) do if not allowed[key] then return false end end
+        if policy then
+            if not mode(v.mode) then return false end
+        elseif not boolean(v.enabled) then return false end
+        if type(v.ids)~="table" then return false end
+        local count,maxIndex,seen=0,0,{}
+        for index,id in pairs(v.ids) do
+            if not OSP.finite(index) or index<1 or index%1~=0 then return false end
+            count=count+1
+            if index>maxIndex then maxIndex=index end
+            if type(id)~="string" or id=="" or seen[id] then return false end
+            seen[id]=true
+        end
+        if count==0 or maxIndex~=count then return false end
+        -- Re-read the engine catalog before checking bounds, availability, or origin.
+        refreshTools()
+        for index=1,count do if not known[v.ids[index]] then return false,"unavailable" end end
+        if count>#tools then return false end
+        if v.category~="all" then
+            for index=1,count do
+                if OSP.toolOrigin(v.ids[index])~=v.category then return false end
+            end
+        end
+        return true
+    end
+    add("tools_selection",function(v) return selectionArg(v,false) end,function(c,p,v)
+        local changed=allTools(c,p,v.enabled,v.category,v.ids)
+        return {affected=changed and 1 or 0,skipped=changed and 0 or 1,tools=#v.ids}
+    end,{target=true,persistent=true})
+    add("tools_selection_all",function(v) return selectionArg(v,false) end,function(c,_,v)
+        local details=each(c,function(p) return allTools(c,p,v.enabled,v.category,v.ids) end)
+        details.tools=#v.ids
+        return details
+    end)
+    add("tool_policy_selection",function(v) return selectionArg(v,true) end,function(_,_,v)
+        for _,id in ipairs(v.ids) do setPolicy(id,v.mode) end
+        return {affected=#roster(),skipped=0,tools=#v.ids}
+    end,{host=true})
     local function ruleArg(v)
         if type(v)~="table" then return false end
         if v.key=="regen" then return boolean(v.value) end
@@ -512,7 +557,10 @@ function OSP.installServer()
             if isHost(target) and (def.noHost or (not isHost(actor) and not def.readTarget)) then deny("protected"); return end
             if def.persistent and isHost(actor) and not players[target].profile then deny("unavailable"); return end
         end
-        if def.validate and not def.validate(arg) then deny("invalid"); return end
+        if def.validate then
+            local valid,validationCode=def.validate(arg)
+            if not valid then deny(validationCode or "invalid"); return end
+        end
         if not isHost(actor) and not P.allows(playerRole(actor).permissions,action,target,arg,actor) then deny("denied");return end
         if def.guard then local code=def.guard(arg); if code then deny(code);return end end
         -- Throttle accepted requests, not permission revocations (which must win immediately).
