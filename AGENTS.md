@@ -16,7 +16,7 @@
 
 ## Interface e experiência de uso
 
-- Quando a tarefa envolver interface, navegação, conteúdo, estados ou fluxo de pessoas, consultar as seções pertinentes de `Docs/DIRETRIZES-DE-DESIGN-E-UX.md`. O guia sintetiza os conteúdos de Rian Dutra e referências complementares de composição e acessibilidade; aplicar pelo contexto, sem impor pesquisa formal ou uma estética a toda edição.
+- Quando a tarefa envolver interface, navegação, conteúdo, estados ou fluxo de pessoas, consultar as seções pertinentes de `Docs/DIRETRIZES-DE-DESIGN-E-UX.md`. O guia apresenta critérios para tarefa, fluxo, composição, conteúdo, acessibilidade e validação; aplique-os pelo contexto, sem impor pesquisa formal ou uma estética a toda edição.
 - Definir a tarefa, o público, a informação prioritária e a expectativa criada por cada ação. Usar conteúdo confirmado e distinguir imagens ilustrativas, dados de exemplo e oferta real.
 - Escolher composição, texto e interação por finalidade, identidade e custo de uso. Comparar alternativas quando a incerteza puder mudar a decisão; preservar orientação, autonomia, acessibilidade e recuperação de erros.
 - Distinguir aprovação estética e comercial, verificação técnica e uso observado. Um build não aprova aparência ou usabilidade. Testes e pesquisa precisam orientar uma decisão; não presumir sucesso por elogios, silêncio ou mais tempo de sessão.

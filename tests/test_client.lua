@@ -5,9 +5,9 @@ local assertions=0
 local function check(v,msg) assert(v,msg);assertions=assertions+1 end
 local function eq(a,b,msg) check(a==b,(msg or 'equality')..': '..tostring(a)..' ~= '..tostring(b)) end
 local function world(width,height,previousRegistry)
-    local w={reg=previousRegistry or {},sent={},flightReports={},texts={},now=0,input='',wheel=0,mouse={x=0,y=0},click=false,held=false,released=false,armed={},
-        width=width,height=height,t={x=0,y=0,s=1},stack={},drawn=false,hp=1}
-    local env=setmetatable({client={},shared={osp={ready=true,version='1.4.0',rules={},log={},
+    local w={reg=previousRegistry or {},sent={},identitySent={},flightReports={},texts={},now=0,input='',wheel=0,mouse={x=0,y=0},click=false,held=false,released=false,armed={},
+        width=width,height=height,t={x=0,y=0,s=1},stack={},drawn=false,hp=1,vehicle=0,screen=0}
+    local env=setmetatable({client={},shared={osp={ready=true,version='1.4.0',profileHost=string.rep('a',32),rules={},log={},
         tools={{id='gun',name='gun',nameKey='TOOL_NAME_GUN',origin='vanilla',policy='default'},
                {id='sledge',name='Sledge',origin='vanilla',policy='enabled'},
                {id='mytool',name=string.rep('X',90),origin='mod',policy='disabled'}},
@@ -24,13 +24,17 @@ local function world(width,height,previousRegistry)
     env.GetTranslatedStringByKey=function(k,fallback) if k=='TOOL_NAME_GUN' then return 'Pistol' end;return fallback end
     env.GetLocalPlayer=function() return 11 end
     env.IsPlayerValid=function(p) return p==11 or p==23 end
-    env.GetPlayerHealth=function() error('Client must not read health for an additional HUD') end
+    env.GetPlayerHealth=function(p)
+        assert(not w.drawn,'HUD must not read health');assert(p==env.GetLocalPlayer());return w.hp
+    end
+    env.GetPlayerVehicle=function(p) assert(p==env.GetLocalPlayer());return w.vehicle end
+    env.GetPlayerScreen=function(p) assert(p==env.GetLocalPlayer());return w.screen end
     env.IsPlayerHost=function(p) return p==11 end
     env.GetTime=function() return w.now end
     env.GetPlayerCanUseTool=function(p) assert(p==11);return w.canUseTool~=false end
     env.IsToolEnabled=function(id,p) return id=='sledge' end
     env.ServerCall=function(fn,...)
-        local out=fn=='server.ospFlightInput' and w.flightReports or w.sent
+        local out=fn=='server.ospFlightInput' and w.flightReports or fn=='server.ospIdentify' and w.identitySent or w.sent
         out[#out+1]={fn=fn,args={...}}
     end
     env.PauseMenuButton=function() return false end
@@ -125,23 +129,23 @@ do
     local namespace=string.rep('a',32)
     local w=world(1920,1080);local e=w.api
     e.IsPlayerHost=function() return false end;e.shared.osp.profileHost=namespace
-    w:tick();eq(w.sent[#w.sent].fn,'server.ospIdentify');eq(w.sent[#w.sent].args[3],1);eq(w.sent[#w.sent].args[4],'')
-    local before=#w.sent;w:tick();eq(#w.sent,before,'identity requests are throttled')
-    w.now=w.now+1;w:tick();eq(#w.sent,before+1,'lost reply can be retried')
+    w:tick();eq(w.identitySent[#w.identitySent].fn,'server.ospIdentify');eq(w.identitySent[#w.identitySent].args[3],1);eq(w.identitySent[#w.identitySent].args[4],'')
+    local before=#w.identitySent;w:tick();eq(#w.identitySent,before,'identity requests are throttled')
+    w.now=w.now+1;w:tick();eq(#w.identitySent,before+1,'lost reply can be retried')
     e.client.ospIdentity(string.rep('b',32),1,'p8');eq(w.reg['savegame.mod.osp.identity.'..namespace],nil)
     e.client.ospIdentity(namespace,1,'host');eq(w.reg['savegame.mod.osp.identity.'..namespace],nil)
     e.client.ospIdentity(namespace,1,'p8');eq(w.reg['savegame.mod.osp.identity.'..namespace],'p8')
-    before=#w.sent;w.now=w.now+2;w:tick();eq(#w.sent,before,'ACK stops identity retries')
+    before=#w.identitySent;w.now=w.now+2;w:tick();eq(#w.identitySent,before,'ACK stops identity retries')
     e.shared.osp.players[1].profileChallenge=2;w.now=w.now+2;w:tick()
     e.client.ospIdentity(namespace,1,'p99');eq(w.reg['savegame.mod.osp.identity.'..namespace],'p8','old join reply is ignored')
     e.client.ospIdentity(namespace,2,'p9');eq(w.reg['savegame.mod.osp.identity.'..namespace],'p9')
     e.client.ospIdentity(namespace,1,'p8');eq(w.reg['savegame.mod.osp.identity.'..namespace],'p9','stale reply cannot overwrite current profile')
     local map=world(1024,768,w.reg);local m=map.api
     m.IsPlayerHost=function() return false end;m.shared.osp.profileHost=namespace;m.shared.osp.players[1].profileChallenge=3
-    map:tick();eq(map.sent[#map.sent].args[4],'p9','new map sends saved identity')
+    map:tick();eq(map.identitySent[#map.identitySent].args[4],'p9','new map sends saved identity')
     m.client.ospIdentity(namespace,2,'p99');eq(map.reg['savegame.mod.osp.identity.'..namespace],'p9','old map reply is ignored')
     m.shared.osp.profileHost=string.rep('c',32);map.now=map.now+2;map:tick()
-    eq(map.sent[#map.sent].args[4],'','another host does not reuse the profile')
+    eq(map.identitySent[#map.identitySent].args[4],'','another host does not reuse the profile')
 end
 -- Mouse presses are sampled in tick before draw. Text capture must not
 -- InputClear the LMB event before the Send/Close/tab button receives it.
@@ -201,7 +205,9 @@ for _,size in ipairs({{1280,720},{1920,1080},{2560,1440},{1024,768},{2560,1080}}
     w:clickControl('player_23');eq(e.OSP.UI.getState().selected,23)
     eq(e.OSP.UI.getState().controls.mods_disable_player,nil,'redundant tools shortcut removed')
     w:clickControl('reset_player');eq(e.OSP.UI.getState().confirm.action,'reset_player')
-    w:clickControl('confirm_accept');eq(w.sent[#w.sent].args[2],'reset_player');eq(w.sent[#w.sent].args[3],23);w:ack()
+    w:clickControl('confirm_accept');eq(w.sent[#w.sent].args[2],'reset_player');eq(w.sent[#w.sent].args[3],23)
+    eq(w.sent[#w.sent].args[6].host,e.shared.osp.profileHost,'targeted confirmation sends its frozen host namespace')
+    eq(w.sent[#w.sent].args[6].targetJoin,2,'targeted confirmation sends its frozen join marker');w:ack()
     w:clickControl('player_action_kill')
     w.width,w.height=1024,768;local resized=w:draw()
     eq(resized.selected,23,'selection survives resolution change');check(resized.confirm~=nil,'dialog survives resolution change')
@@ -235,7 +241,9 @@ for _,size in ipairs({{1280,720},{1920,1080},{2560,1440},{1024,768},{2560,1080}}
     w:clickControl('tools_next');local nextState=w:draw();check(nextState.controls.tool_mytool==nil,'pagination advances')
     w:clickControl('filter_vanilla');w:clickControl('tool_gun');eq(w.sent[#w.sent].args[2],'tool_policy');eq(w.sent[#w.sent].args[4].id,'gun');eq(w.sent[#w.sent].args[4].mode,'enabled');w:ack()
     w:clickControl('tool_mode_player');eq(e.OSP.UI.getState().toolMode,'player')
-    w:clickControl('tool_gun');eq(w.sent[#w.sent].args[2],'tool');eq(w.sent[#w.sent].args[3],23);w:ack()
+    w:clickControl('tool_gun');eq(w.sent[#w.sent].args[2],'tool');eq(w.sent[#w.sent].args[3],23)
+    eq(w.sent[#w.sent].args[6].host,e.shared.osp.profileHost,'immediate targeted action captures its namespace')
+    eq(w.sent[#w.sent].args[6].targetJoin,2,'immediate targeted action captures the current entry');w:ack()
     w:clickControl('tools_actions');w:clickControl('tools_disable_everyone');eq(e.OSP.UI.getState().confirm.action,'tools_selection_all');w:clickControl('confirm_cancel')
     w:clickControl('tab_settings');eq(e.OSP.UI.getState().controls.health_toggle,nil,'health toggle removed')
     w:clickControl('palette_ocean');eq(w.reg['savegame.mod.osp.theme.mode'],'ocean')
@@ -269,6 +277,59 @@ for _,size in ipairs({{1280,720},{1920,1080},{2560,1440},{1024,768},{2560,1080}}
     for k in pairs(e.OSP.languages.en) do check(e.OSP.languages.pt[k]~=nil,'missing PT '..k) end
     for k in pairs(e.OSP.languages.pt) do check(e.OSP.languages.en[k]~=nil,'missing EN '..k) end
  end
+end
+-- A frozen confirmation is cancelled on an entry or namespace change. A click
+-- already over the background cannot fall through when draw detects the change.
+do
+    local w=world(1280,720);local e=w.api;e.OSP.UI.open(true);w:draw();w:clickControl('player_23')
+    w:scrollTo('player_action_heal');w:clickControl('player_action_kill')
+    local state=e.OSP.UI.getState();eq(state.confirm.action,'kill')
+    eq(state.confirm.targetContext.host,e.shared.osp.profileHost);eq(state.confirm.targetContext.targetJoin,2)
+    local heal=state.controls.player_action_heal;local sent=#w.sent
+    e.shared.osp.players[2].profileChallenge=99
+    w.mouse={x=heal.x+heal.w/2,y=heal.y+heal.h/2};w.click=true;w.held=true;w.now=w.now+1/60
+    state=w:draw()
+    eq(state.confirm,nil,'draw cancels confirmation for a recycled target')
+    eq(state.status,e.OSP.L('result_unavailable'),'draw reports unavailable target')
+    eq(#w.sent,sent,'old click cannot trigger the underlying heal button')
+end
+do
+    local w=world(1280,720);local e=w.api;e.OSP.UI.open(true);w:draw();w:clickControl('player_23')
+    w:clickControl('player_action_kill');local accept=e.OSP.UI.getState().controls.confirm_accept;local sent=#w.sent
+    local inputPressed=e.InputPressed;local changed=false
+    e.InputPressed=function(key)
+        if key=='lmb' and w.click and not changed then e.shared.osp.players[2].profileChallenge=100;changed=true end
+        return inputPressed(key)
+    end
+    w.mouse={x=accept.x+accept.w/2,y=accept.y+accept.h/2};w.click=true;w.held=true;w.now=w.now+1/60
+    local state=w:draw()
+    eq(changed,true,'entry changes after draw validation and before dispatch')
+    eq(state.confirm,nil,'send boundary cancels stale confirmation')
+    eq(state.status,e.OSP.L('result_unavailable'));eq(#w.sent,sent,'stale confirmation sends no command')
+end
+do
+    local w=world(1280,720);local e=w.api;e.OSP.UI.open(true);w:draw();w:clickControl('player_23')
+    w:clickControl('reset_player');local sent=#w.sent
+    e.shared.osp.profileHost=string.rep('b',32);w:tick()
+    local state=e.OSP.UI.getState()
+    eq(state.confirm,nil,'tick cancels confirmation after host namespace changes')
+    eq(state.status,e.OSP.L('result_unavailable'));eq(#w.sent,sent,'namespace change sends no request')
+end
+do
+    local w=world(1280,720);local e=w.api;e.OSP.UI.open(true);w:draw();w:clickControl('player_23')
+    w:clickControl('tab_tools');w:clickControl('tool_mode_player');w:clickControl('tools_actions')
+    w:clickControl('tools_disable_filtered')
+    eq(e.OSP.UI.getState().confirm.action,'tools_selection');local sent=#w.sent
+    table.remove(e.shared.osp.players,2);w:tick()
+    local state=e.OSP.UI.getState()
+    eq(state.confirm,nil,'missing target cancels tools selection confirmation')
+    eq(state.status,e.OSP.L('result_unavailable'));eq(#w.sent,sent,'missing target sends no tools request')
+end
+do
+    local w=world(1280,720);local e=w.api;e.OSP.UI.open(true);e.shared.osp.profileHost='';w:draw()
+    w:clickControl('player_23');w:clickControl('player_action_kill')
+    eq(e.OSP.UI.getState().confirm,nil,'confirmation fails closed without a valid namespace')
+    eq(e.OSP.UI.getState().status,e.OSP.L('result_unavailable'));eq(#w.sent,0)
 end
 -- Gameplay requests share the full painted hit area, but still dispatch
 -- once, wait for ACK, and require a second press for destructive confirmation.
@@ -878,6 +939,50 @@ do
     w:clickControl('player_11');me.permissions=e.OSP.Permissions.normalize({})
     eq(hint('player_action_god').text,e.OSP.L('result_denied'))
 end
+-- Tool availability is independent of gameplay input: holding an object or
+-- using Plank must not block an otherwise valid personal shortcut.
+for _,binding in ipairs({{'god','f8'},{'fly','f9'},{'noclip','f10'}}) do
+    local w=world(1024,768);local e=w.api;local own=e.shared.osp.players[1]
+    own.profileReady=true;w.canUseTool=false
+    check(e.OSP.Shortcuts.assign(binding[1],binding[2]))
+    eq(e.GetPlayerCanUseTool(11),false,'tool is unavailable in the regression scenario')
+    w:tick(binding[2]);eq(#w.sent,1,'tool use does not block the shortcut')
+    local request=w.sent[1]
+    eq(request.args[2],binding[1]);eq(request.args[3],11)
+    eq(request.args[4].expected,false);eq(request.args[4].value,true)
+    eq(request.args[6].host,e.shared.osp.profileHost);eq(request.args[6].targetJoin,own.profileChallenge)
+    w:ack();own[binding[1]]=true
+    w.mods={[binding[2]]=true}
+    for _=1,3 do w:tick() end
+    eq(#w.sent,1,'held input does not repeat or queue a shortcut')
+    w.mods={};w:tick(binding[2]);eq(#w.sent,2,'a new press can turn the option off')
+    eq(w.sent[2].args[4].expected,true);eq(w.sent[2].args[4].value,false)
+end
+-- Keep native state independent of the published snapshot so stale data
+-- cannot accidentally make these protections pass.
+for _,scenario in ipairs({
+    {'pause',function(w) w.reg['game.paused']=true end},
+    {'map',function(w) w.reg['game.map.enabled']=true end},
+    {'other interactive UI',function(w) w.reg['game.player.interactive']=false end},
+    {'current death despite living snapshot',function(w) w.hp=0 end},
+    {'current vehicle despite walking snapshot',function(w) w.vehicle=99 end},
+    {'interactive screen',function(w) w.screen=42 end},
+    {'invalid player',function(w,e)
+        e.IsPlayerValid=function() return false end
+        e.GetPlayerHealth=function() error('invalid player must not reach native state queries') end
+    end},
+    {'pause pressed with shortcut',function(w,e)
+        local pressed=e.InputPressed;e.InputPressed=function(key) return key=='pause' or pressed(key) end
+    end},
+    {'Escape pressed with shortcut',function(w,e)
+        local pressed=e.InputPressed;e.InputPressed=function(key) return key=='esc' or pressed(key) end
+    end},
+}) do
+    local w=world(1024,768);local e=w.api
+    e.shared.osp.players[1].profileReady=true;w.canUseTool=false
+    check(e.OSP.Shortcuts.assign('god','f8'))
+    scenario[2](w,e);w:tick('f8');eq(#w.sent,0,scenario[1]..' blocks the shortcut')
+end
 -- Physical shortcuts target self, guard the observed state and never queue input.
 for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
  for _,language in ipairs({'en','pt'}) do
@@ -896,7 +1001,7 @@ for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
     e.shared.osp.players[1].god=true;w:tick('f8');eq(w.sent[#w.sent].args[4].value,false,'new published state toggles off')
     w:ack();local count=#w.sent;w.mods={shift=true};w:tick('f9');eq(#w.sent,count);w.mods={}
     w.reg['game.paused']=true;w:tick('f9');eq(#w.sent,count);w.reg['game.paused']=false
-    w.canUseTool=false;w:tick('f9');eq(#w.sent,count,'vehicle/dead/interactive context blocks');w.canUseTool=true
+    w.reg['game.player.interactive']=false;w:tick('f9');eq(#w.sent,count,'interactive UI blocks');w.reg['game.player.interactive']=true
     local pressed=e.InputPressed;e.InputPressed=function(k) return k=='f9' or k=='f10' end
     w:tick();eq(#w.sent,count,'simultaneous actions ignored');e.InputPressed=pressed
     e.shared.osp.players[1].profileReady=false;w:tick('f9');eq(#w.sent,count,'host profile must be ready')

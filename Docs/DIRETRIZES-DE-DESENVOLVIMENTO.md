@@ -1,197 +1,163 @@
-# Como Filipe Deschamps pensa, constrói e mantém projetos
+# Diretrizes de desenvolvimento
 
-Síntese de engenharia e de condução de projetos, preparada para consulta humana e para orientar trabalho assistido por IA em diferentes repositórios.
+Use estes critérios para compreender problemas, tomar decisões técnicas, construir, verificar e manter software. A aplicação depende do objetivo, das restrições, do risco e das pessoas que desenvolvem, usam e operam o sistema. Para mudanças na experiência de uso, consulte também as [diretrizes de design e UX](DIRETRIZES-DE-DESIGN-E-UX.md).
 
-## O que este documento procura preservar
+## 1. Começar pelas pessoas e pelo efeito esperado
 
-O material estudado permite reconstruir uma maneira de tomar decisões: entender quem será atendido, escolher uma solução que as pessoas envolvidas consigam sustentar, construir em etapas, produzir evidência do comportamento e continuar responsável depois da entrega. Linguagem, arquitetura, testes e organização ganham sentido dentro dessa relação.
+Uma solução precisa ser tecnicamente viável e produzir um efeito útil para alguém. Antes de detalhar funcionalidades, identifique quem enfrenta a situação, o que precisa conseguir fazer, quais condições influenciam essa tarefa e que resultado permitiria avaliar a melhora.
 
-Essa reconstrução reúne as notas de aprendizado do curso Web, as duas aulas de IA da seção Box e consultas pontuais às aulas originais. As notas contêm elaboração para estudo; as transcrições têm origem em reconhecimento automático de fala. Este texto é uma síntese interpretativa, e não uma descrição exaustiva de todos os projetos do instrutor. As fontes e o alcance das leituras estão registrados ao final.
+Escrever o problema e o resultado esperado torna pressupostos examináveis. O retorno de quem usa ou conhece a situação pode revelar lacunas no entendimento. Não presuma que a satisfação de quem construiu ou aprendeu a ferramenta corresponde ao benefício de quem recebe o produto.
 
-Esta síntese interpreta critérios para decidir conforme o contexto. A prioridade relativa de compreensão humana, capacidade de alteração, prazo, desempenho e custos deve ser definida em cada projeto. Uma escolha feita para um projeto específico não estabelece uma preferência global do responsável nem uma regra absoluta do instrutor.
-
-Para aprofundar decisões de interface, fluxo e experiência, consultar também [Diretrizes de design e UX](DIRETRIZES-DE-DESIGN-E-UX.md). A aplicação considera o contexto e a incerteza; uma mudança técnica sem efeito na experiência não exige um processo de design.
-
-## 1. Começar pelas pessoas e pelo efeito que o projeto deve produzir
-
-Um projeto pode vencer a dificuldade técnica e continuar sem resolver uma necessidade. As notas sobre as duas muralhas — tecnologia e negócio — colocam essas perguntas lado a lado: conseguimos fazer funcionar e isso produz o efeito necessário para alguém?
-
-Em “O que sobra para nós?”, a diferença entre a satisfação de quem construiu o primeiro formulário e a reação de quem o recebe ajuda a explicar essa distância. O esforço de aprender pertence à experiência de quem construiu. O benefício para outra pessoa precisa ser observado no uso. Entender conhecimentos, dificuldades e condições diferentes das próprias participa da descoberta do problema. [IA-S]
-
-Por isso, antes de detalhar funcionalidades, vale escrever para quem se está construindo, que situação precisa melhorar e que resultado permitiria reconhecer essa melhora. A escrita ajuda a descobrir ligações frágeis entre a ideia e o problema. O planejamento amadurece quando pessoas reais conseguem examinar a proposta e mostrar o que foi entendido de forma incompleta.
-
-Essa orientação também muda a avaliação do trabalho. Linhas de código, commits, tokens, tarefas encerradas e documentos produzidos podem ajudar a acompanhar atividade. Seu significado depende da relação com o resultado. Uma métrica usada como alvo isolado pode incentivar mais atividade sem melhorar a experiência, a confiabilidade ou a manutenção do produto.
-
-Na interface, esse entendimento aparece na organização da informação, nos próximos passos reconhecíveis e na forma de comunicar falhas. A clareza para quem usa precisa ser examinada considerando os conhecimentos e as dificuldades dessas pessoas.
+Linhas de código, commits, tarefas encerradas, documentos e volume de produção ajudam a descrever atividade. Seu significado depende da relação com o resultado. Uma métrica transformada em alvo isolado pode aumentar atividade sem melhorar utilidade, confiabilidade ou manutenção.
 
 ## 2. Escolher o modo de construir conforme o que já se conhece
 
-Na aula sobre desenvolvimento orgânico, Deschamps distingue construir algo pela primeira vez de executar um caminho já conhecido. Quando o problema ainda está sendo descoberto, tentar especificar e montar o produto inteiro de uma vez exige acertar muitas hipóteses antes de receber retorno. O desenvolvimento orgânico reduz essa distância: uma parte nasce, alguém a examina, o entendimento muda e a próxima parte ganha uma direção melhor. [W08]
+Quando o problema ou a solução ainda são incertos, reduza o intervalo entre hipótese, implementação e retorno. Entregue uma parte que possa ser examinada e use o que foi observado para orientar a próxima etapa. Quando o caminho já é conhecido, planeje a execução de forma mais direta; não redescubra procedimentos sem necessidade.
 
-Isso inclui planejamento e limites. O retorno revela necessidades e também pode trazer sugestões incompatíveis ou complexidade desnecessária. A tarefa de quem conduz é decidir o que contribui para o objetivo e o que deve esperar. Toda sugestão aceita acrescenta algo que precisará ser compreendido, operado e mantido.
+O retorno pode revelar necessidades, mas também sugestões incompatíveis, custos ou complexidade desnecessária. Aceite mudanças quando contribuírem para o objetivo e considere o que acrescentam à operação e à manutenção.
 
-O modelo mais mecânico, chamado de “impressora 3D” na aula, também tem contexto de uso: um caminho conhecido pode permitir uma execução mais definida desde o início. A preferência por crescimento orgânico ao descobrir um produto não é uma proibição de planejar nem uma obrigação de redescobrir procedimentos já compreendidos.
+Uma etapa deve terminar em um resultado coerente e avaliável. Dividir por arquivos ou tarefas pequenas só ajuda quando as partes continuam ligadas ao resultado necessário. Requisitos essenciais permanecem no escopo; as etapas organizam sua execução sem removê-los por conveniência.
 
-O recorte de uma etapa deve permitir concluir e avaliar alguma coisa. Dividir o trabalho em arquivos ou tarefas pequenas ajuda apenas quando as partes preservam um resultado coerente. Requisitos essenciais continuam no escopo; as etapas organizam sua execução, sem apagá-los por conveniência.
+## 3. Tratar escolhas técnicas como decisões sobre continuidade
 
-## 3. Tratar a escolha técnica como uma decisão sobre continuidade
+Escolha linguagens, bibliotecas, serviços e plataformas pelo comportamento necessário e pela capacidade de sustentá-los. Considere conhecimento disponível, custo de aprendizado, documentação, compatibilidade, operação, licença, suporte e o efeito da saída de quem concentra conhecimento.
 
-Na aula de arquitetura, a escolha de JavaScript para o TabNews é ligada ao domínio do instrutor, ao público que acompanhava seus conteúdos e à barreira de entrada para contribuições. O critério procurado era a capacidade real de pessoas diferentes modificarem o projeto. Essa justificativa não estabelece JavaScript como resposta universal. [W14-A]
+Preferência pessoal e requisito funcional são coisas diferentes. Popularidade pode indicar um ecossistema a investigar, mas não comprova adequação. Uma implementação sofisticada que a equipe não consegue operar com confiança pode criar mais risco que benefício.
 
-A pergunta sobre tecnologia reúne fatores técnicos e humanos: a ferramenta atende ao comportamento necessário, quem sabe trabalhar com ela, como aprender o que falta, que documentação existe, quanto custa operá-la e o que aconteceria se a pessoa que concentra o conhecimento saísse? A história da infraestrutura PCI ilustra o risco de uma implementação sofisticada que a equipe não consegue manter com confiança. [W14-O]
+Aprender fundamentos e operar um produto têm objetivos distintos. Implementar um mecanismo manualmente pode ajudar a compreender o que uma biblioteca oculta. Para colocar esse mecanismo em produção, compare manutenção, experiência disponível, segurança e capacidade de responder a falhas. O conhecimento do exercício deve informar a decisão, ainda que a solução final seja outra.
 
-Preferência pessoal e requisito funcional precisam ser reconhecidos separadamente. Uma ferramenta pode ser agradável para quem a propõe e difícil para as pessoas que darão continuidade ao trabalho. Outra pode ser conhecida e, ainda assim, trazer um contrato, uma licença ou uma condição de operação inadequada. Popularidade fornece sinais para investigar; a adequação depende do caso.
-
-Aprendizado e operação também têm objetivos distintos. Implementar um mecanismo à mão pode expor fundamentos que uma biblioteca esconderia. Ao colocar esse mecanismo diante de usuários, passam a importar manutenção, experiência acumulada, riscos e capacidade de responder a falhas. O conhecimento do exercício deve melhorar a decisão de produção, mesmo quando a solução final for outra.
+Pessoas, documentação e práticas de uma comunidade também fazem parte do ecossistema. Avalie que suporte existe, quais condições de uso se aplicam e se o projeto consegue manter a dependência quando a comunidade não puder fazê-lo por ele. Contribuição e suporte não devem ser presumidos como obrigação de terceiros.
 
 ## 4. Distinguir arquitetura, modelagem e organização de pastas
 
-Uma das distinções mais concretas da aula de arquitetura é que pastas não definem, por si, a arquitetura. Arquitetura envolve o escopo dos componentes e as interações entre eles: onde uma responsabilidade começa, onde termina e de que outras partes depende. Pastas e arquivos ajudam a encontrar e compreender essa estrutura. [W14-A]
+Arquitetura descreve responsabilidades, limites e interações: o que cada parte conhece, o que pode fazer e de que depende. Pastas e arquivos ajudam a localizar essa estrutura, mas não a definem. Uma árvore organizada pode esconder responsabilidades misturadas; poucos diretórios podem conter limites claros.
 
-Essa diferença evita duas ilusões. Uma árvore de diretórios bem apresentada pode esconder responsabilidades misturadas. Uma estrutura com poucos diretórios pode ter limites claros. A organização física deve tornar os limites reconhecíveis, sem substituí-los por aparência.
+Modelos e padrões não garantem uma implementação saudável. Em MVC, por exemplo, um componente chamado `model` ainda pode acumular responsabilidades sem relação. Usar um framework integrado pode simplificar a solução; separar o núcleo do framework pode facilitar mudanças em certos contextos, mas acrescenta custo. Escolha os limites que protegem alterações prováveis sem criar camadas sem benefício demonstrável.
 
-O exemplo de MVC no material sustenta a escolha de uma arquitetura simples acompanhada de boa modelagem. A própria aula menciona models que acumulavam responsabilidades, mostrando que o nome da arquitetura não garante uma implementação saudável. O exemplo é situado; não implica começar todo produto com MVC ou com um backend que ele ainda não precisa.
-
-Há também uma revisão de decisão importante. A proposta inicial do TabNews separava mais radicalmente o núcleo e o framework. Ao investigar a execução dessa ideia com Next.js, o custo pareceu maior que o benefício. A proposta foi ajustada para aproveitar a integração do framework e preservar limites das regras de negócio. O princípio mantido foi a capacidade de mudar; a organização concreta foi negociada com o contexto. [W14-A]
-
-Uma leitura de código útil deve conseguir descrever o fluxo: o que entra, o que é validado ou decidido, onde acontece o efeito e como o resultado volta. Isso revela misturas de responsabilidade com mais precisão que contar arquivos ou conferir se determinadas pastas existem.
+Uma leitura útil do código consegue acompanhar o fluxo: o que entra, onde é validado ou decidido, onde ocorre o efeito e como o resultado retorna. Essa descrição revela dependências e responsabilidades com mais precisão que contar arquivos ou conferir nomes de pastas.
 
 ## 5. Escrever código que permita continuar trabalhando
 
-Legibilidade tem relação com ação. Um nome ajuda quando permite reconhecer a intenção e as condições de uma operação. Um limite ajuda quando uma alteração comum fica localizada e seus efeitos podem ser compreendidos. O código precisa permitir que outra pessoa descubra como continuar, corrigir uma falha ou substituir uma parte.
+Legibilidade deve facilitar uma ação: entender a intenção, localizar uma regra, avaliar efeitos e fazer uma alteração. Bons nomes descrevem propósito e condições relevantes. Limites úteis mantêm uma mudança comum localizada e tornam seus efeitos compreensíveis.
 
-Modificabilidade inclui a potência real de uma pessoa ou equipe para fazer isso no curto, médio e longo prazo. Não depende apenas da linguagem ou da arquitetura. Entram nessa capacidade o conhecimento disponível, a clareza das regras, o ambiente de desenvolvimento, as verificações e o entendimento das consequências de uma mudança. [W14-O]
+Modificabilidade é a capacidade real de continuar alterando o sistema. Ela depende da clareza das regras, do conhecimento disponível, do ambiente, das verificações e da compreensão das consequências, além da linguagem ou arquitetura escolhida.
 
-A procura pelo simples e bem feito exige trabalho de modelagem. A aula de overengineering descreve o custo de introduzir complexidade que se espalha e torna uma funcionalidade pequena difícil de acrescentar. Deixar faltar uma proteção essencial também prejudica a solução. A régua é a engenharia necessária ao contexto, com espaço para evoluir quando aparecer uma dificuldade concreta.
+Busque a engenharia necessária ao contexto. Complexidade espalhada pode tornar uma alteração pequena cara; a falta de uma proteção essencial também pode tornar o sistema frágil. Acrescente estrutura quando uma dificuldade concreta exigir e mantenha espaço para evolução sem antecipar mecanismos hipotéticos.
 
-Repetição e abstração precisam desse mesmo julgamento. Em “Luto na programação”, o instrutor observa que partes inicialmente parecidas podem evoluir para responsabilidades distintas. Unificá-las cedo demais pode criar acoplamento. Por outro lado, repetir uma regra que precisa permanecer única pode permitir divergências. Para decidir, importa entender se existe a mesma regra ou apenas uma semelhança de escrita. [IA-L]
+Repetição e abstração precisam do mesmo julgamento. Trechos parecidos podem representar regras que evoluem separadamente; uma regra duplicada pode divergir quando deveria permanecer única. Antes de abstrair, acompanhe uma mudança provável e pergunte se a abstração melhora entendimento ou alteração o suficiente para compensar seus conceitos e acoplamentos.
 
-Uma abstração deve diminuir alguma dificuldade real de leitura ou alteração. Antes de criá-la, convém acompanhar uma mudança típica e observar o que ela tornaria mais claro. Se a proposta exige conceitos adicionais, desvios longos pelo projeto ou conhecimento concentrado para uma tarefa simples, seu benefício precisa ser reavaliado.
-
-Não se extrai dessas aulas uma medida universal de tamanho de função, quantidade de camadas ou número aceitável de repetições. Esses sinais podem motivar investigação. A decisão depende da responsabilidade, do contrato e das alterações que o código precisa suportar.
+Não há tamanho universal de função, número ideal de camadas ou quantidade fixa de repetições. Esses sinais podem iniciar uma investigação; a decisão depende da responsabilidade, do contrato e das mudanças que o código precisa suportar.
 
 ## 6. Automatizar convenções para liberar atenção
 
-Na aula de Prettier, a diferença entre ajudar a escrever e conferir o estado do projeto é demonstrada diretamente. EditorConfig orienta aspectos da escrita em editores compatíveis; ele não resolve, sozinho, todos os arquivos que já chegaram fora do formato. Uma extensão instalada em um editor também depende do ambiente de cada colaborador. [W10]
+Convenções compartilhadas reduzem ruído e ajudam a concentrar a revisão no comportamento. EditorConfig pode orientar a escrita em editores compatíveis; um formatador pode corrigir arquivos existentes; comandos reproduzíveis e integração contínua podem conferir o padrão sem depender do ambiente de cada pessoa. Essas funções se complementam.
 
-O formatador instalado no projeto e os comandos de conferência e correção tornam a operação reproduzível. A aula ainda trata o CI como o lugar em que essa conferência pode ser executada sem depender do cuidado individual. As funções são complementares: assistência durante a escrita, transformação dos arquivos e verificação compartilhada.
+Conheça a convenção do projeto antes de propor um desvio deliberado. Justifique a exceção pelo contexto e mantenha-a compreensível para quem dará continuidade. Uma convenção não precisa ser preservada quando prejudica uma necessidade real, mas alterá-la sem considerar os demais colaboradores transfere custo para eles.
 
-O benefício procurado é reduzir decisões repetitivas e ruído de revisão. Formatação consistente facilita enxergar mudanças de comportamento; ela não resolve modelagem, responsabilidade ou um contrato incorreto. Uma reformatação ampla deve ser reconhecível no histórico para não esconder a mudança funcional.
+Formatação consistente não corrige modelagem, responsabilidade ou contrato incorretos. Uma reformatação ampla deve ser separável da mudança funcional quando isso tornar a revisão mais segura. Ferramentas de estilo só devem entrar na execução do produto quando houver uma necessidade concreta para isso.
 
-Ferramentas e configurações concretas continuam sujeitas ao contexto do projeto. A aula serve para compreender o mecanismo; suas versões, sinais de adoção e condições de uso pertencem ao momento apresentado. Ao adotar uma ferramenta hoje, é necessário conferir o contrato atual relevante. A escolha do formatador também não exige acrescentar dependências de execução ao produto.
+## 7. Construir confiança em comportamentos e verificações
 
-## 7. Construir confiança em comportamentos e nas próprias verificações
+Testes preservam conhecimento sobre comportamentos e permitem mudar o sistema com mais confiança. Escolha a fronteira pela propriedade importante. Componentes corretos isoladamente ainda podem falhar na interação; quando o resultado depende de uma API e de um banco de dados, uma verificação unitária pode não cobrir o contrato entre eles.
 
-Testes preservam conhecimento que ficaria dependente da memória de quem altera o sistema. Essa proteção ganha importância conforme as relações entre funcionalidades crescem. A finalidade é permitir mudanças com confiança sustentada pelo que foi observado.
+Confira o próprio instrumento: uma verificação que passa no caso correto também deve reprovar a condição que pretende detectar. Use entradas inválidas, falhas controladas ou alterações temporárias em ambiente seguro. Não provoque falhas em sistemas reais quando as consequências não estiverem controladas.
 
-A fronteira escolhida precisa corresponder ao comportamento importante. Duas partes corretas isoladamente podem falhar na interação. Se a necessidade passa por uma API e um banco, uma checagem restrita a uma função pode deixar de fora justamente a relação responsável pelo resultado. O custo de preparar e sustentar a verificação também participa da decisão; uma classificação de testes não escolhe sozinha pelo produto.
+Ao corrigir uma falha de teste, diferencie regressão, expectativa obsoleta e mudança deliberada de contrato. Alterar a expectativa só para obter aprovação pode apagar o comportamento que o teste deveria proteger. Simulações e dados de exemplo precisam preservar o comportamento da dependência relevante.
 
-A confiança exige conferir o instrumento. Uma checagem que passa no caso correto precisa conseguir reprovar a condição errada que pretende detectar. Isso pode ser demonstrado com uma entrada inválida, uma falha controlada ou uma alteração temporária em ambiente de teste. O objetivo é conhecer o alcance da evidência, sem experimentar falhas onde suas consequências não estejam sob controle.
-
-Ao corrigir um teste que falhou, é necessário distinguir regressão, expectativa antiga e mudança deliberada de contrato. Alterar a expectativa apenas para obter aprovação pode apagar o conhecimento que a verificação deveria proteger. Dados de exemplo e simulações também precisam preservar o comportamento da dependência que importa para o caso.
-
-Uma execução aprovada tem limites de ambiente e cobertura. A entrega HTTP de uma página, sua aparência no navegador e a facilidade de uma pessoa encontrar informação são propriedades diferentes. O projeto precisa identificar qual delas foi observada e qual continua aberta.
+Uma execução aprovada tem limites de ambiente e cobertura. Responder a uma requisição, apresentar uma tela corretamente e permitir que alguém conclua uma tarefa são propriedades distintas. Registre qual delas foi observada e qual continua sem evidência.
 
 ## 8. Investigar e medir com uma pergunta concreta
 
-Uma investigação começa separando o comportamento observado da explicação que ainda está sendo construída. Mensagem de erro, condição de reprodução, processo em execução e resposta de uma dependência fornecem evidências diferentes. A próxima verificação deve ser escolhida pela dúvida que pode esclarecer.
+Separe comportamento observado de explicações ainda hipotéticas. Mensagem de erro, condição de reprodução, processo em execução, resposta de uma dependência e relato de uso são evidências diferentes. Escolha a próxima verificação pela dúvida que pode esclarecer.
 
-Esse cuidado também vale para melhorias. Antes de alterar algo para ficar mais rápido ou confiável, é preciso definir a situação de comparação e o efeito procurado. Uma solução mais elaborada pode não produzir esse efeito ou pode transferir o custo para outra parte, como manutenção ou estabilidade.
+Para avaliar uma melhoria, defina a situação de comparação e o efeito pretendido. Uma solução mais complexa pode não produzir esse efeito ou pode transferir custo para manutenção, estabilidade ou operação. Compare condições equivalentes sempre que isso puder mudar a conclusão.
 
-Relatos de uso complementam as medições técnicas. Quem executa um comando todos os dias ou tenta realizar uma tarefa na interface pode perceber atritos ausentes da leitura do código. Painéis e sinais de infraestrutura ajudam, mas precisam ser confrontados com requisições, logs e comportamento observado.
+Relatos de uso complementam sinais técnicos. Quem repete uma tarefa ou opera o sistema pode notar atritos que não aparecem na leitura do código. Painéis, logs e métricas de infraestrutura ajudam a localizar problemas, mas precisam ser confrontados com requisições e comportamento observado.
 
-O resultado de uma investigação deve permitir a continuidade por outra pessoa: o que foi constatado, o que é hipótese, o que foi descartado e qual dúvida ainda muda a decisão. A documentação ganha valor quando reduz a necessidade de repetir o mesmo caminho.
+Registre o que foi constatado, o que permanece hipótese, o que foi descartado e qual questão ainda pode mudar a decisão. Documentar a investigação é útil quando permite que outra pessoa continue sem repetir o mesmo percurso.
 
 ## 9. Entregar uma parte coerente e acompanhar o que acontece depois
 
-Uma etapa pequena deve alcançar um resultado que alguém consiga avaliar. Trabalhar em partes menores reduz o tempo entre hipótese e retorno e facilita perceber mudanças de entendimento. Em colaboração, integrar com frequência também expõe divergências antes que virem um conjunto difícil de conciliar.
+Uma etapa deve produzir algo que possa ser avaliado conforme um critério definido. Partes menores reduzem o intervalo entre hipótese e retorno. Em trabalho compartilhado, integrar com frequência ajuda a encontrar divergências antes que fiquem difíceis de resolver.
 
-Há uma diferença material entre código escrito, verificação local, versão publicada e efeito observado no uso. O encerramento de uma tarefa deve corresponder ao critério definido para ela. Um teste não executado, uma publicação ainda não confirmada ou um comportamento que depende de ambiente externo continua precisando de evidência própria.
+Código escrito, verificação local, integração, publicação e efeito observado no uso são estados diferentes. O critério de conclusão precisa corresponder ao estado solicitado. Um teste não executado, uma publicação não confirmada ou um resultado que depende de ambiente externo ainda exige evidência própria.
 
-O critério de suficiente evita um ciclo interminável de refinamento interno. Ele considera quem vai receber a entrega e quais condições essenciais precisam estar atendidas. Depois disso, o uso pode trazer informações que mais organização interna não produziria. Se uma condição essencial ainda falta, o desejo de encerrar a etapa não altera sua importância.
+Defina o suficiente para a entrega conforme quem a receberá e as condições essenciais. Depois que elas forem atendidas, o uso pode revelar mais que refinamento interno adicional. Se uma condição essencial ainda falta, a vontade de encerrar a etapa não altera sua importância.
 
-Conhecer o caminho até a operação ajuda a escrever mudanças que sobrevivam fora da máquina de desenvolvimento. Inclui saber como a versão chega ao ambiente real, que dependências podem falhar, onde observar o problema e quais formas de recuperação existem. Isso deve respeitar os acessos e as responsabilidades de cada ambiente.
+Considere como a mudança chega ao ambiente real, que dependências podem falhar, onde observar problemas e como recuperar o serviço. Respeite os acessos e as responsabilidades de cada ambiente.
 
 ## 10. Manter o projeto em condições de evoluir
 
-Manutenção frequente e controlada reduz o acúmulo de decisões difíceis de relacionar. Atualizar dependências, reformar uma parte do código e mudar configuração no mesmo conjunto pode tornar a causa de uma falha menos evidente. Separar intenções facilita revisão, diagnóstico e recuperação.
+Manutenção frequente e controlada reduz decisões difíceis de relacionar. Alterar dependências, reformar código e mudar configuração no mesmo conjunto pode tornar a causa de uma falha menos clara. Agrupe mudanças por intenção e mantenha juntas as partes que precisam ser revisadas, instaladas ou recuperadas juntas.
 
-Uma atualização precisa considerar compatibilidade e uso real. Alertas automáticos exigem interpretação sobre o componente afetado e seu alcance. Licenças e condições de distribuição também integram a decisão de adotar ou manter uma dependência. Uma escolha conhecida no curso ou em outro projeto não transfere automaticamente suas condições para o caso atual.
+Avalie alertas automáticos pelo componente afetado, sua exposição e seu uso real. Licenças e condições de distribuição integram a escolha de dependências. Uma decisão apropriada em outro projeto não transfere automaticamente seus requisitos para este.
 
-O histórico Git participa dessa manutenção. Um commit deve comunicar uma mudança coerente e manter juntas as partes que precisam viajar ou ser desfeitas juntas. Mensagem e documentação precisam ajudar alguém que não participou da conversa a entender o efeito e o motivo. Um recorte em commits pequenos não garante, por si, uma entrega pequena em produção.
+Use o histórico Git para comunicar mudanças coerentes. A mensagem e a documentação devem ajudar quem não participou da conversa a entender intenção e efeito. Muitos commits pequenos não garantem, por si, uma entrega pequena ou segura em produção.
 
-Recuperação exige considerar o estado que existe depois da mudança. Novos dados e dependências podem ter surgido durante o uso; voltar o código não reconstrói automaticamente a situação anterior. O material sobre migrations apresenta preferência por correções adiante em determinado contexto, e não uma regra de que todo retorno é inadequado. A decisão deve comparar consequências e caminhos efetivamente conhecidos.
+Planeje recuperação considerando dados e dependências que possam ter mudado depois da alteração. Reverter código não reconstrói automaticamente o estado anterior. Uma migração pode permitir reparo à frente ou retorno, conforme os contratos e os dados envolvidos; compare consequências e caminhos que foram realmente preparados.
 
-Um ambiente compreensível e recuperável favorece a experimentação. Operações importantes devem ter passos explícitos, destino identificado e resultado conferido. A proteção necessária aumenta com o impacto: separação de acessos e barreiras do próprio fluxo podem ser mais confiáveis que uma advertência que depende de ninguém se distrair.
+Restrinja acessos e exposição de dados ao necessário. Procedimentos importantes devem indicar passos, destino e conferência do resultado. Quanto maior o impacto, mais a proteção deve depender de barreiras do fluxo e controles verificáveis, e menos de uma advertência ou da atenção individual.
 
-## 11. Aprender, explicar e revisar sem concentrar o conhecimento
+## 11. Compartilhar conhecimento e revisar sem concentrá-lo
 
-Saber executar e saber explicar são capacidades relacionadas, mas diferentes. A explicação deve partir de onde a dúvida está e aprofundar o mecanismo necessário. Um exemplo menor pode tornar uma relação visível antes de levá-la para o sistema completo. Essa atenção permite ao responsável participar das decisões e aos colaboradores assumir partes do trabalho.
+Explicações devem partir da dúvida existente e aprofundar o mecanismo necessário. Um exemplo pequeno pode esclarecer uma relação antes de aplicá-la ao sistema completo. Ensinar não exige retirar toda oportunidade de experimentar; exercícios devem ocorrer em condições proporcionais ao risco e com recuperação possível.
 
-O conhecimento de um projeto costuma estar distribuído. Registrar problema, intenção, dependências e critério de conclusão torna uma anotação utilizável por quem não esteve na conversa. A primeira captura pode ser incompleta; antes de virar instrução de execução, ambiguidades que mudem o resultado precisam ser esclarecidas.
+Registre problema, intenção, dependências e critério de conclusão para que alguém fora da conversa possa continuar. Capturas iniciais podem estar incompletas; esclareça ambiguidades que alterem o resultado antes de transformar uma anotação em instrução de execução.
 
-Revisão exige identificar a preocupação concreta da outra pessoa e confrontar a proposta com evidência. Preferências, prestígio de uma tecnologia e defesa pessoal não resolvem a dúvida sobre o comportamento ou a manutenção. Quem usa e quem mantém o sistema oferece perspectivas que o autor sozinho não possui.
+Em uma revisão, identifique a preocupação concreta e avalie-a diante do comportamento, da evidência e da manutenção. Preferência, prestígio de uma tecnologia e defesa pessoal não respondem à questão técnica. Pessoas que usam e mantêm o sistema oferecem perspectivas distintas.
 
-As notas de aprendizado pessoal entram nessa continuidade sem se transformarem em regras artificiais de código. Reconhecer limites ajuda a assumir compromissos viáveis e pedir apoio. Um erro pode produzir uma pergunta investigável e uma mudança de procedimento. Ritmo de aprendizado, espaço para experiências recuperáveis e interpretação de feedback influenciam a capacidade de continuar trabalhando.
+Use erros e feedback para formular perguntas verificáveis e ajustar procedimentos sem converter cada incidente em uma regra universal. Reconheça limites de conhecimento e capacidade, peça apoio quando necessário e mantenha um ritmo que permita aprender e continuar. A compreensão de quem executa deve atender às necessidades e prioridades explícitas do projeto.
 
-## 12. Usar IA com critérios para julgar o que ela produz
+## 12. Usar IA com critérios para julgar o resultado
 
-“Luto na programação” tensiona o cuidado artesanal com o código diante da velocidade de produção e reescrita por IA. Os exemplos apresentados associam essa velocidade a outras capacidades: testes de comportamento já existentes, revisão de uma correção, comparação entre implementações e uma cena de estresse. A possibilidade de gerar mais código não é, sozinha, evidência de que a solução atende ao que se espera. [IA-L]
+A velocidade de geração não demonstra que uma solução atende ao problema. Relacione o que a IA produziu à mudança executada, ao comportamento esperado e à evidência obtida. Testes, revisão e comparação podem ajudar, desde que avaliem a propriedade relevante.
 
-O laboratório narrado na aula permite comparar tentativas e devolver resultados ao processo de geração. O ensinamento transferível é definir critérios e manter uma forma de confrontar o resultado com eles. Reproduzir a escala narrada, usar muitos agentes ou reescrever tudo são escolhas que ainda precisam de necessidade, custo e condições próprias.
+Defina objetivo, limites e condições de avaliação para geração, reescritas ou uso de agentes. Mais agentes, mais código ou uma reescrita completa não são benefícios por si. Onde compreensão humana e manutenção direta forem requisitos, inclua-os nos critérios de aceitação. Onde outra abordagem trouxer benefício necessário, conheça seus compromissos e formas de recuperação.
 
-“O que sobra para nós?” liga intimidade com programação à capacidade de formular pedidos precisos, reduzir a desorganização do sistema e evitar tentativas que não chegam ao problema. O valor humano também aparece em compreender necessidades que a outra pessoa ainda não conseguiu formular. A responsabilidade por quem recebe o produto permanece com quem decide entregar. [IA-S]
+Desempenho, migração e produtividade variam com tarefa, dados, ferramenta, contexto e método de avaliação. Um relato ou uma previsão não estabelece uma garantia geral. Use evidência adequada à decisão atual e indique suas limitações.
 
-Há um limite de atribuição importante: as aulas contêm relatos e previsões, inclusive números sobre migração e desempenho, cuja comprovação independente não foi feita para esta síntese. Esses casos ajudam a compreender o argumento do instrutor; não fornecem uma garantia sobre a capacidade de qualquer modelo, ferramenta ou projeto atual.
-
-Um resultado produzido por IA deve poder ser relacionado ao problema, à mudança executada e à evidência obtida. Onde compreensão humana e manutenção direta são requisitos, a organização do código faz parte da aceitação. Onde uma alternativa menos confortável de ler traz um benefício necessário, esse compromisso precisa de critério, proteção e custo conhecidos. A decisão é contextual, e não uma licença geral para aceitar qualquer implementação.
-
-## 13. Resolver tensões em vez de converter exemplos em dogmas
-
-Os ensinamentos ficam mais úteis quando preservam os motivos das escolhas. Abaixo estão tensões recorrentes e a pergunta que impede uma aplicação mecânica.
+## 13. Resolver tensões em vez de converter exemplos em regras
 
 | Tensão | Pergunta que orienta a decisão |
 | --- | --- |
-| Simplicidade e engenharia suficiente | O que a solução precisa proteger agora, e que complexidade foi acrescentada sem uma necessidade concreta? |
-| Crescimento orgânico e execução planejada | Ainda estamos descobrindo o problema ou executando um caminho já conhecido? |
-| Repetição e abstração | Existe a mesma regra que precisa evoluir junta, ou apenas trechos parecidos com razões diferentes para mudar? |
-| Independência e integração com framework | Que limite facilita uma mudança provável, e quanto trabalho custa manter esse limite? |
-| Testar, refinar e entregar | Que comportamento essencial falta demonstrar, e que melhoria pode ser orientada pelo próximo retorno de uso? |
-| Legibilidade, prazo e reescrita | Quem precisa compreender e manter o resultado, que urgência existe e quais critérios sustentam o compromisso? |
+| Simplicidade e engenharia suficiente | O que precisa ser protegido agora e que complexidade foi acrescentada sem necessidade concreta? |
+| Construção iterativa e execução planejada | O problema ainda está sendo descoberto ou o caminho já é conhecido? |
+| Repetição e abstração | Existe uma regra que deve evoluir junto ou apenas trechos parecidos com razões distintas para mudar? |
+| Independência e integração com framework | Que limite facilita uma mudança provável e quanto custa mantê-lo? |
+| Testar, refinar e entregar | Que comportamento essencial ainda falta demonstrar e que melhoria depende do próximo retorno? |
+| Legibilidade, prazo e reescrita | Quem precisa compreender e manter o resultado, que urgência existe e qual evidência sustenta o compromisso? |
 
-Essas perguntas preservam uma diferença entre princípio e receita. MVC, Next.js, JavaScript, Prettier, integração contínua ou modelos de IA aparecem em contextos. O que se transfere para outro projeto é o raciocínio que permite avaliar se a escolha serve ali.
+Tecnologias, padrões e ferramentas podem ser bons exemplos sem se tornarem receitas. Transfira o raciocínio que permite avaliar uma escolha, não a escolha isolada.
 
-## 14. Critérios de adoção para trabalho assistido por IA
+## 14. Aplicar os critérios ao trabalho assistido por IA
 
-Adotar esta síntese exige conhecer as prioridades do projeto. Compreensão imediata, facilidade de alteração, prazo, desempenho e custos de operação e manutenção participam da decisão, sem uma ordem universal entre eles. Mais esforço inicial precisa de um benefício relevante para o caso; o responsável também pode preferir compreender a implementação depois da entrega, preservadas as condições necessárias de correção e verificação de quem a produz.
+Conheça as prioridades do projeto. Compreensão, capacidade de alteração, prazo, desempenho e custos de operação e manutenção participam da decisão sem uma ordem universal. Um investimento maior precisa de benefício relevante. O responsável pode preferir compreender a implementação depois da entrega; isso não dispensa quem executa de entender o necessário para implementar e verificar a solução.
 
-O investimento em organização segue esse mesmo critério. Mais documentação, pesquisa, abstrações ou testes não demonstram, por quantidade, que o trabalho ficou melhor. Cada esforço adicional deve esclarecer uma decisão, preservar um comportamento, facilitar uma alteração ou reduzir uma consequência relevante. Quando houver evidência suficiente para executar a próxima ação segura, a investigação deve dar lugar à execução.
+Documentação, pesquisa, abstrações e testes devem esclarecer decisões, preservar comportamentos, facilitar alterações ou reduzir consequências relevantes. Quantidade de artefatos não prova qualidade. Quando houver evidência suficiente para a próxima ação segura, execute-a e amplie a investigação somente diante de uma dúvida concreta.
 
 Um ciclo de trabalho ajustável a essas prioridades é:
 
-1. Entender o problema, os usuários, as restrições e o resultado esperado.
+1. Entender o problema, as pessoas envolvidas, as restrições e o resultado esperado.
 2. Inspecionar o caminho existente e os contratos que podem mudar a solução.
-3. Explicar as decisões relevantes, resolver ambiguidades materiais e delimitar a etapa completa.
+3. Resolver ambiguidades que exigem decisão e delimitar uma etapa completa.
 4. Implementar com responsabilidades reconhecíveis e complexidade proporcional.
 5. Verificar o comportamento na fronteira adequada e registrar o alcance da evidência.
-6. Revisar o efeito, atualizar a documentação necessária e registrar uma mudança coerente no Git quando o fluxo do projeto incluir commits.
-7. Observar a entrega no ambiente que realmente importa e usar o retorno para o próximo ciclo.
+6. Revisar o efeito e atualizar a documentação necessária; registrar uma mudança coerente no Git quando o fluxo do projeto incluir commits.
+7. Observar a entrega no ambiente que importa e usar o retorno para o próximo ciclo.
 
-O detalhamento desse ciclo e o momento das explicações dependem do projeto. Ele não exige uma aprovação humana para cada operação rotineira. O responsável deve participar das decisões que alteram objetivo, custo, risco ou forma de manter o projeto. As escolhas já autorizadas e as ações reversíveis necessárias continuam sendo executadas dentro do escopo.
+O ciclo e o momento das explicações dependem do projeto. Ele não exige aprovação humana para cada operação rotineira. Envolva o responsável em decisões que alterem objetivo, custo, risco ou forma de manter o projeto. Execute ações reversíveis e autorizadas dentro do escopo.
 
-## 15. Como reutilizar este documento em outro projeto
+## 15. Reutilizar estas diretrizes em outro projeto
 
-O corpo desta síntese é independente de linguagem, framework, domínio comercial e provedor. Pode ser levado para outro repositório como referência, preservando seus limites e definindo a política de adoção conforme o destino. As prioridades de outro projeto não são importadas automaticamente. Os caminhos locais das fontes são opcionais para consulta; não são necessários para entender as diretrizes.
+Estas orientações podem acompanhar projetos de domínios e tecnologias diferentes. As prioridades do destino continuam próprias. No novo repositório, indique a localização escolhida em `AGENTS.md` e acrescente apenas o contexto que muda a aplicação: objetivo, tecnologias, contratos importantes, dados a proteger, comandos de verificação, critérios de entrega e restrições de publicação.
 
-No novo projeto, o `AGENTS.md` deve apontar para a localização escolhida e acrescentar somente o contexto que muda sua aplicação: objetivo, tecnologias existentes, contratos importantes, dados a proteger, comandos de verificação, critérios de entrega e restrições de publicação. Não é necessário reproduzir o documento inteiro nas instruções.
-
-O bloco abaixo é uma adaptação operacional desta síntese para agentes. Ele não é uma citação do instrutor. Deve ser combinado com as instruções e autorizações específicas do repositório.
+O bloco abaixo resume uma aplicação operacional dos critérios. Combine-o com as instruções e autorizações específicas do repositório.
 
 ```text
 Avalie compreensão, capacidade de alteração, prazo, desempenho e custos
 conforme os requisitos e as prioridades explícitas do projeto. Ajuste o
-momento das explicações à necessidade do responsável. Use as diretrizes
-como critérios de decisão e demonstre sua aplicação no código e nos resultados.
+momento das explicações ao contexto do responsável. Use estas diretrizes
+como critérios e demonstre sua aplicação no código e nos resultados.
 
 Antes de alterar comportamento, entenda o problema, o resultado esperado,
 o caminho existente e os contratos relevantes. Explique escolhas que mudem
@@ -217,95 +183,3 @@ Conclua a etapa quando seus critérios forem atendidos. Acrescente pesquisa,
 estrutura ou automação somente quando contribuírem para uma dúvida ou
 necessidade concreta do trabalho atual.
 ```
-
-## Fontes e alcance da síntese
-
-Foram considerados o índice e as 49 notas temáticas de aprendizado do curso Web, as transcrições integrais de “Luto na programação” e “O que sobra para nós?” e os dois guias dessas aulas. No primeiro levantamento das notas, o agente principal leu 29 notas e o índice; o Luna leu integralmente outras 20 e forneceu sua avaliação. A redação e integração desta síntese são do agente principal.
-
-Para esclarecer detalhes que mudam a orientação sobre código e desenvolvimento, foram lidas também quatro aulas Web completas: desenvolvimento orgânico, configuração do Prettier, overengineering e proposta de arquitetura e pastas. O inventário das notas aparece no apêndice; não foi feita uma leitura integral de todas as transcrições do curso Web.
-
-As referências abaixo levam aos arquivos consultados neste computador. Atribuições específicas ao instrutor devem ser confrontadas com a aula correspondente quando houver dúvida de contexto ou fidelidade da transcrição. Os guias das aulas IA ajudam a explicitar ressalvas, mas continuam sendo material derivado.
-
-- **W08:** [Programação “Orgânica” versus “Impressora 3D” — transcrição integral][W08].
-- **W10:** [Configurar o Prettier — transcrição integral][W10].
-- **W14-O:** [Uma história macabra sobre “Overengineering” — transcrição integral][W14-O].
-- **W14-A:** [Proposta de Arquitetura e Pastas — transcrição integral][W14-A].
-- **IA-L:** [Luto na programação — transcrição integral][IA-L].
-- **IA-S:** [O que sobra para nós? — transcrição integral][IA-S].
-- **G-L:** [Luto na programação — guia e aprendizados][G-L].
-- **G-S:** [O que sobra para nós? — guia e aprendizados][G-S].
-
-Base local das 49 notas e do índice:
-
-```text
-/home/luiz-avcruz/Misc/Obsidian Vaults/Luiz-AVcruz/Programação/Estudos/Cursos/curso.dev/Aprendizado subjetivo/
-```
-
-Cada nota tem sua própria seção de fontes, permitindo voltar à aula que originou um critério. Consultar a aula inteira é apropriado quando o contexto puder mudar uma orientação; não é necessário reler todo o curso para executar uma alteração já compreendida.
-
-[W08]: </home/luiz-avcruz/Misc/Obsidian Vaults/Luiz-AVcruz/Programação/Estudos/Cursos/curso.dev/Transcrição/Dia 8/Programação "Orgânica" versus "Impressora 3D"/transcrição literal.md>
-[W10]: </home/luiz-avcruz/Misc/Obsidian Vaults/Luiz-AVcruz/Programação/Estudos/Cursos/curso.dev/Transcrição/Dia 10/Configurar o Prettier/transcrição literal.md>
-[W14-O]: </home/luiz-avcruz/Misc/Obsidian Vaults/Luiz-AVcruz/Programação/Estudos/Cursos/curso.dev/Transcrição/Dia 14/Uma história macabra sobre "Overengineering"/transcrição literal.md>
-[W14-A]: </home/luiz-avcruz/Misc/Obsidian Vaults/Luiz-AVcruz/Programação/Estudos/Cursos/curso.dev/Transcrição/Dia 14/Proposta de Arquitetura e Pastas/transcrição literal.md>
-[IA-L]: </home/luiz-avcruz/Misc/Obsidian Vaults/Luiz-AVcruz/Programação/Estudos/Cursos/curso.dev - IA/Transcrição/Box/Luto na programação/transcrição literal.md>
-[IA-S]: </home/luiz-avcruz/Misc/Obsidian Vaults/Luiz-AVcruz/Programação/Estudos/Cursos/curso.dev - IA/Transcrição/Box/O que sobra para nós?/transcrição literal.md>
-[G-L]: </home/luiz-avcruz/Misc/Obsidian Vaults/Luiz-AVcruz/Programação/Estudos/Cursos/curso.dev - IA/Transcrição/Box/Luto na programação/Luto na programação.md>
-[G-S]: </home/luiz-avcruz/Misc/Obsidian Vaults/Luiz-AVcruz/Programação/Estudos/Cursos/curso.dev - IA/Transcrição/Box/O que sobra para nós?/O que sobra para nós?.md>
-
-## Apêndice. Mapa das notas consultadas
-
-Cada título abaixo corresponde a um arquivo no diretório das notas. A coluna de contribuição registra a interpretação incorporada a esta síntese; as seções indicam onde ela pode ser encontrada. Uma nota pode sustentar mais de uma orientação, e uma orientação pode reunir várias notas e aulas. Os títulos não constituem 49 regras novas nem requisitos para acrescentar funcionalidades.
-
-A identificação de leitura preserva o levantamento inicial: o agente principal leu 29 notas e o índice; o Luna leu as outras 20. O índice organiza as notas e não é contado como uma nota temática. As fontes de cada nota permitem recuperar a aula original.
-
-| Nota | Leitura inicial | Contribuição à síntese | Seção |
-| --- | --- | --- | --- |
-| Aprender a acompanhar a entrega até o uso em produção | Principal | Acompanhar a mudança até o ambiente real e o uso. | 9 |
-| Aprender a ensinar e ajustar a profundidade da explicação | Principal | Ajustar a explicação ao conhecimento e à dúvida de quem aprende. | 11 |
-| Assumir responsabilidade sem ultrapassar a própria capacidade | Luna | Dimensionar compromissos, reconhecer limites e buscar apoio. | 11 |
-| Avaliar as consequências antes de desfazer uma mudança | Principal | Considerar dados, dependências e consequências da recuperação. | 10 |
-| Buscar simplicidade sem cair em overengineering ou underengineering | Principal | Relacionar simplicidade, proteção necessária e custo de mudança. | 5 |
-| Compreender fundamentos e história para avaliar novidades | Luna | Avaliar ferramentas compreendendo o mecanismo e o contexto. | 3 |
-| Conhecer uma convenção antes de aceitar um desvio deliberado | Principal | Compreender a convenção antes de justificar uma exceção. | 6 |
-| Considerar obrigações e confiança ao adotar dependências | Principal | Examinar licenças, condições de uso e continuidade. | 3, 10 |
-| Construir confiança experimentando em condições seguras | Luna | Criar condições recuperáveis para aprender com experiências. | 10, 11 |
-| Criar proteções que não dependam apenas da disciplina individual | Principal | Preferir barreiras proporcionais a depender apenas de atenção. | 10 |
-| Definir o suficiente para entregar e aprender com o uso | Principal | Definir condições essenciais e aprender depois com o uso. | 9 |
-| Demonstrar capacidade de aprender e reconhecer o que ainda falta | Luna | Explicitar conhecimento, evidência e limites em vez de aparentar domínio. | 11 |
-| Desenvolver de forma orgânica e buscar retorno cedo | Principal | Reduzir a distância entre a primeira hipótese e o retorno. | 2 |
-| Dimensionar a organização pelo benefício que ela produz | Principal | Justificar estrutura e documentação pelo que ajudam a compreender e mudar. | 4, 14 |
-| Dimensionar o tratamento de falhas pelo impacto e pelo valor entregue | Principal | Dimensionar proteção e verificação pela consequência da falha. | 7, 10 |
-| Enfrentar o desconhecido sem confundir a capacidade atual com um limite definitivo | Luna | Converter dificuldade atual em uma pergunta e um caminho de aprendizado. | 11 |
-| Entender as duas muralhas de tecnologia e negócio | Luna | Relacionar viabilidade técnica e utilidade para alguém. | 1 |
-| Escolher testes pelo risco e pelo comportamento que importa | Principal | Escolher a fronteira de verificação pelo comportamento importante. | 7 |
-| Escrever a ideia para descobrir qual problema ela resolve | Luna | Usar a escrita para esclarecer problema, público e intenção. | 1 |
-| Extrair conhecimento coletivo e registrar contexto suficiente | Principal | Registrar contexto suficiente para outra pessoa continuar. | 11 |
-| Fazer manutenção contínua com mudanças controladas | Principal | Reduzir acúmulo com manutenção frequente e intenções separadas. | 10 |
-| Integrar o trabalho com frequência para reduzir a distância entre pessoas | Luna | Expor divergências cedo por meio de integração frequente. | 9 |
-| Investigar problemas sem inventar monstros no desconhecido | Principal | Separar observação e hipótese, escolhendo a próxima verificação. | 8 |
-| Julgar metodologias pelo trabalho e pelo valor que ajudam a produzir | Luna | Avaliar processos pelo efeito no trabalho e no produto. | 2, 14 |
-| Ler código pelas funções e responsabilidades que ele cumpre | Principal | Seguir o fluxo, os contratos e as responsabilidades do código. | 4, 5 |
-| Limitar acessos e exposição de dados ao que é necessário | Principal | Restringir acessos e exposição ao necessário para o trabalho. | 10 |
-| Manter um ritmo sustentável de aprendizado | Luna | Preservar continuidade e tempo para assimilar o aprendizado. | 11 |
-| Medir resultados antes de declarar uma melhoria | Principal | Comparar o efeito pretendido com evidência relevante. | 8 |
-| Orientar sem eliminar toda oportunidade de experimentar | Luna | Explicar sem retirar toda oportunidade de experimentar. | 11 |
-| Padronizar para reduzir ruído e preservar atenção | Principal | Compartilhar e automatizar convenções para reduzir ruído. | 6 |
-| Participar de uma comunidade com abertura e reciprocidade | Luna | Favorecer contribuição e circulação de conhecimento. | 3, 11 |
-| Preparar um ambiente que permita experimentar e se recuperar | Principal | Tornar execução, experimentação e recuperação compreensíveis. | 10 |
-| Preparar-se para falhas e verificar os sinais de saúde | Principal | Confrontar sinais de saúde com comportamento e caminhos de recuperação. | 8, 9, 10 |
-| Projetar interfaces para que as pessoas consigam avançar | Principal | Organizar a experiência para que as pessoas consigam avançar. | 1 |
-| Quebrar projetos grandes e abandonar o tudo ou nada | Luna | Dividir a execução em partes completas e avaliáveis. | 2, 9 |
-| Reconhecer valor sem depender apenas do julgamento alheio | Luna | Examinar feedback sem transformar um julgamento isolado em medida total de capacidade. | 11 |
-| Respeitar o tempo e ouvir a experiência de quem usa o produto | Luna | Observar esforço, dificuldades e retorno de quem usa. | 1, 8 |
-| Revisar planos conforme o contato com a realidade | Luna | Revisar o plano quando a realidade muda o entendimento. | 2 |
-| Separar função de preferência pessoal nas discussões técnicas | Principal | Discutir adequação funcional sem confundir preferência com requisito. | 3, 11 |
-| Separar o exercício de aprender da escolha para operar um produto | Principal | Reconhecer a diferença entre explorar fundamentos e operar um produto. | 3 |
-| Tomar decisões pelo contexto e sair da paralisia por análise | Luna | Usar o contexto para decidir e encerrar investigação suficiente. | 3, 14 |
-| Tornar o progresso visível sem confundir marcação com entrega | Luna | Distinguir atividade registrada de entrega e efeito demonstrados. | 1, 9 |
-| Trabalhar com revisão e feedback sem proteger o próprio ego | Luna | Examinar preocupações concretas e manter propostas revisáveis. | 11 |
-| Transformar experiências difíceis em aprendizado | Luna | Extrair de erros e dificuldades perguntas e ajustes de procedimento. | 11 |
-| Transformar procedimentos em processos reproduzíveis e rastreáveis | Principal | Explicitar passos, destinos e conferência do resultado. | 10 |
-| Tratar a modificabilidade como um objetivo do software | Principal | Avaliar escolhas pela capacidade real de continuar alterando o sistema. | 3, 5 |
-| Usar o histórico de mudanças como comunicação para outras pessoas | Principal | Comunicar intenção e agrupar mudanças coerentes no Git. | 10 |
-| Usar testes para conseguir mudar o sistema com confiança | Principal | Preservar conhecimento de comportamentos para permitir alterações. | 7 |
-| Verificar se os testes e as medições detectam falhas | Principal | Conferir se o instrumento reprova a falha que pretende detectar. | 7 |

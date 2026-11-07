@@ -536,7 +536,7 @@ function OSP.installServer()
         end
         publish()
     end
-    function server.ospCommand(actor,action,target,arg,requestId)
+    function server.ospCommand(actor,action,target,arg,requestId,targetContext)
         if not OSP.finite(actor) or not IsPlayerValid(actor) then return end
         syncPlayers()
         local def=type(action)=="string" and actions[action] or nil
@@ -553,6 +553,18 @@ function OSP.installServer()
         if def.aliveCaller and GetPlayerHealth(actor)<=0 then deny("unavailable"); return end
         if def.target then
             if not OSP.finite(target) or not IsPlayerValid(target) or not players[target] then deny("unavailable"); return end
+            local contextValid=type(targetContext)=="table"
+                and type(targetContext.host)=="string" and #targetContext.host==32
+                and targetContext.host:match("^[0-9a-f]+$")
+                and OSP.finite(targetContext.targetJoin) and targetContext.targetJoin>=1
+                and targetContext.targetJoin%1==0
+            if contextValid then
+                for key in pairs(targetContext) do
+                    if key~="host" and key~="targetJoin" then contextValid=false;break end
+                end
+            end
+            if not contextValid or targetContext.host~=profileHost
+                or targetContext.targetJoin~=players[target].challenge then deny("unavailable");return end
             if def.aliveTarget and GetPlayerHealth(target)<=0 then deny("unavailable"); return end
             if isHost(target) and (def.noHost or (not isHost(actor) and not def.readTarget)) then deny("protected"); return end
             if def.persistent and isHost(actor) and not players[target].profile then deny("unavailable"); return end

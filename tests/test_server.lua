@@ -120,10 +120,22 @@ local function world(options)
     if not options.unidentified then
         for _,p in ipairs({23,47}) do w.identify(p,options.identities and options.identities[p]) end
     end
-    function w.command(actor,action,target,value)
+    function w.context(target)
+        for _,p in ipairs(env.shared.osp.players) do
+            if p.id==target then return {host=env.shared.osp.profileHost,targetJoin=p.profileChallenge} end
+        end
+    end
+    function w.command(actor,action,target,value,contextOverride)
         for _,p in ipairs(env.shared.osp.players) do if not p.profileReady then w.identify(p.id) end end
         w.now=w.now+0.1
-        env.server.ospCommand(actor,action,target,value)
+        local context
+        if target and target~=0 then
+            if contextOverride~=false then
+                context=contextOverride
+                if context==nil then context=w.context(target) end
+            end
+        end
+        env.server.ospCommand(actor,action,target,value,nil,context)
         local c=w.calls[#w.calls]
         assert(c.fn=='client.ospResult')
         return c.args[1],c.args[2],c.args[3]
@@ -138,12 +150,48 @@ local function world(options)
     return w
 end
 local w=world()
+-- Directed requests require a well-formed namespace and current join marker.
+do
+    local t=world();local current=t.context(23);local before=#t.api.shared.osp.log
+    local ok,code=t.command(11,'kill',23,nil,false);eq(ok,false);eq(code,'unavailable','missing target context')
+    ok,code=t.command(11,'kill',23,nil,'malformed');eq(ok,false);eq(code,'unavailable','malformed target context')
+    ok,code=t.command(11,'kill',23,nil,{host=string.rep('b',32),targetJoin=current.targetJoin})
+    eq(ok,false);eq(code,'unavailable','different namespace')
+    ok,code=t.command(11,'kill',23,nil,{host=current.host,targetJoin='2'})
+    eq(ok,false);eq(code,'unavailable','malformed join marker')
+    eq(t.players[23].health,1,'rejected contexts do not kill the target')
+    eq(#t.api.shared.osp.log,before,'rejected contexts do not enter activity history')
+    eq(t.command(11,'rule',0,{key='rain',value=.4}),true,'global request needs no target context')
+end
+-- A recycled session ID requires a new join marker even when the same saved
+-- profile returns. The stale command is rejected before effects or cooldown.
+do
+    registry={}
+    local t=world();local stale=t.context(23);local identity=t.identities[23]
+    local root='savegame.mod.osp.players.'..identity..'.'
+    local before=#t.api.shared.osp.log
+    t.removed={23};t.now=t.now+1;t.api.server.tick();t.removed={}
+    local current=t.context(23);check(current.targetJoin~=stale.targetJoin,'reentry receives a new join marker')
+    t.api.server.ospIdentify(23,current.host,current.targetJoin,identity)
+    eq(t.calls[#t.calls].args[3],identity,'same profile may return for the new entry')
+    current=t.context(23)
+    t.api.server.ospCommand(11,'speed',23,2,701,stale)
+    eq(t.calls[#t.calls].args[1],false,'stale request is rejected');eq(t.calls[#t.calls].args[2],'unavailable')
+    eq(t.api.shared.osp.players[2].speed,1,'stale request leaves new entry unchanged')
+    eq(registry[root..'speed'],nil,'stale request does not save a setting')
+    eq(#t.api.shared.osp.log,before,'stale request does not enter activity history')
+    t.api.server.ospCommand(11,'speed',23,2,702,current)
+    eq(t.calls[#t.calls].args[1],true,'new entry accepts a current-context request')
+    eq(t.calls[#t.calls].args[4],702,'request ID remains in its original RPC position')
+    eq(t.api.shared.osp.players[2].speed,2,'current-context request changes the target')
+    eq(registry[root..'speed'],2,'current-context request saves the setting')
+end
 -- Teleports require a different target, enforced before the accepted-request throttle.
 do
     local t=world()
     t.command(11,'admin',23,true)
     local function direct(actor,action,target)
-        t.api.server.ospCommand(actor,action,target)
+        t.api.server.ospCommand(actor,action,target,nil,nil,t.context(target))
         local response=t.calls[#t.calls]
         eq(response.fn,'client.ospResult','direct command reply')
         return response.args[1],response.args[2],response.args[3]
@@ -238,8 +286,8 @@ w.players[47]=replacement;w.tick();eq(w.api.shared.osp.players[3].admin,false);e
 -- The removal list is constant during a frame (not a consumable queue).
 w.removed={47};w.now=w.now+1
 w.identify(47)
-w.api.server.ospCommand(11,'admin',47,true)
-w.api.server.ospCommand(47,'heal',47)
+w.api.server.ospCommand(11,'admin',47,true,nil,w.context(47))
+w.api.server.ospCommand(47,'heal',47,nil,nil,w.context(47))
 eq(w.calls[#w.calls].args[1],true,'same-frame removal processed once')
 w.removed={}
 -- Late join and persistence across a new Lua context/map.
@@ -261,7 +309,7 @@ eq(w2.players[11].tools.sledge,true);eq(w2.players[47].tools.sledge,false)
 ok,code=w2.command(23,'restart',0);eq(ok,false);eq(w2.restarted,false)
 eq(w2.command(11,'restart',0),true);eq(w2.restarted,true)
 -- Replies carry the exact request ID; sending a request is not completion.
-w2.now=w2.now+1;w2.api.server.ospCommand(11,'heal',47,nil,1234)
+w2.now=w2.now+1;w2.api.server.ospCommand(11,'heal',47,nil,1234,w2.context(47))
 eq(w2.calls[#w2.calls].args[4],1234)
 w2.now=w2.now+1;w2.api.server.ospCommand(23,'restart',0,nil,1235)
 eq(w2.calls[#w2.calls].args[4],1235);eq(w2.calls[#w2.calls].args[1],false)
@@ -361,7 +409,7 @@ loading.identify(23,identity)
 eq(loading.api.shared.osp.players[2].admin,true,'current join can restore the profile')
 local clone=restored.api.OSP.copy(restored.players[23]);clone.id=99
 restored.players[99]=clone;restored.tick()
-restored.now=restored.now+.1;restored.api.server.ospCommand(11,'god',99,true,900)
+restored.now=restored.now+.1;restored.api.server.ospCommand(11,'god',99,true,900,restored.context(99))
 eq(restored.calls[#restored.calls].args[2],'unavailable','host waits for a persistent profile')
 eq(restored.players[99].params.godMode,false,'unidentified target is unchanged')
 local allocated=restored.identify(99,identity)

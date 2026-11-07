@@ -35,6 +35,18 @@ function OSP.installClient()
     local function state() return shared and shared.osp or nil end
     local function roster() local s=state();return s and s.players or {} end
     local function findPlayer(id) for _,p in ipairs(roster()) do if p.id==id then return p end end end
+    local function captureTargetContext(target)
+        local s=state();local p=findPlayer(target);local namespace=s and s.profileHost;local challenge=p and p.profileChallenge
+        if type(namespace)~="string" or #namespace~=32 or not namespace:match("^[0-9a-f]+$")
+            or not OSP.finite(challenge) or challenge<1 or challenge%1~=0 then return nil end
+        return {host=namespace,targetJoin=challenge}
+    end
+    local function sameTargetContext(target,expected)
+        if type(expected)~="table" then return false end
+        for key in pairs(expected) do if key~="host" and key~="targetJoin" then return false end end
+        local current=captureTargetContext(target)
+        return current~=nil and expected.host==current.host and expected.targetJoin==current.targetJoin
+    end
     local function host() return IsPlayerHost(me) end
     local function admin() local p=findPlayer(me);return host() or (p and p.admin==true) or false end
     local function allowed(action,target,arg)
@@ -78,7 +90,20 @@ function OSP.installClient()
         return T("guest")
     end
     local function keybind() local k=GetString(ROOT.."menu_key");return OSP.validKey(k) and k or "p" end
+    local function shortcutContextAllowed()
+        -- Tool availability also becomes false while grabbing or using Plank.
+        -- Check gameplay and current player state independently of the tool.
+        return GetBool("game.player.interactive") and not GetBool("game.paused")
+            and not GetBool("game.map.enabled") and IsPlayerValid(me)
+            and GetPlayerHealth(me)>0 and GetPlayerVehicle(me)==0 and GetPlayerScreen(me)==0
+    end
     local function setStatus(s,seconds) status=s;statusUntil=GetTime()+(seconds or 5) end
+    local function checkConfirmationTarget()
+        if confirm and confirm.target~=0 and not sameTargetContext(confirm.target,confirm.targetContext) then
+            confirm=nil;setStatus(T("result_unavailable"));lmbPressed=false;clickConsumed=true;InputClear();return false
+        end
+        return true
+    end
     local function shortcutMessage(action,message,seconds)
         shortcutNotice=T(action=="god" and "god_short" or action).." · "..message
         shortcutUntil=GetTime()+(seconds or 5);setStatus(shortcutNotice,seconds)
@@ -89,17 +114,36 @@ function OSP.installClient()
         t=navigation.choose(t,function(id) return id=="settings" or id=="about" or admin() and (id~="permissions" or host()) end)
         if tab~=t then resetTooltip();closeMovement();closeTools();tab=t;scroll=0;confirm=nil;typing=false;capturing=false;shortcuts.cancel();OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end
     end
-    local function command(action,target,arg)
+    local function command(action,target,arg,expectedContext,frozenContext)
+        target=target or 0
+        local targetContext
+        if target~=0 then
+            if frozenContext then
+                if not expectedContext or not sameTargetContext(target,expectedContext) then
+                    setStatus(T("result_unavailable"));return false
+                end
+                targetContext=expectedContext
+            else
+                targetContext=captureTargetContext(target)
+                if not targetContext then setStatus(T("result_unavailable"));return false end
+            end
+        end
         if not admin() or not allowed(action,target,arg) then setStatus(T("result_denied"));return false end
         if pending then setStatus(T("request_pending"));return false end
         seq=seq+1;pending=seq;sentAt=GetTime();lastAction=action
         setStatus(T("request_sent"),8)
-        ServerCall("server.ospCommand",me,action,target or 0,arg,pending)
+        ServerCall("server.ospCommand",me,action,target,arg,pending,targetContext)
         return true
     end
     local function ask(action,target,arg,message)
+        target=target or 0
+        local targetContext
+        if target~=0 then
+            targetContext=captureTargetContext(target)
+            if not targetContext then setStatus(T("result_unavailable"));return end
+        end
         typing=false;capturing=false;OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel();InputClear()
-        confirm={action=action,target=target or 0,arg=arg,message=message}
+        confirm={action=action,target=target,arg=arg,message=message,targetContext=targetContext}
     end
     local function rgb(c) UiColor(c[1],c[2],c[3],c[4] or 1) end
     local function rect(x,y,w,h,color)
@@ -686,12 +730,13 @@ function OSP.installClient()
         local awaitingFrame=not confirm.ready
         if button("confirm_cancel",x+w-246,y+h-53,102,38,T("cancel"),"plain",awaitingFrame,true) then confirm=nil;return end
         if button("confirm_accept",x+w-136,y+h-53,116,38,T("confirm"),"danger",awaitingFrame,true) then
-            local current=confirm;confirm=nil;command(current.action,current.target,current.arg)
+            local current=confirm;confirm=nil;command(current.action,current.target,current.arg,current.targetContext,true)
         end
         if confirm then confirm.ready=true end
     end
     local function render()
         setTab(tab)
+        checkConfirmationTarget()
         local tabs=navigation.list();local navCols=math.min(4,#tabs)
         local canvas=UiCanvasSize();local W=math.min(1120,canvas.w*.85);local H=math.min(720,canvas.h*.82)
         local ox=(canvas.w-W)/2;local oy=(canvas.h-H)/2;local narrow=W<900
@@ -795,12 +840,13 @@ function OSP.installClient()
         if not OSP.validKey(GetString(ROOT.."menu_key")) then SetString(ROOT.."menu_key","p") end
     end
     function client.tick(dt)
-        local flightInputBlocked=GetBool("game.paused") or InputPressed("pause") or InputPressed("esc")
+        local pauseInputBlocked=GetBool("game.paused") or InputPressed("pause") or InputPressed("esc")
         -- Preserve a simultaneous click before keyboard capture calls InputClear.
         if (InputLastPressedKey() or "")~="" or InputPressed("lmb") or InputValue("mousewheel")~=0 then resetTooltip() end
         local wasMenu=menu
         setTab(tab)
         lmbPressed=InputPressed("lmb")
+        checkConfirmationTarget()
         if me==0 then me=GetLocalPlayer() end
         local s=state()
         local p=findPlayer(me)
@@ -856,7 +902,7 @@ function OSP.installClient()
                 local key=shortcuts.binding(id)
                 if key~="" and InputPressed(key) then action=id;count=count+1 end
             end
-            if count==1 and not InputPressed("pause") and not InputPressed("esc") and not GetBool("game.paused") and GetPlayerCanUseTool(me) then
+            if count==1 and not pauseInputBlocked and shortcutContextAllowed() then
                 local own=findPlayer(me)
                 if pending then shortcutMessage(action,T("request_pending"))
                 elseif not s or not s.ready or not own or not IsPlayerValid(me) or (own.health or 0)<=0
@@ -876,7 +922,7 @@ function OSP.installClient()
         if s and s.ready and own and own.fly and OSP.finite(own.profileChallenge) then
             -- The native HUD uses interactive for gameplay, independently of
             -- canusetool (which also blocks grabs and the Plank tool).
-            local allowed=not flightInputBlocked and not menu and not GetBool("game.map.enabled")
+            local allowed=not pauseInputBlocked and not menu and not GetBool("game.map.enabled")
                 and GetBool("game.player.interactive")
             local now=GetTime()
             if not flightInputReport or flightInputReport.allowed~=allowed
