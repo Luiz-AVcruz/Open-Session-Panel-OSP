@@ -6,7 +6,6 @@ function OSP.installClient()
     local menu,tab,selected=false,"players",nil
     local toolMode,filter="global","all"
     local movementSettings=nil
-    local revealMovementSettings=false
     local pages={players=1,tools=1,activity=1}
     local scroll,maxScroll,bodyHovered=0,0,false
     local typing,capturing,draft=false,false,""
@@ -71,8 +70,9 @@ function OSP.installClient()
     end
     local function keybind() local k=GetString(ROOT.."menu_key");return OSP.validKey(k) and k or "p" end
     local function setStatus(s,seconds) status=s;statusUntil=GetTime()+(seconds or 5) end
+    local function closeMovement() movementSettings=nil;OSP.NumberInput.cancel() end
     local function setTab(t)
-        if tab~=t then tab=t;scroll=0;confirm=nil;typing=false;capturing=false;OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end
+        if tab~=t then closeMovement();tab=t;scroll=0;confirm=nil;typing=false;capturing=false;OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end
     end
     local function command(action,target,arg)
         if not admin() or not allowed(action,target,arg) then setStatus(T("result_denied"));return false end
@@ -115,7 +115,7 @@ function OSP.installClient()
     end
     local function inside(x,y,w,h,mx,my) return mx>=x and my>=y and mx<x+w and my<y+h end
     local function button(id,x,y,w,h,value,kind,disabled,modal)
-        disabled=disabled or not permittedControl(id) or (confirm~=nil and not modal)
+        disabled=disabled or not permittedControl(id) or ((confirm~=nil or movementSettings~=nil) and not modal)
         local controlDisabled=disabled
         local hitEnabled=not disabled
         local visible=true
@@ -144,9 +144,11 @@ function OSP.installClient()
         controls[id]={x=drawOx+x0,y=drawOy+y0,w=math.max(0,x1-x0),h=math.max(0,y1-y0),disabled=controlDisabled}
         return clicked==true
     end
-    local function numberField(id,x,y,w,h,value,minimum,maximum,decimals,onCommit,disabled,caption)
+    local function numberField(id,x,y,w,h,value,minimum,maximum,decimals,onCommit,disabled,caption,modal)
         local text=OSP.NumberInput.active(id) and OSP.NumberInput.caption(id,value) or caption or tostring(value)
-        if button(id,x,y,w,h,text,OSP.NumberInput.active(id) and "active" or "plain",disabled) then
+        local kind=OSP.NumberInput.active(id) and "active" or "plain"
+        if modal and not OSP.NumberInput.active(id) then kind=nil end
+        if button(id,x,y,w,h,text,kind,disabled,modal) then
             typing=false;capturing=false;OSP.PermissionUI.cancelInput()
             OSP.NumberInput.begin(id,value,minimum,maximum,decimals,onCommit)
         end
@@ -201,7 +203,8 @@ function OSP.installClient()
         local buttons={
             {"heal","heal"},{"go_to","goto"},{"respawn","respawn"},{"bring","bring"},
             {"kill","kill",nil,"danger"},{"eject","eject"},
-            {"god_mode","god",not p.god},{"fly","fly",not p.fly},{"noclip","noclip",not p.noclip},{"freeze","freeze",not p.freeze},
+            {"god_mode","god",not p.god},{"freeze","freeze",not p.freeze},
+            {"fly","fly",not p.fly},{"noclip","noclip",not p.noclip},
         }
         local by=top+69
         for i,item in ipairs(buttons) do
@@ -215,34 +218,11 @@ function OSP.installClient()
             local actionWidth=movement and bw-46 or bw
             if button("player_action_"..verb,x,y,actionWidth,37,cap,item[4],dis) then actionForPlayer(p,verb,cap,item[3],item[4]) end
             if movement and button(verb.."_settings",x+bw-40,y,40,37,"...",configuring and "active" or "plain",blocked or waiting) then
-                if configuring then movementSettings=nil else movementSettings={player=p.id,mode=verb} end
-                revealMovementSettings=movementSettings~=nil
+                movementSettings={player=p.id,mode=verb,challenge=p.profileChallenge}
+                typing=false;capturing=false;OSP.PermissionUI.cancelInput()
             end
         end
         local y=by+math.ceil(#buttons/cols)*43+7
-        if movementSettings and movementSettings.player==p.id then
-            local mode=movementSettings.mode
-            if revealMovementSettings then
-                local height=165+(mode=="fly" and 22 or 0)
-                scroll=math.max(scroll,y+height-layout.contentH);revealMovementSettings=false
-            end
-            label(ax,y,T(mode.."_settings_title"),17,C.text,aw,true);y=y+30
-            local challenge=p.profileChallenge
-            for _,field in ipairs({{mode.."_speed_value","fly_speed_label",mode.."_speed",p[mode.."Speed"] or OSP.flight.normal},
-                {mode.."_boost_value","fly_boost_label",mode.."_boost",p[mode.."Boost"] or OSP.flight.shift}}) do
-                label(ax,y+8,T(field[2]),15,C.muted,aw-150)
-                numberField(field[1],ax+aw-140,y,140,34,field[4],OSP.flight.min,OSP.flight.max,2,
-                    function(value)
-                        local current=findPlayer(p.id)
-                        if current and current.profileChallenge==challenge then command(field[3],p.id,value)
-                        else setStatus(T("result_unavailable")) end
-                    end,blocked or waiting)
-                y=y+42
-            end
-            label(ax,y,T("fly_speed_note"),13,C.muted,aw);y=y+29
-            if mode=="fly" then label(ax,y,T("fly_help"),14,C.muted,aw);y=y+22 end
-            label(ax,y,T("fly_controls"),14,C.muted,aw);y=y+22
-        end
         label(ax,y+8,T("speed_short"),16,C.muted,88)
         local challenge=p.profileChallenge
         numberField("player_speed_value",ax+96,y,aw-208,34,p.speed or 1,.5,3,2,
@@ -520,6 +500,46 @@ function OSP.installClient()
         end
         return y+20
     end
+    local function drawMovementPopup()
+        if not movementSettings then return end
+        local current=movementSettings
+        local p=findPlayer(current.player)
+        if not p or p.profileChallenge~=current.challenge or selected~=p.id or tab~="players"
+            or not allowed(current.mode,p.id) or (p.host and not host()) or (host() and p.profileReady==false) then
+            closeMovement();return
+        end
+        local w=math.min(layout.w-32,540);local h=math.min(layout.h-24,340)
+        local x,y=(layout.w-w)/2,(layout.h-h)/2
+        if not clickConsumed and lmbPressed and not inside(x,y,w,h,mouseX,mouseY) then
+            clickConsumed=true;closeMovement();return
+        end
+        rect(0,0,layout.w,layout.h,{0,0,0,.65});rect(x,y,w,h,C.side);rect(x,y,w,3,C.accent)
+        label(x+20,y+18,T(current.mode.."_settings_title"),20,C.text,w-92,true)
+        if button("movement_popup_close",x+w-54,y+12,36,34,"X",nil,false,true) then closeMovement();return end
+        label(x+20,y+53,T("selected_short")..": "..p.name,15,C.muted,w-40)
+        for i,field in ipairs({{current.mode.."_speed_value","fly_speed_label",current.mode.."_speed",p[current.mode.."Speed"] or OSP.flight.normal},
+            {current.mode.."_boost_value","fly_boost_label",current.mode.."_boost",p[current.mode.."Boost"] or OSP.flight.shift}}) do
+            local row=y+86+(i-1)*44
+            label(x+20,row+8,T(field[2]),15,C.text,w-190)
+            numberField(field[1],x+w-160,row,140,34,field[4],OSP.flight.min,OSP.flight.max,2,
+                function(value)
+                    local target=findPlayer(current.player)
+                    if target and target.profileChallenge==current.challenge then command(field[3],current.player,value)
+                    else setStatus(T("result_unavailable")) end
+                end,false,nil,true)
+        end
+        local py=y+180
+        local function paragraph(value,size,color)
+            UiPush();UiTranslate(x+20,py);UiAlign("left top");UiFont("regular.ttf",size)
+            UiTextDisableWildcards(true);UiWordWrap(w-40);rgb(color)
+            local _,height=UiText(value);UiPop();py=py+height+10
+        end
+        paragraph(T("fly_speed_note"),13,C.muted)
+        if current.mode=="fly" then paragraph(T("fly_help"),14,C.muted) end
+        paragraph(T("fly_controls"),14,C.muted)
+        py=y+h-42
+        paragraph(OSP.NumberInput.active() and T("number_help") or (status and GetTime()<statusUntil and status) or T("movement_popup_help"),13,C.accent)
+    end
     local function drawModal()
         if not confirm then return end
         local w=math.min(layout.w-32,540);local h=math.min(layout.h-32,232);local x=(layout.w-w)/2;local y=(layout.h-h)/2
@@ -584,9 +604,9 @@ function OSP.installClient()
             local trackH=ch;local thumb=math.max(24,ch*ch/contentHeight)
             rect(W-7,cy,2,trackH,C.line);rect(W-8,cy+(trackH-thumb)*(scroll/maxScroll),4,thumb,C.muted)
         end
-        if OSP.NumberInput.active() then label(cx,H-17,T("number_help"),13,C.accent,cw)
+        if OSP.NumberInput.active() and not movementSettings then label(cx,H-17,T("number_help"),13,C.accent,cw)
         elseif status and GetTime()<statusUntil then label(cx,H-17,status,13,C.accent,cw) end
-        drawModal();UiPop()
+        drawMovementPopup();drawModal();UiPop()
     end
     local function isMouseKey(key) return key=="lmb" or key=="rmb" or key=="mmb" end
     local function consumeText()
@@ -644,7 +664,14 @@ function OSP.installClient()
         end
         if pending and GetTime()-sentAt>=8 then pending=nil;lastAction=nil;setStatus(T("request_unknown"),10) end
         if selected and not findPlayer(selected) then selected=nil;confirm=nil;OSP.NumberInput.cancel() end
-        if menu and OSP.NumberInput.active() then
+        if movementSettings then
+            local target=findPlayer(movementSettings.player)
+            if not target or target.profileChallenge~=movementSettings.challenge or selected~=target.id
+                or not allowed(movementSettings.mode,target.id) then closeMovement();lmbPressed=false;InputClear() end
+        end
+        if menu and movementSettings and InputPressed("esc") then
+            closeMovement();lmbPressed=false;InputClear()
+        elseif menu and OSP.NumberInput.active() then
             OSP.NumberInput.key()
         elseif menu and tab=="permissions" and OSP.PermissionUI.capturing() then
             OSP.PermissionUI.key()
@@ -659,10 +686,10 @@ function OSP.installClient()
             end
         elseif typing then consumeText()
         else
-            if InputPressed(keybind()) then menu=not menu;confirm=nil;if not menu then OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end end
-            if menu and InputPressed("esc") then if confirm then confirm=nil else menu=false;OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end end
+            if InputPressed(keybind()) then menu=not menu;confirm=nil;if not menu then closeMovement();OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end end
+            if menu and InputPressed("esc") then if confirm then confirm=nil else menu=false;closeMovement();OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end end
         end
-        if menu and bodyHovered and not confirm then
+        if menu and bodyHovered and not confirm and not movementSettings then
             local delta=InputValue("mousewheel")
             if delta~=0 then scroll=math.max(0,math.min(maxScroll,scroll-delta*48)) end
         end
@@ -682,6 +709,6 @@ function OSP.installClient()
             UiFont("regular.ttf",18);UiAlign("left top");UiTextDisableWildcards(true);rgb(C.text);UiText(notice);UiPop()
         end
     end
-    OSP.UI={getState=function() return {open=menu,tab=tab,selected=selected,confirm=confirm,keyCapture=capturing,typing=typing,language=lang(),menuKey=keybind(),requestPending=pending~=nil,pendingId=pending,status=status,layout=OSP.copy(layout),controls=OSP.copy(controls),scroll=scroll,maxScroll=maxScroll,filter=filter,toolMode=toolMode} end,
-        open=function(v) menu=v==true;if not menu then confirm=nil;typing=false;capturing=false;OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end end,selectTab=setTab}
+    OSP.UI={getState=function() return {open=menu,tab=tab,selected=selected,confirm=confirm,movementPopup=OSP.copy(movementSettings),keyCapture=capturing,typing=typing,language=lang(),menuKey=keybind(),requestPending=pending~=nil,pendingId=pending,status=status,layout=OSP.copy(layout),controls=OSP.copy(controls),scroll=scroll,maxScroll=maxScroll,filter=filter,toolMode=toolMode} end,
+        open=function(v) menu=v==true;if not menu then closeMovement();confirm=nil;typing=false;capturing=false;OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end end,selectTab=setTab}
 end

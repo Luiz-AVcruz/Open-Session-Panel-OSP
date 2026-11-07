@@ -468,15 +468,16 @@ for _,size in ipairs({{1024,768},{1920,1080}}) do
     edit('fly_speed_value','0','fly_speed',.5)
     local open=w:draw()
     eq(open.controls.fly_boost_value.h,34,'opening reveals the complete Shift field')
+    w:clickControl('movement_popup_close')
     w:clickControl('noclip_settings')
-    eq(w:draw().controls.fly_speed_value,nil,'opening Noclip closes Fly tuning')
+    eq(w:draw().controls.fly_speed_value,nil,'Noclip popup does not show Fly fields')
     edit('noclip_speed_value','25.5','noclip_speed',25.5)
     edit('noclip_boost_value','41','noclip_boost',41)
     edit('noclip_boost_value','999','noclip_boost',100)
     edit('noclip_speed_value','0','noclip_speed',.5)
-    w:clickControl('noclip_settings');eq(w:draw().controls.noclip_speed_value,nil,'Noclip tuning can close')
+    w:clickControl('movement_popup_close');eq(w:draw().controls.noclip_speed_value,nil,'Noclip popup can close')
     w:clickControl('fly_settings')
-    w:clickControl('fly_settings');eq(w:draw().controls.fly_speed_value,nil,'Fly tuning can close')
+    w:clickControl('movement_popup_close');eq(w:draw().controls.fly_speed_value,nil,'Fly popup can close')
     local before=#w.sent
     w:clickControl('player_speed_value');w:tick('2');w:tick('esc')
     eq(#w.sent,before,'Escape discards a numeric edit')
@@ -537,8 +538,44 @@ do
     eq(w:scrollTo('fly_settings').disabled,true,'Noclip grants cannot edit Fly')
     w:clickControl('noclip_settings');w:clickControl('noclip_boost_value');w:tick('4')
     p.profileChallenge=77;w:tick('return');eq(#w.sent,before,'movement tuning checks the target join before sending')
-    w:clickControl('noclip_speed_value');w:tick('5');w:clickControl('player_11');w:tick('return')
+    w:clickControl('noclip_settings');w:clickControl('noclip_speed_value');w:tick('5')
+    w:clickControl('movement_popup_close');w:clickControl('player_11');w:tick('return')
     eq(#w.sent,before,'switching target discards movement drafts')
     eq(w:scrollTo('noclip_settings').disabled,true,'self-only Noclip cannot edit host settings')
+end
+for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
+ for _,language in ipairs({'en','pt'}) do
+    local w=world(unpack(size));local e=w.api
+    w.reg['savegame.mod.osp.language']=language;e.OSP.UI.open(true)
+    local a=w:scrollTo('player_action_fly');local b=w:scrollTo('player_action_noclip')
+    eq(a.y,b.y,'Fly and Noclip share one row');check(a.x<b.x,'Fly is left of Noclip')
+    for _,mode in ipairs({'fly','noclip'}) do
+        local before=#w.sent
+        w:clickControl(mode..'_settings');local st=w:draw()
+        eq(st.movementPopup.mode,mode,'opening click keeps the popup open')
+        eq(st.controls.player_action_heal.disabled,true,'popup blocks background controls')
+        local field=w:scrollTo(mode..'_speed_value');eq(field.h,34)
+        local boost=w:scrollTo(mode..'_boost_value');eq(boost.h,34)
+        check(field.x>=st.layout.ox and field.x+field.w<=st.layout.ox+st.layout.w,'field inside panel width')
+        check(boost.y>=st.layout.oy and boost.y+boost.h<=st.layout.oy+st.layout.h,'field inside panel height')
+        local oldScroll=st.scroll;w:tick('',-5);eq(w:draw().scroll,oldScroll,'wheel cannot scroll background under popup')
+        w:clickControl(mode..'_speed_value');w:tick('2')
+        local close=e.OSP.UI.getState().controls.close
+        w:pressAt(close.x+2,close.y+2);w:releaseAt(close.x+2,close.y+2)
+        st=w:draw();eq(st.movementPopup,nil,'outside press closes popup')
+        eq(st.open,true,'outside press does not click the main Close button underneath')
+        eq(#w.sent,before,'outside press discards the unfinished value')
+        eq(e.OSP.NumberInput.active(),false)
+        w:clickControl(mode..'_settings');w:clickControl(mode..'_boost_value');w:tick('3');w:tick('esc')
+        eq(w:draw().movementPopup,nil,'one Escape closes the focused popup')
+        eq(e.OSP.UI.getState().open,true);eq(#w.sent,before,'Escape cannot save the draft')
+        w:clickControl(mode..'_settings');w:clickControl(mode..'_speed_value');w:tick('4')
+        w:clickControl('movement_popup_close');eq(w:draw().movementPopup,nil,'X closes popup')
+        eq(#w.sent,before,'X cannot save the draft')
+        w:clickControl(mode..'_settings');e.OSP.UI.open(false)
+        eq(w:draw().movementPopup,nil,'closing panel clears popup')
+        e.OSP.UI.open(true)
+    end
+ end
 end
 print('PASS client interaction, viewport and translation contracts: '..assertions..' assertions (mock UI)')
