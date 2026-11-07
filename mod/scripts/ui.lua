@@ -2,6 +2,7 @@
 -- AGPL-3.0-or-later; see LICENSE and ADDITIONAL-PERMISSION.
 -- Rendering and input are local; gameplay changes are confirmed by the server.
 function OSP.installClient()
+    local flightInputReport,flightInputSequence=nil,0
     local ROOT="savegame.mod.osp."
     local menu,tab,selected=false,"players",nil
     local toolMode,filter="global","all"
@@ -794,6 +795,7 @@ function OSP.installClient()
         if not OSP.validKey(GetString(ROOT.."menu_key")) then SetString(ROOT.."menu_key","p") end
     end
     function client.tick(dt)
+        local flightInputBlocked=GetBool("game.paused") or InputPressed("pause") or InputPressed("esc")
         -- Preserve a simultaneous click before keyboard capture calls InputClear.
         if (InputLastPressedKey() or "")~="" or InputPressed("lmb") or InputValue("mousewheel")~=0 then resetTooltip() end
         local wasMenu=menu
@@ -870,6 +872,21 @@ function OSP.installClient()
                 end
             end
         end
+        local own=findPlayer(me)
+        if s and s.ready and own and own.fly and OSP.finite(own.profileChallenge) then
+            -- The native HUD uses interactive for gameplay, independently of
+            -- canusetool (which also blocks grabs and the Plank tool).
+            local allowed=not flightInputBlocked and not menu and not GetBool("game.map.enabled")
+                and GetBool("game.player.interactive")
+            local now=GetTime()
+            if not flightInputReport or flightInputReport.allowed~=allowed
+                or flightInputReport.challenge~=own.profileChallenge or flightInputReport.host~=s.profileHost
+                or now-flightInputReport.at>=0.2 then
+                flightInputSequence=flightInputSequence+1
+                flightInputReport={allowed=allowed,challenge=own.profileChallenge,host=s.profileHost,at=now}
+                ServerCall("server.ospFlightInput",me,s.profileHost,own.profileChallenge,flightInputSequence,allowed)
+            end
+        else flightInputReport=nil end
     end
     function client.draw()
         C=OSP.Theme.colors()

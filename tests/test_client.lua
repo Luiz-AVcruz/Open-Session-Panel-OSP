@@ -5,7 +5,7 @@ local assertions=0
 local function check(v,msg) assert(v,msg);assertions=assertions+1 end
 local function eq(a,b,msg) check(a==b,(msg or 'equality')..': '..tostring(a)..' ~= '..tostring(b)) end
 local function world(width,height,previousRegistry)
-    local w={reg=previousRegistry or {},sent={},texts={},now=0,input='',wheel=0,mouse={x=0,y=0},click=false,held=false,released=false,armed={},
+    local w={reg=previousRegistry or {},sent={},flightReports={},texts={},now=0,input='',wheel=0,mouse={x=0,y=0},click=false,held=false,released=false,armed={},
         width=width,height=height,t={x=0,y=0,s=1},stack={},drawn=false,hp=1}
     local env=setmetatable({client={},shared={osp={ready=true,version='1.4.0',rules={},log={},
         tools={{id='gun',name='gun',nameKey='TOOL_NAME_GUN',origin='vanilla',policy='default'},
@@ -15,7 +15,10 @@ local function world(width,height,previousRegistry)
                  {id=23,name=string.rep('Long name ',20),health=1,host=false,admin=false,god=false,fly=false,freeze=false,speed=1,vehicle=true,profileChallenge=2}}}}},{__index=_G})
     env.GetString=function(k) return w.reg[k] or '' end
     env.SetString=function(k,v) w.reg[k]=v end
-    env.GetBool=function(k) return w.reg[k] or false end
+    env.GetBool=function(k)
+        if k=='game.player.interactive' and w.reg[k]==nil then return true end
+        return w.reg[k] or false
+    end
     env.SetBool=function(k,v) assert(k=='savegame.mod.osp.health_hud');w.reg[k]=v end
     env.GetInt=function() return 0 end;env.LoadLanguageTable=function() end
     env.GetTranslatedStringByKey=function(k,fallback) if k=='TOOL_NAME_GUN' then return 'Pistol' end;return fallback end
@@ -26,7 +29,10 @@ local function world(width,height,previousRegistry)
     env.GetTime=function() return w.now end
     env.GetPlayerCanUseTool=function(p) assert(p==11);return w.canUseTool~=false end
     env.IsToolEnabled=function(id,p) return id=='sledge' end
-    env.ServerCall=function(fn,...) w.sent[#w.sent+1]={fn=fn,args={...}} end
+    env.ServerCall=function(fn,...)
+        local out=fn=='server.ospFlightInput' and w.flightReports or w.sent
+        out[#out+1]={fn=fn,args={...}}
+    end
     env.PauseMenuButton=function() return false end
     env.InputLastPressedKey=function() return w.input end
     env.InputPressed=function(k) return k==w.input or (k=='lmb' and w.click) end
@@ -1009,5 +1015,30 @@ for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
     check(text.text:find('\n',1,true)~=nil,'long notice contains explicit line breaks')
     e.OSP.L=originalL
  end
+end
+-- Fly steering uses the local gameplay context, not tool availability.
+do
+    local w=world(1024,768);local e=w.api
+    e.shared.osp.profileHost='test-host'
+    local own=e.shared.osp.players[1]
+    w:tick();eq(#w.flightReports,0,'no flight reports without the ability')
+    own.fly=true;w.canUseTool=false;w:tick()
+    local function report() return w.flightReports[#w.flightReports].args end
+    eq(#w.flightReports,1);eq(report()[1],11);eq(report()[2],'test-host')
+    eq(report()[3],1);eq(report()[5],true,'grabbing or Plank cannot suppress gameplay input')
+    local sequence=report()[4]
+    w:tick();eq(#w.flightReports,1,'unchanged context is not sent every frame')
+    w.now=w.now+.21;w:tick();eq(#w.flightReports,2);check(report()[4]>sequence)
+    w:tick('p');eq(report()[5],false,'panel opening immediately blocks steering')
+    w:tick('p');eq(report()[5],true,'panel closing restores gameplay')
+    w.reg['game.paused']=true;w:tick();eq(report()[5],false,'personal pause blocks steering')
+    w.reg['game.paused']=false;w:tick();eq(report()[5],true)
+    w.reg['game.map.enabled']=true;w:tick();eq(report()[5],false,'map overlay blocks steering')
+    w.reg['game.map.enabled']=false;w:tick();eq(report()[5],true)
+    w.reg['game.player.interactive']=false;w:tick();eq(report()[5],false,'other UI blocks steering')
+    w.reg['game.player.interactive']=true;w:tick();eq(report()[5],true)
+    own.profileChallenge=2;w:tick();eq(report()[3],2,'reused player ID reports the new join')
+    e.shared.osp.profileHost='new-host';w:tick();eq(report()[2],'new-host')
+    own.fly=false;local n=#w.flightReports;w.now=w.now+1;w:tick();eq(#w.flightReports,n)
 end
 print('PASS client interaction, viewport and translation contracts: '..assertions..' assertions (mock UI)')

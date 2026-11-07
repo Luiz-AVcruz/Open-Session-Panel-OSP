@@ -245,7 +245,7 @@ function OSP.installServer()
         opts=opts or {}; opts.validate=validate; opts.run=run; actions[name]=opts
     end
     local function stopFlight(e)
-        e.flying=false;e.jumpAt=nil
+        e.flying=false;e.jumpAt=nil;e.flightInput=nil;e.flightInputAt=nil
     end
     local function heal(p)
         if GetPlayerHealth(p)<=0 then stopFlight(players[p]);RespawnPlayer(p); players[p].alive=false; enforceTools(p) else SetPlayerHealth(1,p) end
@@ -590,6 +590,26 @@ function OSP.installServer()
         record(actor,action,target,code,details,arg)
         publish(); reply(actor,ok,code,details,requestId)
     end
+    local function flightInputAllowed(p,e)
+        local age=e.flightInputAt and GetTime()-e.flightInputAt
+        local fresh=age~=nil and age>=0 and age<=0.5
+        if fresh and e.flightInput==false then return false end
+        if GetPlayerCanUseTool(p) then return true end
+        -- Tool availability also becomes false while grabbing or using Plank.
+        -- Only a fresh report of this player's gameplay context can override it.
+        return e.flightInput==true and fresh
+            and GetPlayerScreen(p)==0 and not IsPlayerDisabled(p)
+    end
+    function server.ospFlightInput(actor,namespace,challenge,sequence,allowed)
+        if not OSP.finite(actor) or not IsPlayerValid(actor) or namespace~=profileHost
+            or type(allowed)~="boolean" or not OSP.finite(sequence)
+            or sequence<1 or sequence>2147483647 or sequence%1~=0 then return end
+        local e=players[actor]
+        if not e or challenge~=e.challenge or not e.fly
+            or sequence<=(e.flightInputSequence or 0) then return end
+        -- This transient input report grants no ability, role or saved setting.
+        e.flightInputSequence=sequence;e.flightInput=allowed;e.flightInputAt=GetTime()
+    end
     local function updatePlayer(p,readInput)
         local e=players[p]
         enforceTools(p)
@@ -608,7 +628,7 @@ function OSP.installServer()
         local noclip=e.noclip==true or (e.noclip==nil and e.baseFly==true)
         if not e.fly or noclip or e.freeze or GetPlayerVehicle(p)~=0 then stopFlight(e)
         elseif readInput then
-            if not GetPlayerCanUseTool(p) then e.jumpAt=nil
+            if not flightInputAllowed(p,e) then e.jumpAt=nil
             elseif InputPressed("jump",p) then
                 local now=GetTime()
                 if e.jumpAt and now>e.jumpAt and now-e.jumpAt<=0.3 then
@@ -691,7 +711,7 @@ function OSP.installServer()
                 if not e.fly or e.noclip or e.freeze or GetPlayerHealth(p)<=0 or GetPlayerVehicle(p)~=0 then stopFlight(e)
                 else
                     local direction=Vec(0,0,0)
-                    if GetPlayerCanUseTool(p) then
+                    if flightInputAllowed(p,e) then
                         -- Flatten the camera direction so looking up/down does
                         -- not turn forward movement into vertical movement.
                         local forward=TransformToParentVec(GetPlayerCameraTransform(p),Vec(0,0,-1))

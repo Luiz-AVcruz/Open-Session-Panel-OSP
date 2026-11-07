@@ -56,7 +56,12 @@ local function world(options)
     env.DisablePlayerInput=function(p) w.players[p].disabled=true end
     env.InputDown=function(k,p) return w.players[p].inputs and w.players[p].inputs[k] or false end
     env.InputPressed=function(k,p) return w.players[p].pressed and w.players[p].pressed[k] or false end
-    env.GetPlayerCanUseTool=function(p) return w.players[p].interactive~=true end
+    env.GetPlayerCanUseTool=function(p)
+        local q=w.players[p]
+        return not q.interactive and not q.toolBusy and q.vehicle==0 and q.health>0
+    end
+    env.GetPlayerScreen=function(p) return w.players[p].screen or 0 end
+    env.IsPlayerDisabled=function(p) return w.players[p].disabled==true end
     env.GetGravity=function() return w.gravity or {0,-10,0} end
     env.GetEnvironmentProperty=function(k)
         local v=w.env[k]; if type(v)=='table' then return unpack(v) else return v end
@@ -555,9 +560,41 @@ flight.command(11,'speed',23,1);flight.command(11,'fly_speed',23,9);flight.comma
 eq(transforms,0,'flight uses the normal collider, never position teleportation')
 eq(pilot.params.CollisionMask,nil,'collision mask is not disabled')
 eq(pilot.params.flyMode,false)
-pilot.interactive=true;pilot.inputs={jump=true,right=true};frame(true)
+-- Native trace: grabbing (and Plank use) makes canusetool false even though
+-- movement inputs arrive. A fresh, player-specific gameplay report permits it.
+local inputSequence=0
+local function flightInput(allowed,options)
+    options=options or {};inputSequence=inputSequence+1
+    flight.api.server.ospFlightInput(23,options.host or flight.api.shared.osp.profileHost,
+        options.challenge or flight.api.shared.osp.players[2].profileChallenge,
+        options.sequence or inputSequence,allowed)
+end
+pilot.toolBusy=true;pilot.inputs={up=true};frame(false)
+eq(pilot.velocity[3],0,'unknown tool-busy context fails closed')
+flightInput(true);frame(false);eq(pilot.velocity[3],-9,'grabbing/Plank does not stop Fly')
+pilot.inputs={jump=true,shift=true};frame(false)
+check(math.abs(pilot.velocity[2]-10/60-18)<.00001,'grabbing retains rise and Shift speed')
+pilot.inputs={up=true};flightInput(false);frame(false)
+eq(pilot.velocity[3],0,'opening an interface while holding an object suspends movement')
+flightInput(true,{sequence=inputSequence-1});frame(false)
+eq(pilot.velocity[3],0,'late gameplay report cannot undo a newer UI report')
+flightInput(true,{host='another-host'});frame(false);eq(pilot.velocity[3],0)
+flightInput(true,{challenge=-1});frame(false);eq(pilot.velocity[3],0)
+flightInput('yes');frame(false);eq(pilot.velocity[3],0,'non-boolean reports cannot enable movement')
+flightInput(true,{sequence=math.huge});frame(false);eq(pilot.velocity[3],0,'non-finite sequences are rejected')
+flightInput(true,{sequence=0.5});frame(false);eq(pilot.velocity[3],0,'fractional sequences are rejected')
+flightInput(true);pilot.screen=42;frame(false);eq(pilot.velocity[3],0,'screen interaction blocks fallback')
+pilot.screen=nil;pilot.disabled=true;frame(false);eq(pilot.velocity[3],0,'disabled player blocks fallback')
+pilot.disabled=false;frame(false);eq(pilot.velocity[3],-9)
+frame(false,.51);eq(pilot.velocity[3],0,'lost context reports expire instead of leaving steering enabled')
+flightInput(true);frame(false);eq(pilot.velocity[3],-9,'fresh heartbeat resumes valid gameplay')
+local beforeLog=#flight.api.shared.osp.log
+flightInput('yes');frame(false)
+eq(#flight.api.shared.osp.log,beforeLog,'movement reports are not administrative commands')
+pilot.toolBusy=false;pilot.inputs={};frame(false)
+flightInput(false);pilot.interactive=true;pilot.inputs={jump=true,right=true};frame(true)
 eq(pilot.velocity[1],0,'interactive UI suspends steering')
-pilot.interactive=false;frame(true);frame(false);frame(true)
+flightInput(true);pilot.interactive=false;frame(true);frame(false);frame(true)
 eq(pilot.speed,7,'the two taps after closing UI can stop flight')
 -- Slow taps and UI transitions cannot be combined into a double jump.
 frame(true,.5);frame(false,.4);frame(true,.4);eq(pilot.speed,7)
