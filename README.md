@@ -44,7 +44,9 @@ Player controls show contextual help after a 0.6-second hover, including reasons
 
 ## Personal shortcuts
 
-Settings and the Mod Manager Options offer optional keys for **Invincibility**, **Fly** and **Noclip**, all unassigned by default. They always act on your own player while the panel is closed, regardless of the selected player. Fly grants/removes the ability, keeping double Jump to start/stop active flight. Keys are local preferences across hosts and missions. Clear each binding or the group; personal recovery also clears the group.
+The Mod Manager **Options** keep the complete list of optional keys for **Invincibility**, **Fly** and **Noclip**, all unassigned by default. During a mission, set a key beside its action in **Players**: select yourself and open the **...** popup beside Invincibility, Fly or Noclip. Invincibility has a small shortcut popup; Fly and Noclip keep their normal and Shift speed fields and show your shortcut in the same popup. That field appears only when you have selected yourself. When configuring another player's Fly or Noclip, the popup remains speed-only. The in-game Settings page no longer repeats the shortcut list.
+
+These keys always act on your own player while the panel is closed, regardless of the selected player. Fly grants/removes the ability, keeping double Jump to start/stop active flight. Keys are local preferences across hosts and missions. Clear a binding beside its action or use Options to clear the group; personal recovery also clears the group.
 
 The panel rejects internal duplicate keys and collisions with its opening shortcut. Invalid/conflicting saved bindings remain inactive. Use one key without Shift/Ctrl/Alt and check game/other-mod bindings yourself. Editing, capture, interactive UI, pause, vehicles and death block action shortcuts. Held keys do not repeat; simultaneous actions and presses while a request is pending are not queued. Roles and host persistence still apply. The server rejects an outdated toggle state rather than applying it blindly; notifications distinguish pending, confirmed, rejected and unknown outcomes. No automatic retries occur.
 
@@ -100,6 +102,8 @@ Original code is **AGPL-3.0-or-later**, with a narrow additional permission for 
 Painel de administração por **Luiz-AVcruz**, com inglês padrão e opção de português brasileiro. Abra com **P** ou pelo menu de pausa. Configurações e Sobre são áreas separadas. O mod usa o HUD nativo do jogo.
 
 As escolhas do host por jogador persistem entre missões: ferramentas, invencibilidade, Fly, Noclip, congelamento, velocidade e role de acesso. O perfil é atribuído pelo mod e guardado no cliente para aquele host; não depende do nome ou número temporário da sessão. Alterações individuais de delegados continuam temporárias; regras de sessão autorizadas podem persistir. **Jogadores → Restaurar opções do jogador** limpa as escolhas pessoais e mantém as regras gerais.
+
+Os atalhos pessoais de **Invencibilidade**, **Fly** e **Noclip** começam sem tecla atribuída. A lista completa fica em **Open Session Panel → Options** no gerenciador de mods. Durante a missão, selecione a si mesmo em **Jogadores** e abra **...** ao lado da ação para configurar o atalho. Fly e Noclip mantêm seus campos de velocidade nesse popup; para outro jogador, esses popups mostram apenas as velocidades. As teclas são locais e sempre agem no próprio jogador com o painel fechado.
 
 Em **Permissões**, o host pode usar Convidado, Apenas em si, Ajudante, Moderador e Administrador, ou criar até 16 roles customizadas. Cada ação individual aceita bloqueio, apenas em si ou qualquer jogador; ações coletivas, anúncios e regras têm permissões próprias. Editar uma role altera todos os vinculados; excluí-la revoga o acesso inclusive de perfis offline. Os vínculos persistem entre missões. Gerenciar acesso/roles, alterar o host, restaurar perfis, reiniciar mapas e definir políticas gerais de ferramentas continua exclusivo do host.
 

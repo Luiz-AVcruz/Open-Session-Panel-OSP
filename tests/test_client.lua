@@ -573,7 +573,8 @@ for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
         local oldScroll=st.scroll;w:tick('',-5);eq(w:draw().scroll,oldScroll,'wheel cannot scroll background under popup')
         w:clickControl(mode..'_speed_value');w:tick('2')
         local close=e.OSP.UI.getState().controls.close
-        w:pressAt(close.x+2,close.y+2);w:releaseAt(close.x+2,close.y+2)
+        local outside=e.OSP.UI.getState().layout
+        w:pressAt(outside.ox+2,outside.oy+2);w:releaseAt(outside.ox+2,outside.oy+2)
         st=w:draw();eq(st.movementPopup,nil,'outside press closes popup')
         eq(st.open,true,'outside press does not click the main Close button underneath')
         eq(#w.sent,before,'outside press discards the unfinished value')
@@ -875,11 +876,14 @@ for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
     e.IsPlayerHost=function() return false end;e.shared.osp.players[1].host=false;e.shared.osp.players[1].admin=false
     count=#w.sent;w:tick('f8');eq(#w.sent,count,'guest cannot dispatch shortcut')
     local nextMap=world(size[1],size[2],w.reg);eq(nextMap.api.OSP.Shortcuts.binding('god'),'f8','personal binding survives map change')
-    e.OSP.UI.open(true);w:clickControl('tab_settings');w:clickControl('shortcut_god');eq(e.OSP.Shortcuts.capture,'god')
+    e.IsPlayerHost=function(p) return p==11 end;e.shared.osp.players[1].host=true;e.shared.osp.players[1].admin=true
+    e.OSP.UI.open(true);w:clickControl('tab_players');w:clickControl('player_11');w:clickControl('god_settings');w:clickControl('shortcut_god');eq(e.OSP.Shortcuts.capture,'god')
     w:tick('w');eq(e.OSP.Shortcuts.capture,'god','invalid key preserves capture');w:tick('f11');eq(e.OSP.Shortcuts.binding('god'),'f11')
+    w:clickControl('movement_popup_close');w:clickControl('tab_settings');eq(w:draw().controls.shortcut_god,nil,'binding list removed from in-map Settings')
     w:clickControl('rebind');w:tick('f11');eq(e.OSP.Shortcuts.capture,'menu','panel capture rejects action collision')
     w:clickControl('rebind');eq(e.OSP.Shortcuts.capture,nil,'explicit cancel works')
-    w:clickControl('shortcut_clear_god');eq(e.OSP.Shortcuts.binding('god'),'');w:clickControl('shortcuts_reset');eq(e.OSP.Shortcuts.binding('fly'),'')
+    w:clickControl('tab_players');w:clickControl('god_settings');w:clickControl('shortcut_clear_god');eq(e.OSP.Shortcuts.binding('god'),'')
+    w:clickControl('movement_popup_close');w:clickControl('fly_settings');w:clickControl('shortcut_clear_fly');eq(e.OSP.Shortcuts.binding('fly'),'')
  end
 end
 -- Same-frame panel transitions, held keys and delegated permissions keep their boundaries.
@@ -904,5 +908,28 @@ do
     w:tick('f8');eq(#w.sent,1);eq(e.OSP.UI.getState().requestPending,false)
     check(e.OSP.UI.getState().shortcutNotice:find(e.OSP.L('on'),1,true)~=nil)
     w:tick();eq(#w.sent,1,'holding without a new press cannot repeat')
+end
+-- Contextual binding fields are adjacent to their actions and remain personal.
+for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
+ for _,language in ipairs({'en','pt'}) do
+    local w=world(unpack(size));local e=w.api;w.reg['savegame.mod.osp.language']=language;e.OSP.UI.open(true)
+    for _,mode in ipairs({'god','fly','noclip'}) do
+        w:clickControl(mode..'_settings');local st=w:draw();local field=st.controls['shortcut_'..mode]
+        check(field~=nil,'binding directly available in contextual popup')
+        check(field.x>=st.layout.ox and field.x+field.w<=st.layout.ox+st.layout.w,'binding fits panel width')
+        check(field.y>=st.layout.oy and field.y+field.h<st.layout.oy+st.layout.h-35,'binding clear of popup footer')
+        if mode=='god' then eq(st.controls.god_speed_value,nil,'invincibility popup has no movement controls') end
+        w:clickControl('shortcut_'..mode);eq(e.OSP.Shortcuts.capture,mode)
+        local close=w:draw().controls.close
+        local outside=e.OSP.UI.getState().layout
+        w:pressAt(outside.ox+2,outside.oy+2);w:releaseAt(outside.ox+2,outside.oy+2)
+        eq(e.OSP.Shortcuts.capture,nil,'outside close cancels capture');eq(e.OSP.UI.getState().movementPopup,nil)
+        eq(e.OSP.Shortcuts.binding(mode),'','closing without valid key leaves preference unchanged')
+    end
+    w:clickControl('player_23');local st=w:draw();eq(st.controls.god_settings,nil,'no personal shortcut popup for another player')
+    w:clickControl('fly_settings');st=w:draw();eq(st.controls.shortcut_fly,nil,'another player movement popup never edits local binding')
+    check(st.controls.fly_speed_value~=nil,'other-player speed configuration remains available')
+    eq(#w.sent,0,'opening and closing shortcut settings sends no gameplay commands')
+ end
 end
 print('PASS client interaction, viewport and translation contracts: '..assertions..' assertions (mock UI)')

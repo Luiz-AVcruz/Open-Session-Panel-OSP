@@ -6,6 +6,7 @@ OSP = OSP or {}
 
 OSP.languages = {
 	en = {
+        god_settings_title="Invincibility shortcut",context_shortcut="Your shortcut",
         personal_shortcuts="Personal shortcuts",shortcuts_help="Your player only. No default keys.",shortcut_unset="Not set",shortcut_clear="Clear",
         shortcuts_reset="Clear personal shortcuts",shortcuts_conflict_help="Check whether the key is used by the game or another mod.",
         shortcut_conflict="Key already assigned in this panel.",shortcut_single_key="Choose one key without Shift, Ctrl or Alt.",
@@ -208,6 +209,7 @@ OSP.languages = {
 		read_only = "Settings and source information are available to every player.",
 	},
 	pt = {
+        god_settings_title="Atalho de invencibilidade",context_shortcut="Seu atalho",
         personal_shortcuts="Atalhos pessoais",shortcuts_help="Só no próprio jogador. Sem teclas padrão.",shortcut_unset="Não definido",shortcut_clear="Limpar",
         shortcuts_reset="Limpar atalhos pessoais",shortcuts_conflict_help="Confira se a tecla está em uso no jogo ou em outro mod.",
         shortcut_conflict="Tecla já atribuída neste painel.",shortcut_single_key="Escolha uma tecla sem Shift, Ctrl ou Alt.",

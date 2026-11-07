@@ -60,20 +60,26 @@ function S.key()
     if ok then S.cancel() end
     InputClear()
 end
+function S.drawBinding(api,id,x,y,width,caption)
+    if not known(id) then return end
+    local keyX=x+width*.40;local clearX=x+width*.80
+    local active=S.capture==id;local raw=S.raw(id);local problem=S.problem(id)
+    api.label(x,y+8,caption or OSP.L(id=="god" and "god_short" or id),17,width*.38)
+    local caption=active and OSP.L("cancel") or raw~="" and string.upper(raw)..(problem and " !" or "") or OSP.L("shortcut_unset")
+    if api.button("shortcut_"..id,keyX,y,width*.40-8,36,caption,active and "active" or "plain") then
+        if active then S.cancel() else S.begin(id) end
+    end
+    if api.button("shortcut_clear_"..id,clearX,y,width*.20,36,OSP.L("shortcut_clear"),"plain",raw=="") then S.assign(id,"");S.cancel();S.message=nil end
+    return problem
+end
 function S.draw(api,x,y,width)
     local top=y
     api.label(x,y,OSP.L("personal_shortcuts"),20,width);y=y+30
     api.label(x,y,OSP.L("shortcuts_help"),14,width);y=y+27
-    local keyX=x+width*.40;local clearX=x+width*.80;local warning
+    local warning
     for _,id in ipairs(S.actions) do
-        local active=S.capture==id;local raw=S.raw(id);local problem=S.problem(id)
+        local problem=S.drawBinding(api,id,x,y,width)
         warning=warning or problem
-        api.label(x,y+8,OSP.L(id=="god" and "god_short" or id),17,width*.38)
-        local caption=active and OSP.L("cancel") or raw~="" and string.upper(raw)..(problem and " !" or "") or OSP.L("shortcut_unset")
-        if api.button("shortcut_"..id,keyX,y,width*.40-8,36,caption,active and "active" or "plain") then
-            if active then S.cancel() else S.begin(id) end
-        end
-        if api.button("shortcut_clear_"..id,clearX,y,width*.20,36,OSP.L("shortcut_clear"),"plain",raw=="") then S.assign(id,"");S.cancel() end
         y=y+44
     end
     if api.button("shortcuts_reset",x,y,width,36,OSP.L("shortcuts_reset"),"plain") then S.reset() end

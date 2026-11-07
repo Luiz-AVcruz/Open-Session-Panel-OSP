@@ -50,6 +50,7 @@ function OSP.installClient()
         if verb then return allowed(verb,target) end
         if id=="speed_down" or id=="speed_up" then return allowed("speed",target) end
         if id=="player_speed_value" then return allowed("speed",target) end
+        if id=="god_settings" then return target==me and allowed("god",target) end
         if id=="fly_settings" or id=="fly_speed_value" or id=="fly_boost_value" then return allowed("fly",target) end
         if id=="noclip_settings" or id=="noclip_speed_value" or id=="noclip_boost_value" then return allowed("noclip",target) end
         if id=="player_admin" or id=="reset_player" then return host() end
@@ -81,7 +82,7 @@ function OSP.installClient()
         shortcutNotice=T(action=="god" and "god_short" or action).." · "..message
         shortcutUntil=GetTime()+(seconds or 5);setStatus(shortcutNotice,seconds)
     end
-    local function closeMovement() movementSettings=nil;OSP.NumberInput.cancel() end
+    local function closeMovement() movementSettings=nil;OSP.NumberInput.cancel();shortcuts.cancel() end
     local function closeTools() toolsPopup=nil;search.blur() end
     local function setTab(t)
         t=navigation.choose(t,function(id) return id=="settings" or id=="about" or admin() and (id~="permissions" or host()) end)
@@ -233,11 +234,12 @@ function OSP.installClient()
             local persistent=verb=="god" or verb=="fly" or verb=="noclip" or verb=="freeze"
             local dis=(blocked and verb~="goto") or (waiting and persistent) or (verb=="eject" and not p.vehicle)
             local movement=verb=="fly" or verb=="noclip"
+            local configurable=movement or (verb=="god" and p.id==me)
             local configuring=movementSettings and movementSettings.player==p.id and movementSettings.mode==verb
-            local actionWidth=movement and bw-46 or bw
+            local actionWidth=configurable and bw-46 or bw
             if button("player_action_"..verb,x,y,actionWidth,37,cap,item[4],dis) then actionForPlayer(p,verb,cap,item[3],item[4]) end
-            if movement and button(verb.."_settings",x+bw-40,y,40,37,"...",configuring and "active" or "plain",blocked or waiting) then
-                movementSettings={player=p.id,mode=verb,challenge=p.profileChallenge}
+            if configurable and button(verb.."_settings",x+bw-40,y,40,37,"...",configuring and "active" or "plain",blocked or waiting) then
+                movementSettings={player=p.id,mode=verb,challenge=p.profileChallenge};shortcuts.message=nil
                 typing=false;capturing=false;OSP.PermissionUI.cancelInput()
             end
         end
@@ -532,10 +534,6 @@ function OSP.installClient()
         end
         y=y+59;rect(0,y,w,1,C.line);y=y+20
         y=y+10
-        y=y+shortcuts.draw({
-            label=function(x,py,value,size,width) label(x,py,value,size,C.text,width) end,
-            button=function(id,x,py,width,height,value,kind,disabled) return button(id,x,py,width,height,value,kind,disabled) end,
-        },0,y,w)+12
         y=y+navigation.draw({
             label=function(x,py,value,size,width) label(x,py,value,size,C.text,width) end,
             button=function(id,x,py,width,height,value,kind) return button(id,x,py,width,height,value,kind,false) end,
@@ -574,7 +572,8 @@ function OSP.installClient()
             or not allowed(current.mode,p.id) or (p.host and not host()) or (host() and p.profileReady==false) then
             closeMovement();return
         end
-        local w=math.min(layout.w-32,540);local h=math.min(layout.h-24,340)
+        local personal=p.id==me;local god=current.mode=="god"
+        local w=math.min(layout.w-32,540);local h=math.min(layout.h-24,god and 210 or personal and 396 or 340)
         local x,y=(layout.w-w)/2,(layout.h-h)/2
         if not clickConsumed and lmbPressed and not inside(x,y,w,h,mouseX,mouseY) then
             clickConsumed=true;closeMovement();return
@@ -583,28 +582,39 @@ function OSP.installClient()
         label(x+20,y+18,T(current.mode.."_settings_title"),20,C.text,w-92,true)
         if button("movement_popup_close",x+w-54,y+12,36,34,"X",nil,false,true) then closeMovement();return end
         label(x+20,y+53,T("selected_short")..": "..p.name,15,C.muted,w-40)
-        for i,field in ipairs({{current.mode.."_speed_value","fly_speed_label",current.mode.."_speed",p[current.mode.."Speed"] or OSP.flight.normal},
-            {current.mode.."_boost_value","fly_boost_label",current.mode.."_boost",p[current.mode.."Boost"] or OSP.flight.shift}}) do
-            local row=y+86+(i-1)*44
-            label(x+20,row+8,T(field[2]),15,C.text,w-190)
-            numberField(field[1],x+w-160,row,140,34,field[4],OSP.flight.min,OSP.flight.max,2,
-                function(value)
-                    local target=findPlayer(current.player)
-                    if target and target.profileChallenge==current.challenge then command(field[3],current.player,value)
-                    else setStatus(T("result_unavailable")) end
-                end,false,nil,true)
+        if not god then
+            for i,field in ipairs({{current.mode.."_speed_value","fly_speed_label",current.mode.."_speed",p[current.mode.."Speed"] or OSP.flight.normal},
+                {current.mode.."_boost_value","fly_boost_label",current.mode.."_boost",p[current.mode.."Boost"] or OSP.flight.shift}}) do
+                local row=y+86+(i-1)*44
+                label(x+20,row+8,T(field[2]),15,C.text,w-190)
+                numberField(field[1],x+w-160,row,140,34,field[4],OSP.flight.min,OSP.flight.max,2,
+                    function(value)
+                        local target=findPlayer(current.player)
+                        if target and target.profileChallenge==current.challenge then command(field[3],current.player,value)
+                        else setStatus(T("result_unavailable")) end
+                    end,false,nil,true)
+            end
         end
-        local py=y+180
+        local py=y+(god and 86 or 180)
+        if personal then
+            shortcuts.drawBinding({
+                label=function(px,py,value,size,width) label(px,py,value,size,C.text,width) end,
+                button=function(id,px,py,width,height,value,kind,disabled) return button(id,px,py,width,height,value,kind,disabled,true) end,
+            },current.mode,x+20,py,w-40,T("context_shortcut"))
+            py=py+44
+        end
         local function paragraph(value,size,color)
             UiPush();UiTranslate(x+20,py);UiAlign("left top");UiFont("regular.ttf",size)
             UiTextDisableWildcards(true);UiWordWrap(w-40);rgb(color)
             local _,height=UiText(value);UiPop();py=py+height+10
         end
-        paragraph(T("fly_speed_note"),13,C.muted)
-        if current.mode=="fly" then paragraph(T("fly_help"),14,C.muted) end
-        paragraph(T("fly_controls"),14,C.muted)
+        if not god then
+            paragraph(T("fly_speed_note"),13,C.muted)
+            if current.mode=="fly" then paragraph(T("fly_help"),14,C.muted) end
+            paragraph(T("fly_controls"),14,C.muted)
+        end
         py=y+h-42
-        paragraph(OSP.NumberInput.active() and T("number_help") or (status and GetTime()<statusUntil and status) or T("movement_popup_help"),13,C.accent)
+        paragraph(OSP.NumberInput.active() and T("number_help") or shortcuts.capture and T("press_key") or personal and shortcuts.problem(current.mode) and T(shortcuts.problem(current.mode)) or shortcuts.message and T(shortcuts.message) or (status and GetTime()<statusUntil and status) or T("movement_popup_help"),13,C.accent)
     end
     local function drawToolsPopup()
         if not toolsPopup then return end
