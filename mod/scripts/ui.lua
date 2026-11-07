@@ -360,10 +360,15 @@ function OSP.installClient()
         label(0,y+8,T("tools_results",#items,counts[filter]),14,C.muted,w-175)
         local function openActions(tool)
             local ids={};for _,item in ipairs(tool and {tool} or items) do ids[#ids+1]=item.id end
-            toolsPopup={ids=ids,category=filter,query=search.query,mode=toolMode,player=p and p.id,challenge=p and p.profileChallenge,tool=tool and OSP.copy(tool)}
+            local categoryIds={}
+            for _,item in ipairs(state().tools or {}) do
+                if filter=="all" or filter==(item.origin or OSP.toolOrigin(item.id)) then categoryIds[#categoryIds+1]=item.id end
+            end
+            local scope=not tool and search.query~="" and #ids>0 and "results" or "category"
+            toolsPopup={ids=not tool and scope=="category" and categoryIds or ids,resultIds=ids,categoryIds=categoryIds,scope=scope,category=filter,query=search.query,mode=toolMode,player=p and p.id,challenge=p and p.profileChallenge,tool=tool and OSP.copy(tool)}
             search.blur()
         end
-        if button("tools_actions",w-165,y,165,34,T("tools_group_actions"),"plain",#items==0) then openActions() end
+        if button("tools_actions",w-165,y,165,34,T("tools_group_actions"),"plain",counts[filter]==0) then openActions() end
         y=y+44
         if #items==0 then label(0,y,T(counts.all==0 and "no_tools" or "tools_no_match"),17,C.muted,w);return y+44 end
         local per=math.min(8,math.max(1,math.floor((layout.contentH-y-46)/45)))
@@ -530,15 +535,22 @@ function OSP.installClient()
         rect(0,0,layout.w,layout.h,{0,0,0,.65});rect(x,y,w,h,C.side);rect(x,y,w,3,C.accent)
         label(x+18,y+16,T("tools_actions"),20,C.text,w-82,true)
         if button("tools_popup_close",x+w-54,y+10,36,34,"X",nil,false,true) then closeTools();return end
-        label(x+18,y+51,v.tool and toolName(v.tool) or T("tools_selection_count",#v.ids),16,C.text,w-36)
-        label(x+18,y+77,T("filter_"..v.category)..(v.query~="" and " · "..v.query or ""),14,C.muted,w-36)
-        local py=y+108;local half=(w-44)/2
-        local enableCaption=v.query=="" and "enable_category" or "tools_enable_results"
-        local disableCaption=v.query=="" and "disable_category" or "tools_disable_results"
+        local half=(w-44)/2;local offset=0
+        if not v.tool and v.query~="" then
+            if button("tools_scope_category",x+18,y+50,half,32,T("tools_scope_category",#v.categoryIds),v.scope=="category" and "active" or "plain",false,true) then v.scope="category";v.ids=v.categoryIds end
+            if button("tools_scope_results",x+26+half,y+50,half,32,T("tools_scope_results",#v.resultIds),v.scope=="results" and "active" or "plain",#v.resultIds==0,true) then v.scope="results";v.ids=v.resultIds end
+            offset=36
+        end
+        local query=v.scope=="results" and v.query or ""
+        label(x+18,y+51+offset,v.tool and toolName(v.tool) or T("tools_selection_count",#v.ids),16,C.text,w-36)
+        label(x+18,y+77+offset,T("filter_"..v.category)..(query~="" and " · "..query or ""),14,C.muted,w-36)
+        local py=y+108+offset
+        local enableCaption=v.scope=="category" and "enable_category" or "tools_enable_results"
+        local disableCaption=v.scope=="category" and "disable_category" or "tools_disable_results"
         local function action(id,caption,scope,verb,arg,danger,disabled)
-            if button(id,x+18+(scope=="right" and half+8 or 0),py,half,34,T(caption),danger and "danger" or nil,disabled,true) then
+            if button(id,x+18+(scope=="right" and half+8 or scope=="center" and (w-36-half)/2 or 0),py,half,34,T(caption),danger and "danger" or nil,disabled,true) then
                 closeTools()
-                if danger then ask(verb,arg.target,arg.value,T("tools_confirm_selection",#v.ids).." "..T(caption).." · "..(arg.scope or "").." · "..(v.tool and utf8clip(toolName(v.tool),40) or T("filter_"..v.category)..(v.query~="" and " · "..v.query or "")))
+                if danger then ask(verb,arg.target,arg.value,T("tools_confirm_selection",#v.ids).." "..T(caption).." · "..(arg.scope or "").." · "..(v.tool and utf8clip(toolName(v.tool),40) or T("filter_"..v.category)..(query~="" and " · "..query or "")))
                 else command(verb,arg.target,arg.value) end
             end
         end
@@ -548,7 +560,7 @@ function OSP.installClient()
                 action("tools_enable_filtered",enableCaption,"left","tool_policy_selection",{target=0,value={category=v.category,ids=v.ids,mode="enabled"}},false,not host())
                 action("tools_disable_filtered",disableCaption,"right","tool_policy_selection",{target=0,scope=T("global_rules"),value={category=v.category,ids=v.ids,mode="disabled"}},true,not host());py=py+44
             end
-            action("tools_reset_filtered","restore_category","left",v.tool and "tool_policy" or "tool_policy_selection",{target=0,scope=T("global_rules"),value=v.tool and {id=v.tool.id,mode="default"} or {category=v.category,ids=v.ids,mode="default"}},true,not host())
+            action("tools_reset_filtered","restore_category","center",v.tool and "tool_policy" or "tool_policy_selection",{target=0,scope=T("global_rules"),value=v.tool and {id=v.tool.id,mode="default"} or {category=v.category,ids=v.ids,mode="default"}},true,not host())
         else
             local blocked=p.host and not host() or host() and p.profileReady==false
             if not v.tool then
