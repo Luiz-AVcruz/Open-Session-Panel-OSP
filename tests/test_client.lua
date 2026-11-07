@@ -583,7 +583,15 @@ for _,size in ipairs({{1024,768},{1920,1080}}) do
     local w=world(unpack(size));local e=w.api;e.OSP.UI.open(true)
     w.reg['savegame.mod.osp.language']=language
     for i=1,13 do e.shared.osp.tools[#e.shared.osp.tools+1]={id='kit'..i,name='Câmera '..i,origin='mod',policy='default'} end
-    w:clickControl('tab_tools');w:clickControl('tools_search')
+    w:clickControl('tab_tools')
+    for _,mode in ipairs({'global','player'}) do
+        w:clickControl('tool_mode_'..mode);w:clickControl('tools_actions');w:draw()
+        local captions=table.concat(w.texts,'|')
+        check(captions:find(e.OSP.L('enable_category'),1,true)~=nil,'unsearched group names category')
+        check(captions:find(e.OSP.L('tools_enable_results'),1,true)==nil,'no search-result action without a query')
+        w:clickControl('tools_popup_close')
+    end
+    w:clickControl('tool_mode_global');w:clickControl('tools_search')
     for char in ('pistol'):gmatch('.') do w:tick(char) end
     local st=w:draw();check(st.controls.tool_gun~=nil,'translated name searchable');eq(st.controls.tool_sledge,nil)
     w:tick('esc');eq(w:draw().open,true,'Escape only blurs search');eq(e.OSP.ToolSearch.query,'pistol')
@@ -592,6 +600,7 @@ for _,size in ipairs({{1024,768},{1920,1080}}) do
     w:tick('return');st=w:draw();check(st.controls.tools_next and not st.controls.tools_next.disabled,'matches span pages')
     w:clickControl('tools_next');w:clickControl('tools_actions')
     st=w:draw();eq(#st.toolsPopup.ids,13,'batch snapshot includes every matching page')
+    check(table.concat(w.texts,'|'):find(e.OSP.L('tools_enable_results'),1,true)~=nil,'searched group names results')
     eq(st.controls.tools_search.disabled,true,'popup blocks query changes')
     e.shared.osp.tools[#e.shared.osp.tools+1]={id='late',name='Camera late',origin='mod',policy='default'}
     w:clickControl('tools_disable_filtered');eq(#e.OSP.UI.getState().confirm.arg.ids,13,'confirmation freezes IDs')

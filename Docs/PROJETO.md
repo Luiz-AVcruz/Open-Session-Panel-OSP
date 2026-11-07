@@ -183,3 +183,5 @@ Os novos comandos tools_selection/tools_selection_all/tool_policy_selection rece
 Validar no jogo uma busca com duas ferramentas encontradas e uma fora: aplicar uma ação em grupo deve preservar a terceira, incluindo quando os resultados ocuparem várias páginas. A verificação automatizada e as prévias sintéticas não substituem essa observação nem o teste multiplayer. Outros itens do backlog permanecem fora deste ciclo.
 
 Limitação observada pelo usuário no jogo: Esc abre a pausa nativa e, ao voltar, o painel ou popup pode continuar aberto. As dicas orientam usar Fechar no painel e X ou clique fora nos popups. O tratamento existente de Esc permanece, mas não é anunciado como forma garantida de fechamento ou cancelamento. Os testes locais de Esc citados acima simulam a entrada e não demonstram sua captura no motor.
+
+Nas ações em grupo de Ferramentas, sem busca os botões indicam Ativar/Bloquear categoria; com busca indicam Ativar/Bloquear resultados. A quantidade, categoria e consulta continuam no popup. Apenas os rótulos mudam; a seleção congelada de IDs e a validação do servidor permanecem iguais.

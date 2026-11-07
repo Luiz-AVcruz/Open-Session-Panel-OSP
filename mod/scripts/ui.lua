@@ -533,6 +533,8 @@ function OSP.installClient()
         label(x+18,y+51,v.tool and toolName(v.tool) or T("tools_selection_count",#v.ids),16,C.text,w-36)
         label(x+18,y+77,T("filter_"..v.category)..(v.query~="" and " · "..v.query or ""),14,C.muted,w-36)
         local py=y+108;local half=(w-44)/2
+        local enableCaption=v.query=="" and "enable_category" or "tools_enable_results"
+        local disableCaption=v.query=="" and "disable_category" or "tools_disable_results"
         local function action(id,caption,scope,verb,arg,danger,disabled)
             if button(id,x+18+(scope=="right" and half+8 or 0),py,half,34,T(caption),danger and "danger" or nil,disabled,true) then
                 closeTools()
@@ -543,16 +545,16 @@ function OSP.installClient()
         if v.mode=="global" then
             label(x+18,py,T("global_description"),14,C.muted,w-36);py=py+28
             if not v.tool then
-                action("tools_enable_filtered","tools_enable_results","left","tool_policy_selection",{target=0,value={category=v.category,ids=v.ids,mode="enabled"}},false,not host())
-                action("tools_disable_filtered","tools_disable_results","right","tool_policy_selection",{target=0,scope=T("global_rules"),value={category=v.category,ids=v.ids,mode="disabled"}},true,not host());py=py+44
+                action("tools_enable_filtered",enableCaption,"left","tool_policy_selection",{target=0,value={category=v.category,ids=v.ids,mode="enabled"}},false,not host())
+                action("tools_disable_filtered",disableCaption,"right","tool_policy_selection",{target=0,scope=T("global_rules"),value={category=v.category,ids=v.ids,mode="disabled"}},true,not host());py=py+44
             end
             action("tools_reset_filtered","restore_category","left",v.tool and "tool_policy" or "tool_policy_selection",{target=0,scope=T("global_rules"),value=v.tool and {id=v.tool.id,mode="default"} or {category=v.category,ids=v.ids,mode="default"}},true,not host())
         else
             local blocked=p.host and not host() or host() and p.profileReady==false
             if not v.tool then
                 label(x+18,py,T("selected_player")..": "..p.name,14,C.text,w-36);py=py+24
-                action("tools_enable_filtered","tools_enable_results","left","tools_selection",{target=p.id,value={category=v.category,ids=v.ids,enabled=true}},false,blocked or not allowed("tools",p.id))
-                action("tools_disable_filtered","tools_disable_results","right","tools_selection",{target=p.id,scope=utf8clip(p.name,24),value={category=v.category,ids=v.ids,enabled=false}},true,blocked or not allowed("tools",p.id));py=py+44
+                action("tools_enable_filtered",enableCaption,"left","tools_selection",{target=p.id,value={category=v.category,ids=v.ids,enabled=true}},false,blocked or not allowed("tools",p.id))
+                action("tools_disable_filtered",disableCaption,"right","tools_selection",{target=p.id,scope=utf8clip(p.name,24),value={category=v.category,ids=v.ids,enabled=false}},true,blocked or not allowed("tools",p.id));py=py+44
             end
             label(x+18,py,T(host() and "tools_present" or "tools_present_except_host"),14,C.text,w-36);py=py+24
             local args=function(on) return v.tool and {id=v.tool.id,enabled=on} or {category=v.category,ids=v.ids,enabled=on} end
