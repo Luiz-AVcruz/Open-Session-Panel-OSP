@@ -55,9 +55,9 @@ function OSP.installClient()
         if id=="regen_on" or id=="regen_off" then return allowed("rule",0,{key="regen"}) end
         if id=="announcement_field" or id=="announcement_send" then return allowed("announce",0) end
         if id:match("^tool_more_") then return toolMode=="global" and host() or allowed("tools_all",0) end
-        if id=="tools_enable_everyone" or id=="tools_disable_everyone" or id:match("^tool_everyone_") then return allowed("tools_all",0) end
+        if id=="tools_enable_everyone" or id=="tools_disable_everyone" or id=="tools_enable_results_everyone" or id=="tools_disable_results_everyone" or id:match("^tool_everyone_") then return allowed("tools_all",0) end
         if id=="tools_reset_filtered" or id:match("^tool_reset_") then return host() end
-        if id=="tools_enable_filtered" or id=="tools_disable_filtered" then return toolMode=="global" and host() or allowed("tools",target) end
+        if id=="tools_enable_filtered" or id=="tools_disable_filtered" or id=="tools_enable_results" or id=="tools_disable_results" then return toolMode=="global" and host() or allowed("tools",target) end
         if id:match("^tool_") and not id:match("^tool_player_") and not id:match("^tool_mode_") then
             return toolMode=="global" and host() or allowed("tool",target)
         end
@@ -364,8 +364,7 @@ function OSP.installClient()
             for _,item in ipairs(state().tools or {}) do
                 if filter=="all" or filter==(item.origin or OSP.toolOrigin(item.id)) then categoryIds[#categoryIds+1]=item.id end
             end
-            local scope=not tool and search.query~="" and #ids>0 and "results" or "category"
-            toolsPopup={ids=not tool and scope=="category" and categoryIds or ids,resultIds=ids,categoryIds=categoryIds,scope=scope,category=filter,query=search.query,mode=toolMode,player=p and p.id,challenge=p and p.profileChallenge,tool=tool and OSP.copy(tool)}
+            toolsPopup={ids=tool and ids or categoryIds,resultIds=ids,category=filter,query=search.query,mode=toolMode,player=p and p.id,challenge=p and p.profileChallenge,tool=tool and OSP.copy(tool)}
             search.blur()
         end
         if button("tools_actions",w-165,y,165,34,T("tools_group_actions"),"plain",counts[filter]==0) then openActions() end
@@ -530,49 +529,55 @@ function OSP.installClient()
         if not toolsPopup then return end
         local v=toolsPopup;local p=findPlayer(v.player)
         if tab~="tools" or toolMode~=v.mode or not p or selected~=p.id or p.profileChallenge~=v.challenge then closeTools();return end
-        local w=math.min(layout.w-32,540);local h=math.min(layout.h-24,340);local x,y=(layout.w-w)/2,(layout.h-h)/2
+        local w=math.min(layout.w-32,540);local h=math.min(layout.h-24,v.mode=="player" and not v.tool and v.query~="" and 384 or 340);local x,y=(layout.w-w)/2,(layout.h-h)/2
         if not clickConsumed and lmbPressed and not inside(x,y,w,h,mouseX,mouseY) then clickConsumed=true;closeTools();return end
         rect(0,0,layout.w,layout.h,{0,0,0,.65});rect(x,y,w,h,C.side);rect(x,y,w,3,C.accent)
         label(x+18,y+16,T("tools_actions"),20,C.text,w-82,true)
         if button("tools_popup_close",x+w-54,y+10,36,34,"X",nil,false,true) then closeTools();return end
-        local half=(w-44)/2;local offset=0
-        if not v.tool and v.query~="" then
-            if button("tools_scope_category",x+18,y+50,half,32,T("tools_scope_category",#v.categoryIds),v.scope=="category" and "active" or "plain",false,true) then v.scope="category";v.ids=v.categoryIds end
-            if button("tools_scope_results",x+26+half,y+50,half,32,T("tools_scope_results",#v.resultIds),v.scope=="results" and "active" or "plain",#v.resultIds==0,true) then v.scope="results";v.ids=v.resultIds end
-            offset=36
-        end
-        local query=v.scope=="results" and v.query or ""
-        label(x+18,y+51+offset,v.tool and toolName(v.tool) or T("tools_selection_count",#v.ids),16,C.text,w-36)
-        label(x+18,y+77+offset,T("filter_"..v.category)..(query~="" and " · "..query or ""),14,C.muted,w-36)
-        local py=y+108+offset
-        local enableCaption=v.scope=="category" and "enable_category" or "tools_enable_results"
-        local disableCaption=v.scope=="category" and "disable_category" or "tools_disable_results"
-        local function action(id,caption,scope,verb,arg,danger,disabled)
-            if button(id,x+18+(scope=="right" and half+8 or scope=="center" and (w-36-half)/2 or 0),py,half,34,T(caption),danger and "danger" or nil,disabled,true) then
+        local half=(w-44)/2
+        local searching=not v.tool and v.query~=""
+        label(x+18,y+51,v.tool and toolName(v.tool) or searching and T("tools_group_counts",#v.ids,#v.resultIds) or T("tools_selection_count",#v.ids),16,C.text,w-36)
+        label(x+18,y+77,T("filter_"..v.category)..(searching and " · "..v.query or ""),14,C.muted,w-36)
+        local py=y+108
+        local function action(id,caption,column,verb,arg,danger,disabled,query)
+            if button(id,x+18+(column=="right" and half+8 or column=="center" and (w-36-half)/2 or 0),py,half,34,T(caption),danger and "danger" or nil,disabled,true) then
                 closeTools()
-                if danger then ask(verb,arg.target,arg.value,T("tools_confirm_selection",#v.ids).." "..T(caption).." · "..(arg.scope or "").." · "..(v.tool and utf8clip(toolName(v.tool),40) or T("filter_"..v.category)..(query~="" and " · "..query or "")))
+                local count=arg.value.ids and #arg.value.ids or 1
+                if danger then ask(verb,arg.target,arg.value,T("tools_confirm_selection",count).." "..T(caption).." · "..(arg.scope or "").." · "..(v.tool and utf8clip(toolName(v.tool),40) or T("filter_"..v.category)..(query and " · "..query or "")))
                 else command(verb,arg.target,arg.value) end
             end
         end
         if v.mode=="global" then
             label(x+18,py,T("global_description"),14,C.muted,w-36);py=py+28
             if not v.tool then
-                action("tools_enable_filtered",enableCaption,"left","tool_policy_selection",{target=0,value={category=v.category,ids=v.ids,mode="enabled"}},false,not host())
-                action("tools_disable_filtered",disableCaption,"right","tool_policy_selection",{target=0,scope=T("global_rules"),value={category=v.category,ids=v.ids,mode="disabled"}},true,not host());py=py+44
+                action("tools_enable_filtered","enable_category","left","tool_policy_selection",{target=0,value={category=v.category,ids=v.ids,mode="enabled"}},false,not host())
+                action("tools_disable_filtered","disable_category","right","tool_policy_selection",{target=0,scope=T("global_rules"),value={category=v.category,ids=v.ids,mode="disabled"}},true,not host());py=py+44
+                if searching then
+                    action("tools_enable_results","tools_enable_results","left","tool_policy_selection",{target=0,value={category=v.category,ids=v.resultIds,mode="enabled"}},false,not host() or #v.resultIds==0,v.query)
+                    action("tools_disable_results","tools_disable_results","right","tool_policy_selection",{target=0,scope=T("global_rules"),value={category=v.category,ids=v.resultIds,mode="disabled"}},true,not host() or #v.resultIds==0,v.query);py=py+44
+                end
             end
             action("tools_reset_filtered","restore_category","center",v.tool and "tool_policy" or "tool_policy_selection",{target=0,scope=T("global_rules"),value=v.tool and {id=v.tool.id,mode="default"} or {category=v.category,ids=v.ids,mode="default"}},true,not host())
         else
             local blocked=p.host and not host() or host() and p.profileReady==false
             if not v.tool then
                 label(x+18,py,T("selected_player")..": "..p.name,14,C.text,w-36);py=py+24
-                action("tools_enable_filtered",enableCaption,"left","tools_selection",{target=p.id,value={category=v.category,ids=v.ids,enabled=true}},false,blocked or not allowed("tools",p.id))
-                action("tools_disable_filtered",disableCaption,"right","tools_selection",{target=p.id,scope=utf8clip(p.name,24),value={category=v.category,ids=v.ids,enabled=false}},true,blocked or not allowed("tools",p.id));py=py+44
+                action("tools_enable_filtered","enable_category","left","tools_selection",{target=p.id,value={category=v.category,ids=v.ids,enabled=true}},false,blocked or not allowed("tools",p.id))
+                action("tools_disable_filtered","disable_category","right","tools_selection",{target=p.id,scope=utf8clip(p.name,24),value={category=v.category,ids=v.ids,enabled=false}},true,blocked or not allowed("tools",p.id));py=py+44
+                if searching then
+                    action("tools_enable_results","tools_enable_results","left","tools_selection",{target=p.id,value={category=v.category,ids=v.resultIds,enabled=true}},false,blocked or not allowed("tools",p.id) or #v.resultIds==0,v.query)
+                    action("tools_disable_results","tools_disable_results","right","tools_selection",{target=p.id,scope=utf8clip(p.name,24),value={category=v.category,ids=v.resultIds,enabled=false}},true,blocked or not allowed("tools",p.id) or #v.resultIds==0,v.query);py=py+44
+                end
             end
             label(x+18,py,T(host() and "tools_present" or "tools_present_except_host"),14,C.text,w-36);py=py+24
             local args=function(on) return v.tool and {id=v.tool.id,enabled=on} or {category=v.category,ids=v.ids,enabled=on} end
             local verb=v.tool and "tool_all" or "tools_selection_all"
-            action("tools_enable_everyone","enable_everyone","left",verb,{target=0,value=args(true)},false,not allowed("tools_all",0) or v.tool and v.tool.policy=="disabled")
-            action("tools_disable_everyone","disable_everyone","right",verb,{target=0,scope=T(host() and "tools_present" or "tools_present_except_host"),value=args(false)},true,not allowed("tools_all",0))
+            action("tools_enable_everyone",v.tool and "enable_everyone" or "enable_category","left",verb,{target=0,value=args(true)},false,not allowed("tools_all",0) or v.tool and v.tool.policy=="disabled")
+            action("tools_disable_everyone",v.tool and "disable_everyone" or "disable_category","right",verb,{target=0,scope=T(host() and "tools_present" or "tools_present_except_host"),value=args(false)},true,not allowed("tools_all",0));py=py+44
+            if searching then
+                action("tools_enable_results_everyone","tools_enable_results","left","tools_selection_all",{target=0,value={category=v.category,ids=v.resultIds,enabled=true}},false,not allowed("tools_all",0) or #v.resultIds==0,v.query)
+                action("tools_disable_results_everyone","tools_disable_results","right","tools_selection_all",{target=0,scope=T(host() and "tools_present" or "tools_present_except_host"),value={category=v.category,ids=v.resultIds,enabled=false}},true,not allowed("tools_all",0) or #v.resultIds==0,v.query)
+            end
         end
         label(x+18,y+h-34,T("movement_popup_help"),13,C.accent,w-36)
     end

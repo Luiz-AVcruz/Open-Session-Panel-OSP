@@ -599,14 +599,12 @@ for _,size in ipairs({{1024,768},{1920,1080}}) do
     for char in ('CAMERA'):gmatch('.') do w:tick(char) end
     w:tick('return');st=w:draw();check(st.controls.tools_next and not st.controls.tools_next.disabled,'matches span pages')
     w:clickControl('tools_next');w:clickControl('tools_actions')
-    st=w:draw();eq(#st.toolsPopup.ids,13,'batch snapshot includes every matching page')
+    st=w:draw();eq(#st.toolsPopup.resultIds,13,'batch snapshot includes every matching page')
     check(table.concat(w.texts,'|'):find(e.OSP.L('tools_enable_results'),1,true)~=nil,'searched group names results')
     eq(st.controls.tools_search.disabled,true,'popup blocks query changes')
-    w:clickControl('tools_scope_category');st=w:draw()
     eq(#st.toolsPopup.ids,14,'Mods category includes nonmatches across pages and excludes vanilla')
-    w:clickControl('tools_scope_results');eq(#w:draw().toolsPopup.ids,13,'search results remain independently available')
     e.shared.osp.tools[#e.shared.osp.tools+1]={id='late',name='Camera late',origin='mod',policy='default'}
-    w:clickControl('tools_disable_filtered');eq(#e.OSP.UI.getState().confirm.arg.ids,13,'confirmation freezes IDs')
+    w:clickControl('tools_disable_results');eq(#e.OSP.UI.getState().confirm.arg.ids,13,'confirmation freezes IDs')
     w:clickControl('confirm_accept');local request=w.sent[#w.sent]
     eq(request.args[2],'tool_policy_selection');eq(#request.args[4].ids,13)
     for _,id in ipairs(request.args[4].ids) do check(id:find('kit',1,true)==1,'outside matches excluded') end
@@ -618,8 +616,9 @@ for _,size in ipairs({{1024,768},{1920,1080}}) do
     w:clickControl('tools_search_clear');w:clickControl('tools_search');w:tick('%');w:tick('return')
     st=w:draw();eq(st.controls.tools_actions.disabled,false,'category actions remain available without search matches')
     w:clickControl('tools_actions');st=w:draw()
-    eq(st.toolsPopup.scope,'category','empty search results default to category')
-    eq(st.controls.tools_scope_results.disabled,true,'empty result scope cannot be applied')
+    eq(#st.toolsPopup.resultIds,0,'empty search snapshot')
+    eq(st.controls.tools_disable_results.disabled,true,'empty result scope cannot be applied')
+    eq(st.controls.tools_disable_filtered.disabled,false,'category remains available with empty results')
     w:clickControl('tools_popup_close')
     w:clickControl('tools_search_clear');w:clickControl('tool_more_mytool')
     eq(w:draw().toolsPopup.tool.id,'mytool','row secondary menu uses exact tool')
@@ -629,7 +628,7 @@ for _,size in ipairs({{1024,768},{1920,1080}}) do
     local nextMap=world(size[1],size[2],w.reg);eq(nextMap.api.OSP.ToolSearch.query,'','term is not saved between missions')
  end
 end
--- Search and category are independent frozen scopes; changing scope never clears the query.
+-- Category and result action rows coexist; each dispatches its own frozen IDs.
 for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
  for _,language in ipairs({'en','pt'}) do
   for _,mode in ipairs({'global','player'}) do
@@ -638,38 +637,79 @@ for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
     w:clickControl('tab_tools');w:clickControl('tool_mode_'..mode)
     e.OSP.ToolSearch.query='pistol'
     w:clickControl('tools_actions');local st=w:draw()
-    eq(st.toolsPopup.scope,'results');eq(#st.toolsPopup.ids,1)
-    for _,id in ipairs({'tools_scope_category','tools_scope_results',mode=='global' and 'tools_reset_filtered' or 'tools_disable_everyone'}) do
+    eq(#st.toolsPopup.ids,3);eq(#st.toolsPopup.resultIds,1)
+    eq(st.controls.tools_scope_category,nil,'no scope selector')
+    eq(st.controls.tools_scope_results,nil,'no extra click needed to reach results')
+    local last=mode=='global' and 'tools_reset_filtered' or 'tools_disable_results_everyone'
+    local height=math.min(st.layout.h-24,mode=='player' and 384 or 340)
+    for _,id in ipairs({'tools_enable_filtered','tools_disable_filtered','tools_enable_results','tools_disable_results',last}) do
         local r=st.controls[id]
-        check(r.x>=st.layout.ox and r.x+r.w<=st.layout.ox+st.layout.w,'scope control inside panel width')
-        check(r.y>=st.layout.oy and r.y+r.h<=st.layout.oy+(st.layout.h+math.min(st.layout.h-24,340))/2-34,'scope control clear of popup footer')
+        check(r.x>=st.layout.ox and r.x+r.w<=st.layout.ox+st.layout.w,'action inside panel width')
+        check(r.y>=st.layout.oy and r.y+r.h<=st.layout.oy+(st.layout.h+height)/2-34,'action clear of popup footer')
     end
+    check(st.controls.tools_enable_results.y>st.controls.tools_enable_filtered.y,'result row follows category')
+    check(st.controls[last].y>st.controls.tools_enable_results.y,'defaults or everyone follows result row')
     if mode=='global' then
         local r=st.controls.tools_reset_filtered
-        check(math.abs(r.x+r.w/2-(st.layout.ox+st.layout.w/2))<.01,'lone reset button is centered')
+        check(math.abs(r.x+r.w/2-(st.layout.ox+st.layout.w/2))<.01,'lone reset button stays centered')
         check(math.abs(r.w-st.controls.tools_enable_filtered.w)<.01,'centered button keeps normal width')
     end
     e.shared.osp.tools[#e.shared.osp.tools+1]={id='late',name='Pistol late',origin='mod',policy='default'}
-    w:clickControl('tools_scope_category');st=w:draw()
-    eq(st.toolsPopup.scope,'category');eq(#st.toolsPopup.ids,3,'whole category includes nonmatches but freezes late tools out')
-    eq(#w.sent,0,'scope selection does not dispatch an action')
-    eq(st.searchQuery,'pistol')
-    w:clickControl('tools_scope_results');eq(#w:draw().toolsPopup.ids,1,'search snapshot also excludes late tools')
-    w:clickControl('tools_scope_category');w:clickControl('tools_disable_filtered')
-    local confirmation=e.OSP.UI.getState().confirm
-    eq(#confirmation.arg.ids,3,'confirmation uses category count')
-    check(confirmation.message:find('pistol',1,true)==nil,'category confirmation does not claim search scope')
+    w:draw();eq(#e.OSP.UI.getState().toolsPopup.ids,3,'category snapshot excludes late tools')
+    eq(#e.OSP.UI.getState().toolsPopup.resultIds,1,'result snapshot excludes late tools')
+    eq(#w.sent,0,'opening and drawing do not dispatch actions')
+    w:clickControl('tools_disable_results');local confirmation=e.OSP.UI.getState().confirm
+    eq(#confirmation.arg.ids,1,'result confirmation count')
+    check(confirmation.message:find('pistol',1,true)~=nil,'result confirmation includes query')
     w:clickControl('confirm_accept');local request=w.sent[#w.sent]
     eq(request.args[2],mode=='global' and 'tool_policy_selection' or 'tools_selection')
-    eq(#request.args[4].ids,3);eq(request.args[4].category,'all')
-    eq(e.OSP.ToolSearch.query,'pistol','applying category preserves search')
+    eq(#request.args[4].ids,1);eq(request.args[4].ids[1],'gun','result command excludes nonmatches')
+    eq(e.OSP.ToolSearch.query,'pistol','result action preserves query')
+    w:ack();w:clickControl('tools_actions');w:clickControl('tools_disable_filtered')
+    confirmation=e.OSP.UI.getState().confirm
+    eq(#confirmation.arg.ids,4,'category confirmation count includes nonmatches')
+    check(confirmation.message:find('pistol',1,true)==nil,'category confirmation does not claim search scope')
+    w:clickControl('confirm_accept');request=w.sent[#w.sent]
+    eq(#request.args[4].ids,4);eq(request.args[4].category,'all')
+    eq(e.OSP.ToolSearch.query,'pistol','category action preserves query')
     w:ack();w:clickControl('tools_actions')
     if mode=='global' then w:clickControl('tools_reset_filtered') else w:clickControl('tools_disable_everyone') end
     confirmation=e.OSP.UI.getState().confirm
-    eq(#confirmation.arg.ids,2,'defaults and everyone follow current result scope')
-    check(confirmation.message:find('pistol',1,true)~=nil,'search confirmation includes query')
+    eq(#confirmation.arg.ids,4,'defaults and everyone category actions include nonmatches')
+    check(confirmation.message:find('pistol',1,true)==nil,'category defaults or everyone confirmation has no query')
     w:clickControl('confirm_cancel')
+    if mode=='player' then
+        w:clickControl('tools_actions');w:clickControl('tools_disable_results_everyone')
+        confirmation=e.OSP.UI.getState().confirm;eq(#confirmation.arg.ids,2,'everyone has an independent result action')
+        check(confirmation.message:find('pistol',1,true)~=nil)
+        w:clickControl('confirm_accept');request=w.sent[#w.sent]
+        eq(request.args[2],'tools_selection_all');eq(#request.args[4].ids,2);w:ack()
+    end
+    w:clickControl('tools_search_clear');w:clickControl('tools_actions');st=w:draw()
+    eq(st.controls.tools_enable_results,nil,'result row disappears after clearing search')
+    eq(st.controls.tools_disable_results,nil)
+    eq(st.controls.tools_disable_results_everyone,nil,'everyone result row also disappears')
+    check(st.controls.tools_enable_filtered~=nil,'category row stays visible')
+    w:clickControl('tools_popup_close');e.OSP.ToolSearch.query='%';w:clickControl('tools_actions');st=w:draw()
+    eq(st.controls.tools_enable_results.disabled,true,'zero matches disable result row')
+    eq(st.controls.tools_disable_results.disabled,true)
+    eq(st.controls.tools_enable_filtered.disabled,false,'zero matches do not block category')
+    if mode=='player' then eq(st.controls.tools_disable_results_everyone.disabled,true) end
   end
  end
+end
+-- Result controls preserve the same delegated capabilities as category controls.
+do
+    local w=world(1024,768);local e=w.api
+    e.IsPlayerHost=function() return false end
+    local me=e.shared.osp.players[1];me.host=false;me.admin=true
+    me.permissions=e.OSP.Permissions.resolve('self').permissions
+    e.OSP.UI.open(true);w:clickControl('tab_tools');e.OSP.ToolSearch.query='pistol';w:clickControl('tools_actions')
+    local st=w:draw()
+    eq(st.controls.tools_enable_results.disabled,false,'self delegate can change own results')
+    eq(st.controls.tools_disable_results_everyone.disabled,true,'self delegate cannot change everyone results')
+    me.permissions=e.OSP.Permissions.normalize({});w:draw()
+    eq(e.OSP.UI.getState().controls.tools_enable_results.disabled,true,'revocation disables already open result actions')
+    eq(#w.sent,0)
 end
 print('PASS client interaction, viewport and translation contracts: '..assertions..' assertions (mock UI)')
