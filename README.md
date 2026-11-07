@@ -40,6 +40,8 @@ The host's **Global rules** are saved per tool: game default, enabled or blocked
 
 **Selected player** changes made by the host are saved per player; delegate changes remain temporary. They cannot enable a globally blocked tool. A global rule change clears related personal overrides, including saved profiles of offline players; a personal restriction can subsequently narrow an enabled global rule. Resetting a global tool rule restores its state captured before the first intervention in the current map; subsequent maps follow their own defaults. Native campaign unlock data is never changed.
 
+Player controls show contextual help after a 0.6-second hover, including reasons for unavailable actions. Host persistence and delegated temporary changes are explained beside the relevant controls. Hints disappear during editing, dialogs and scrolling.
+
 ## Numeric values
 
 Click the value for movement speed, time scale, rain, fog or an RGB channel to type it. Enter applies; clicking another control discards the unfinished edit. Values are rounded to the field precision and clamped to its range: player speed 0.5–3, Fly/Noclip speeds 0.5–100, time scale 0.1–2, rain 0–1, fog 10–1000 m and RGB 0–255. Decimal points and commas are accepted. The +/- buttons and RGB bars remain available. Commands still require the appropriate role permission.

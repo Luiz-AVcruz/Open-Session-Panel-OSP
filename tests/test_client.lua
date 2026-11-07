@@ -40,7 +40,13 @@ local function world(width,height,previousRegistry)
     env.UiCanvasSize=function() return {w=w.width,h=w.height} end
     env.UiWidth=function() return width end;env.UiHeight=function() return height end
     env.UiFont=function(path,size) assert(path=='regular.ttf' or path=='bold.ttf');w.t.font=size end
-    env.UiGetTextSize=function(s) return #s*(w.t.font or 20)*.55,(w.t.font or 20) end
+    env.UiGetTextSize=function(s)
+        local longest,lines=0,0
+        for line in (s..'\n'):gmatch('(.-)\n') do
+            local _,bytes=line:gsub('[\128-\191]','');longest=math.max(longest,#line-bytes);lines=lines+1
+        end
+        return longest*(w.t.font or 20)*.55,lines*(w.t.font or 20)
+    end
     env.UiText=function(s) assert(w.drawn);w.texts[#w.texts+1]=s;if w.capturePaint then w.paints[#w.paints+1]={kind='text',x=w.t.x,y=w.t.y,font=w.t.font,color=w.t.color,text=s} end;return #s*(w.t.font or 20)*.55,w.t.font or 20 end
     env.UiGetMousePos=function() return (w.mouse.x-w.t.x)/w.t.s,(w.mouse.y-w.t.y)/w.t.s end
     -- A completed native click may be reported on release. InputPressed is
@@ -789,5 +795,53 @@ for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
     e.OSP.Navigation.setVisible('settings',false);e.OSP.Navigation.setVisible('about',false);w:tick();st=w:draw()
     eq(st.tab,'settings','guest fallback stays accessible');eq(st.controls.tab_session.disabled,true,'showing tabs never grants permissions')
  end
+end
+-- Tooltips use visible hit rectangles, time and player context, never input capture.
+for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
+ for _,language in ipairs({'en','pt'}) do
+    local w=world(unpack(size));local e=w.api;e.OSP.UI.open(true);w.reg['savegame.mod.osp.language']=language
+    local function hover(id)
+        local r=w:scrollTo(id);w.mouse={x=r.x+r.w/2,y=r.y+r.h/2};w:draw();return r
+    end
+    local function wait() w.now=w.now+.61;return w:draw() end
+    local initial=w:draw();local joined=table.concat(w.texts,'|')
+    check(not joined:find(e.OSP.L('protects_host'),1,true),'host reminder no longer occupies page')
+    check(not joined:find(e.OSP.L('player_options_saved'),1,true),'saved reminder no longer occupies page')
+    hover('player_action_fly');w.now=w.now+.59;eq(w:draw().tooltip,nil,'no tooltip before delay')
+    w.now=w.now+.02;local st=w:draw();local t=st.tooltip;check(t~=nil,'tooltip appears after delay')
+    eq(t.id,'player_action_fly');check(t.text:find(e.OSP.L('player_options_saved'),1,true)~=nil)
+    check(t.x>=st.layout.ox and t.y>=st.layout.oy and t.x+t.w<=st.layout.ox+st.layout.w and t.y+t.h<=st.layout.oy+st.layout.h,'wrapped tip inside panel')
+    for _,line in ipairs(t.lines) do local _,bytes=line:gsub('[\128-\191]','');check((#line-bytes)*14*.55<=t.w-24,'every wrapped line fits') end
+    hover('player_action_noclip');eq(w:draw().tooltip,nil,'changing control resets delay');wait();check(w:draw().tooltip~=nil)
+    w:tick('',1);eq(w:draw().tooltip,nil,'scroll clears tooltip')
+    hover('fly_settings');wait();w:clickControl('fly_settings');eq(w:draw().tooltip,nil,'popup suppresses background hints')
+    w.now=w.now+2;eq(w:draw().tooltip,nil);w:clickControl('movement_popup_close')
+    hover('player_speed_value');wait();w:clickControl('player_speed_value');w.now=w.now+1;eq(w:draw().tooltip,nil,'numeric editor suppresses hints')
+    e.OSP.NumberInput.cancel();hover('player_action_fly');wait()
+    e.shared.osp.players[1].profileChallenge=99;eq(w:draw().tooltip,nil,'new player entry resets existing hint')
+    w:clickControl('player_action_kill');w.now=w.now+1;eq(w:draw().tooltip,nil,'confirmation suppresses hints')
+    w:clickControl('confirm_cancel')
+    w:clickControl('tab_settings');eq(w:draw().tooltip,nil,'other pages have no tooltips')
+    w:clickControl('tab_players');hover('player_action_fly');wait();e.OSP.UI.open(false);eq(e.OSP.UI.getState().tooltip,nil,'closing clears tooltip')
+    e.OSP.UI.open(true);hover('player_action_eject');st=wait()
+    eq(st.tooltip.text,e.OSP.L('tip_no_vehicle'),'disabled vehicle control explains reason')
+    eq(st.controls.player_action_eject.disabled,true,'hint never enables disabled control')
+    eq(#w.sent,0,'hovering and editing without confirmation sends no commands')
+    e.shared.osp.players[1].profileReady=false;hover('player_action_god');st=wait();eq(st.tooltip.text,e.OSP.L('profile_waiting'))
+    check(table.concat(w.texts,'|'):find(e.OSP.L('profile_waiting'),1,true)~=nil,'pending profile status stays visible')
+ end
+end
+-- Delegates receive temporary/policy explanations rather than host persistence claims.
+do
+    local w=world(1920,1080);local e=w.api;e.IsPlayerHost=function() return false end
+    local me=e.shared.osp.players[1];me.host=false;me.admin=true;me.permissions=e.OSP.Permissions.resolve('self').permissions
+    e.shared.osp.players[2].host=true;e.OSP.UI.open(true)
+    local function hint(id)
+        local r=w:scrollTo(id);w.mouse={x=r.x+r.w/2,y=r.y+r.h/2};w:draw();w.now=w.now+.61;return w:draw().tooltip
+    end
+    check(hint('player_action_god').text:find(e.OSP.L('tip_temporary'),1,true)~=nil)
+    w:clickControl('player_23');eq(hint('player_action_god').text,e.OSP.L('protects_host'))
+    w:clickControl('player_11');me.permissions=e.OSP.Permissions.normalize({})
+    eq(hint('player_action_god').text,e.OSP.L('result_denied'))
 end
 print('PASS client interaction, viewport and translation contracts: '..assertions..' assertions (mock UI)')

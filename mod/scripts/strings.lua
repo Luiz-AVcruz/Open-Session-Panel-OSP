@@ -6,6 +6,12 @@ OSP = OSP or {}
 
 OSP.languages = {
 	en = {
+        tip_no_vehicle="This player is not in a vehicle.",tip_temporary="Changes made by delegated admins are temporary.",
+        tip_fly="Enables flight with collision. Double-tap Jump to start or stop flying. Only the ability is saved, not active flight.",
+        tip_noclip="Move through geometry. Enabling Noclip disables Fly.",
+        tip_movement_settings="Adjust normal and Shift speeds independently. Changing a speed does not enable the mode.",
+        tip_admin="Only the host can grant or revoke administrative access. Configure granular roles in Permissions.",
+        tip_reset="Restore this player's tools, effects, speed and administrative access. Global tool rules still apply.",
         navigation_title="Panel tabs",navigation_shown="Shown",navigation_hidden="Hidden",navigation_settings_fixed="Settings always stays visible.",navigation_restore="Show all tabs",
         tools_group_counts="Category: %d tools · Search: %d",tools_group_actions="Group actions",tools_enable_results="Enable results",tools_disable_results="Block results",tools_search="Search tools by name or ID",tools_actions="Actions",tools_results="%d found / %d in category",tools_no_match="No matching tools. Clear the search or change category.",tools_selection_count="%d tools (all pages)",tools_confirm_selection="Apply to this fixed selection of %d tools?",tools_present="All current players",tools_present_except_host="All current players except host",
         permissions="Permissions", permissions_subtitle="Assign roles by player and manage custom roles. Host only.",
@@ -198,6 +204,12 @@ OSP.languages = {
 		read_only = "Settings and source information are available to every player.",
 	},
 	pt = {
+        tip_no_vehicle="Este jogador não está em um veículo.",tip_temporary="Alterações feitas por administradores delegados são temporárias.",
+        tip_fly="Habilita voo com colisão. Dois toques no salto iniciam ou encerram o voo. Só a habilidade é salva, não o voo ativo.",
+        tip_noclip="Permite atravessar objetos. Habilitar Noclip desabilita Fly.",
+        tip_movement_settings="Ajuste separadamente as velocidades normal e com Shift. Alterar a velocidade não habilita o modo.",
+        tip_admin="Só o host pode conceder ou revogar acesso administrativo. Configure roles granulares em Permissões.",
+        tip_reset="Restaura ferramentas, efeitos, velocidade e acesso administrativo deste jogador. As regras globais de ferramentas continuam valendo.",
         navigation_title="Abas do painel",navigation_shown="Visível",navigation_hidden="Oculta",navigation_settings_fixed="Configurações permanece sempre visível.",navigation_restore="Mostrar todas as abas",
         tools_group_counts="Categoria: %d ferramentas · Busca: %d",tools_group_actions="Ações em grupo",tools_enable_results="Ativar resultados",tools_disable_results="Bloquear resultados",tools_search="Pesquisar ferramentas por nome ou ID",tools_actions="Ações",tools_results="%d encontradas / %d na categoria",tools_no_match="Nenhuma ferramenta encontrada. Limpe a busca ou mude a categoria.",tools_selection_count="%d ferramentas (todas as páginas)",tools_confirm_selection="Aplicar a esta seleção fixa de %d ferramentas?",tools_present="Todos os jogadores presentes",tools_present_except_host="Presentes, exceto o host",
         permissions="Permissões", permissions_subtitle="Atribua Roles por jogador e gerencie Roles customizadas. Apenas o host.",

@@ -203,3 +203,13 @@ A navegação mantém a ordem e remove os espaços deixados por abas ocultas. Em
 Validação local cobre os dois idiomas, 640×480/1024×768/1920×1080, persistência em novo contexto, somente Configurações visível, reorganização, restauração, acesso de convidados e cancelamento de edição ao ocultar a página ativa. Options foi exercitado sem APIs de mapa/servidor. Prévias sintéticas complementam a inspeção; apresentação nativa e persistência após reiniciar o jogo permanecem para conferência no Teardown.
 
 Continuam pendentes dicas contextuais, atalhos opcionais e importação/exportação de configurações. Fonte/janela permanecem adiados; impedir Bring here/Go there no próprio jogador fica para o fechamento do backlog.
+
+### Ciclo 5 do bundle 1.4.0: dicas contextuais em Jogadores
+
+Explicações de persistência, proteção do host, Fly/Noclip, ajustes de movimento, acesso administrativo e restauração aparecem junto aos controles após 0,6 segundo sobre a área visível. Controles desabilitados podem explicar proteção do host, perfil pendente, falta de permissão ou ausência de veículo, sem mudar seu comportamento. Alterações feitas por delegados são descritas como temporárias. Os dois lembretes permanentes sobre host e persistência e seus espaços foram removidos; o aviso de perfil pendente e as confirmações permanecem.
+
+As dicas usam os retângulos recortados dos controles, fonte 14, quebra por palavras conforme a medição do motor e largura máxima 360. Ficam dentro do painel e não capturam cliques. O tempo é reiniciado ao mudar controle, entrada do jogador, texto ou geometria e ao clicar/rolar. Abas, fechamento e edições/popups/confirmações encerram a dica. O estado é local e transitório, sem dados salvos ou alterações no servidor. O ciclo abrange somente Jogadores; instruções nos popups e Options permanecem.
+
+Testes locais cobrem prazo, troca de controle/entrada, rolagem, popups/edição/confirmação, motivos de bloqueio, permissões delegadas, ausência de comandos por hover e limites do texto em português/inglês e 640×480/1024×768/1920×1080. O mock mede linhas e caracteres UTF-8. Prévias sintéticas complementam a inspeção; aparência, métricas da fonte e temporização nativas ainda precisam de conferência no jogo.
+
+Pendentes: atalhos opcionais e importação/exportação de configurações. Fonte/janela continuam adiados; Bring here/Go there no próprio jogador fica para o fechamento. Antes do plano detalhado de cada ciclo, informar complexidade e esforço recomendado (high/xhigh/max) para escolha do responsável.

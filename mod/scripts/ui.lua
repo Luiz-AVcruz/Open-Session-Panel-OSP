@@ -5,6 +5,8 @@ function OSP.installClient()
     local ROOT="savegame.mod.osp."
     local menu,tab,selected=false,"players",nil
     local toolMode,filter="global","all"
+    local tipKey,tipSince,tooltip=nil,nil,nil
+    local function resetTooltip() tipKey=nil;tipSince=nil;tooltip=nil end
     local toolsPopup=nil
     local search=OSP.ToolSearch
     local movementSettings=nil
@@ -77,7 +79,7 @@ function OSP.installClient()
     local function closeTools() toolsPopup=nil;search.blur() end
     local function setTab(t)
         t=navigation.choose(t,function(id) return id=="settings" or id=="about" or admin() and (id~="permissions" or host()) end)
-        if tab~=t then closeMovement();closeTools();tab=t;scroll=0;confirm=nil;typing=false;capturing=false;OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end
+        if tab~=t then resetTooltip();closeMovement();closeTools();tab=t;scroll=0;confirm=nil;typing=false;capturing=false;OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end
     end
     local function command(action,target,arg)
         if not admin() or not allowed(action,target,arg) then setStatus(T("result_denied"));return false end
@@ -246,11 +248,10 @@ function OSP.installClient()
         y=y+43
         if host() and not p.host then
             if button("player_admin",ax,y,aw,37,T(p.admin and "revoke_admin" or "grant_admin"),"plain",waiting) then command("admin",p.id,not p.admin) end
-        else label(ax,y+9,T("protects_host"),14,C.muted,aw) end
-        y=y+49
+            y=y+49
+        end
         if host() then
-            label(ax,y,T(waiting and "profile_waiting" or "player_options_saved"),14,C.muted,aw)
-            y=y+29
+            if waiting then label(ax,y,T("profile_waiting"),14,C.muted,aw);y=y+29 end
             if button("reset_player",ax,y,aw,37,T("reset_player"),"plain",waiting) then
                 ask("reset_player",p.id,nil,T("confirm_reset_player",utf8clip(p.name,24)))
             end
@@ -261,6 +262,66 @@ function OSP.installClient()
             if button("bring_all",ax+bw+gap,y,bw,37,T("bring_all"),"plain",false) then command("bring_all",0) end
         else y=y+43;if button("bring_all",ax,y,bw,37,T("bring_all"),"plain",false) then command("bring_all",0) end end
         return math.max(listBottom,y+46)
+    end
+    local function drawPlayerTooltip()
+        tooltip=nil
+        if tab~="players" or confirm or movementSettings or toolsPopup or typing or capturing
+            or search.focused or OSP.NumberInput.active() or OSP.PermissionUI.capturing()
+            or clickConsumed or InputDown("lmb") then resetTooltip();return end
+        local p=findPlayer(selected)
+        if not p then resetTooltip();return end
+        local mx,my=layout.ox+mouseX,layout.oy+mouseY
+        local persistent={god=true,freeze=true,fly=true,noclip=true,speed=true}
+        local candidate,text
+        for id,r in pairs(controls) do
+            if inside(r.x,r.y,r.w,r.h,mx,my) then
+                local action=id:match("^player_action_(.+)$")
+                if id=="player_speed_value" or id=="speed_up" or id=="speed_down" then action="speed" end
+                if id=="fly_settings" then action="fly" elseif id=="noclip_settings" then action="noclip" end
+                local relevant=action or id=="player_admin" or id=="reset_player"
+                if relevant then
+                    if r.disabled then
+                        if p.host and not host() and action~="goto" then text=T("protects_host")
+                        elseif host() and p.profileReady==false and (persistent[action] or id=="player_admin" or id=="reset_player") then text=T("profile_waiting")
+                        elseif not permittedControl(id) then text=T("result_denied")
+                        elseif action=="eject" and not p.vehicle then text=T("tip_no_vehicle") end
+                    end
+                    if not text then
+                        if id=="fly_settings" or id=="noclip_settings" then text=T("tip_movement_settings")
+                        elseif action=="fly" then text=T("tip_fly")
+                        elseif action=="noclip" then text=T("tip_noclip")
+                        elseif id=="player_admin" then text=T("tip_admin")
+                        elseif id=="reset_player" then text=T("tip_reset") end
+                        if persistent[action] or id=="player_admin" or id=="reset_player" then
+                            local saved=T(host() and "player_options_saved" or "tip_temporary")
+                            text=text and text.." "..saved or saved
+                        end
+                    end
+                    if text then candidate={id=id,r=r};break end
+                end
+            end
+        end
+        if not candidate then resetTooltip();return end
+        local key=candidate.id..":"..p.id..":"..tostring(p.profileChallenge)..":"..text..":"..candidate.r.x..":"..candidate.r.y..":"..candidate.r.w..":"..candidate.r.h
+        if tipKey~=key then tipKey=key;tipSince=GetTime();return end
+        if GetTime()-tipSince<.6 then return end
+        local w=math.min(360,layout.w-24);local lines={};local line=""
+        UiPush();UiFont("regular.ttf",14)
+        for word in text:gmatch("%S+") do
+            local nextLine=line=="" and word or line.." "..word
+            if line~="" and UiGetTextSize(nextLine)>w-24 then lines[#lines+1]=line;line=word else line=nextLine end
+        end
+        if line~="" then lines[#lines+1]=line end
+        UiPop()
+        local h=#lines*18+20;local r=candidate.r
+        local x=math.max(12,math.min(layout.w-w-12,r.x-layout.ox))
+        local y=r.y-layout.oy+r.h+8
+        if y+h>layout.h-12 then y=r.y-layout.oy-h-8 end
+        y=math.max(12,math.min(layout.h-h-12,y))
+        rect(x,y,w,h,C.side);rect(x,y,w,1,C.line);rect(x,y+h-1,w,1,C.line)
+        rect(x,y,1,h,C.line);rect(x+w-1,y,1,h,C.line)
+        for i,value in ipairs(lines) do label(x+12,y+10+(i-1)*18,value,14,C.text) end
+        tooltip={id=candidate.id,text=text,x=layout.ox+x,y=layout.oy+y,w=w,h=h,lines=lines}
     end
     local function drawPermissions()
         if not host() then setTab("settings");return 0 end
@@ -659,7 +720,7 @@ function OSP.installClient()
         end
         if OSP.NumberInput.active() and not movementSettings then label(cx,H-17,T("number_help"),13,C.accent,cw)
         elseif status and GetTime()<statusUntil then label(cx,H-17,status,13,C.accent,cw) end
-        drawMovementPopup();drawToolsPopup();drawModal();UiPop()
+        drawPlayerTooltip();drawMovementPopup();drawToolsPopup();drawModal();UiPop()
     end
     local function isMouseKey(key) return key=="lmb" or key=="rmb" or key=="mmb" end
     local function consumeText()
@@ -705,6 +766,7 @@ function OSP.installClient()
     end
     function client.tick(dt)
         -- Preserve a simultaneous click before keyboard capture calls InputClear.
+        if (InputLastPressedKey() or "")~="" or InputPressed("lmb") or InputValue("mousewheel")~=0 then resetTooltip() end
         setTab(tab)
         lmbPressed=InputPressed("lmb")
         if me==0 then me=GetLocalPlayer() end
@@ -759,6 +821,7 @@ function OSP.installClient()
     end
     function client.draw()
         C=OSP.Theme.colors()
+        if not menu then resetTooltip() end
         if not menu or tab~="settings" then OSP.Theme.cancelDrag() end
         clickConsumed=false
         if menu then UiMakeInteractive();render();lmbPressed=false;return end
@@ -770,6 +833,6 @@ function OSP.installClient()
             UiFont("regular.ttf",18);UiAlign("left top");UiTextDisableWildcards(true);rgb(C.text);UiText(notice);UiPop()
         end
     end
-    OSP.UI={getState=function() return {open=menu,tab=tab,selected=selected,confirm=confirm,movementPopup=OSP.copy(movementSettings),toolsPopup=OSP.copy(toolsPopup),searchQuery=search.query,searchFocused=search.focused,keyCapture=capturing,typing=typing,language=lang(),menuKey=keybind(),requestPending=pending~=nil,pendingId=pending,status=status,layout=OSP.copy(layout),controls=OSP.copy(controls),scroll=scroll,maxScroll=maxScroll,filter=filter,toolMode=toolMode} end,
-        open=function(v) menu=v==true;if not menu then closeMovement();closeTools();confirm=nil;typing=false;capturing=false;OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end end,selectTab=setTab}
+    OSP.UI={getState=function() return {open=menu,tab=tab,selected=selected,confirm=confirm,movementPopup=OSP.copy(movementSettings),toolsPopup=OSP.copy(toolsPopup),searchQuery=search.query,searchFocused=search.focused,keyCapture=capturing,typing=typing,language=lang(),menuKey=keybind(),requestPending=pending~=nil,pendingId=pending,status=status,layout=OSP.copy(layout),controls=OSP.copy(controls),tooltip=OSP.copy(tooltip),scroll=scroll,maxScroll=maxScroll,filter=filter,toolMode=toolMode} end,
+        open=function(v) resetTooltip();menu=v==true;if not menu then closeMovement();closeTools();confirm=nil;typing=false;capturing=false;OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end end,selectTab=setTab}
 end
