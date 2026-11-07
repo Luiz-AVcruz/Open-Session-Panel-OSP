@@ -47,7 +47,7 @@ python3 tools/check.py
 python3 tools/package.py
 ```
 
-O usuário informou que publicou a revisão anterior e abriu o bundle de desenvolvimento **1.4.0**. Manter esse número até ele dizer que o bundle está encerrado. Não incrementar por edição, commit, empacotamento ou instalação; não reescrever o histórico Git.
+O usuário encerrou o bundle de desenvolvimento **1.4.0** em 2026-11-07 e confirmou a versão como pronta. Correções posteriores serão tratadas como hotfixes; nenhum número futuro foi escolhido. Não reescrever o histórico Git.
 
 O empacotador produz ZIP instalável, ZIP de fontes e hashes determinísticos. O pacote não inclui `.git`, identificadores de Workshop, backups, tokens ou assets proprietários. Não é necessário Python para jogar.
 
@@ -226,7 +226,7 @@ Os comandos god/fly/noclip preservam o argumento booleano legado. Opcionalmente 
 
 Verificação inclui as duas entradas expandidas, captura física sem last-key, conflitos e restauração, host/delegado/convidado, estado atrasado, simultaneidade, bloqueio por interface, ACK imediato/tardio/perdido e persistência entre contextos. Testes do servidor cobrem formato inválido, alvo alheio, padrão herdado, ausência de efeitos em conflito e comandos legados. A geometria dos avisos é exercitada em inglês/português, com mensagens curtas, pendentes e multilinha em 640×480/1024×768/1920×1080. O gate completo nesta revisão passou: cliente 18.067, navegação 24, valores numéricos 36, Options 1.028, servidor 675, atalhos 28, tema 63 e busca 11 asserções. Prévia sintética dos três popups em 640×480 e 1920×1080, da lista completa em Options e dos avisos curtos/multilinha em inglês/português foi inspecionada; fonte, métricas e renderização foram simuladas, portanto não é captura do Teardown. A aparência nativa e o contrato de entrada real em pausa, veículos e outros modais, bem como o Fly por duplo salto, ainda precisam de conferência no jogo.
 
-Importação/exportação de configurações continua adiada por decisão do usuário. Fonte/janela permanecem adiados. A pendência de Bring here/Go there no próprio jogador foi concluída no fechamento abaixo. O bundle 1.4.0 segue aberto; congelamento e outras ações ficaram fora do ciclo de atalhos.
+Ao fim do ciclo 6, importação/exportação de configurações seguia adiada por decisão do usuário; fonte/janela também. A pendência de Bring here/Go there no próprio jogador foi concluída no fechamento abaixo. Congelamento e outras ações ficaram fora do ciclo de atalhos.
 
 ### Fechamento do backlog ativo: teleporte próprio
 
@@ -240,4 +240,8 @@ O diagnóstico local confirmou que agarrar um objeto faz `GetPlayerCanUseTool` r
 
 O cliente informa seu contexto de jogo usando `game.player.interactive`, também consultado pelo HUD nativo, junto com pausa, mapa e abertura do painel. O servidor mantém a verificação normal de ferramenta e aceita a informação recente como alternativa quando a ferramenta está ocupada. O relato não concede Fly nem muda roles ou preferências. É transitório, limitado à sessão e ao marcador de entrada atuais, com sequência crescente, renovação a cada 0,2 segundo e expiração em 0,5 segundo. Tela interativa e jogador desabilitado bloqueiam a alternativa. Isso se aplica tanto ao duplo salto quanto à direção durante o voo; colisão, velocidades e Noclip mantêm seus caminhos existentes.
 
-Os testes cobrem ferramenta ocupada com comandos presentes, movimento e Shift, bloqueio por interface, tela e jogador desabilitado, expiração/renovação, rejeição de outro host/entrada, mensagens atrasadas e valores inválidos, além dos contratos existentes de voo. O gate completo passou: cliente 18.179, servidor 772, navegação 24, números 36, Options 1.028, atalhos 28, tema 63 e busca 11 asserções. A causa foi observada no jogo; o comportamento da correção com objetos, Plank, pausa e interfaces nativas, especialmente em outro participante multiplayer, ainda requer confirmação no Teardown. O bundle permanece 1.4.0.
+Os testes cobrem ferramenta ocupada com comandos presentes, movimento e Shift, bloqueio por interface, tela e jogador desabilitado, expiração/renovação, rejeição de outro host/entrada, mensagens atrasadas e valores inválidos, além dos contratos existentes de voo. O gate completo passou: cliente 18.179, servidor 772, navegação 24, números 36, Options 1.028, atalhos 28, tema 63 e busca 11 asserções. O usuário relatou que o Fly corrigido aparentemente funcionou e confirmou esta versão como pronta; não confirmou separadamente a pausa, outras interfaces ou multiplayer. O bundle permanece 1.4.0.
+
+## Encerramento da versão 1.4.0 — 2026-11-07
+
+O usuário considerou a versão pronta e encerrou o bundle. A correção do Fly durante a interação com ferramentas foi aceita após funcionar aparentemente no teste local. Não houve confirmação específica de pausa, outras interfaces ou multiplayer. Se houver algum problema adicional, será tratado como hotfix; o número de uma versão futura continua em aberto.

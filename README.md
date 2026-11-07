@@ -1,6 +1,6 @@
 # Open Session Panel
 
-An independently written Teardown administration panel for solo and multiplayer. Development bundle **1.4.0**, by **Luiz-AVcruz**, uses Lua 5.1 and multiplayer scripting version 2. English is the default; Brazilian Portuguese is available.
+An independently written Teardown administration panel for solo and multiplayer. Completed version **1.4.0**, by **Luiz-AVcruz**, uses Lua 5.1 and multiplayer scripting version 2. English is the default; Brazilian Portuguese is available.
 
 ## Panel and controls
 
@@ -72,7 +72,7 @@ Custom lets you choose each interface color with the previous/next role arrows, 
 
 ## Install and develop
 
-All current work belongs to the **1.4.0 development bundle**. Commits record ongoing changes; the product version stays at 1.4.0 until Luiz-AVcruz explicitly closes this bundle. Packaging or installing a revision does not automatically bump it.
+The **1.4.0 development bundle is closed**. Any later corrections will be handled as hotfixes; no next version number has been chosen.
 
 Players do not need Python or LuaJIT. Extract `dist/OpenSessionPanel-1.4.0.zip` as its own folder in Teardown's local mods directory and enable **Open Session Panel**. After updating an already loaded mod, reload the map to load the new scripts. Keep only one administration panel active while testing conflicting gameplay controls.
 
