@@ -8,6 +8,8 @@ Open with **P** or the pause menu. In **Settings → Panel tabs**, hide tabs you
 
 Only the host can save player options and global tool policies, grant access, restart the map or directly change the host. A delegate may use the host as a teleport destination but cannot move or change the host. Bulk actions skip the host when issued by a delegate.
 
+In **Players**, **Go to** and **Bring here** require selecting another player; both controls are disabled for your own selection. Delegates can still go to the host, and **Bring all** continues to skip its caller.
+
 **Fly** enables collision-preserving flight: double-tap the logical Jump binding (Space by default) within 0.3 seconds to start/stop, then hold Jump to rise or Crouch to descend. Forward movement follows horizontal camera direction. Hold **Shift** to use the configured boost speed; releasing it restores normal flight speed. The **...** buttons beside Fly and Noclip open their independent normal and Shift speed fields (defaults 9 and 18 m/s for each mode, each bounded to 0.5–100). These are final speeds: the general player multiplier affects ordinary movement only. Host tuning persists per player; delegated tuning stays temporary and follows the corresponding Fly or Noclip permission scope. Fly and Noclip sit side by side. Their **...** buttons open a centered popup with the speed fields and hints. Click outside or use its X button to close; the background is blocked while it is open. Enter applies a value; closing discards only an unfinished edit. Changing a speed does not activate a mode. Shift selects the second configured speed, which may also be set lower than normal. **Noclip** keeps movement through geometry and its existing panel activation, with its own configurable Shift speed. Enabling either mode turns the other off. Only the ability is saved; active Fly ends on death, respawn, freeze, vehicle entry or a new mission. Existing Fly settings and custom-role grants keep their former meaning as Noclip. Announcements are entered in Session using ASCII keyboard characters (up to 240 bytes); clipboard and accented text input are not supported.
 
 Buttons use their full visible rectangle and react on press. Holding or releasing does not repeat an action. Gameplay commands show immediate pending feedback and still wait for the server's acknowledgement.
@@ -100,6 +102,8 @@ Original code is **AGPL-3.0-or-later**, with a narrow additional permission for 
 ## Português
 
 Painel de administração por **Luiz-AVcruz**, com inglês padrão e opção de português brasileiro. Abra com **P** ou pelo menu de pausa. Configurações e Sobre são áreas separadas. O mod usa o HUD nativo do jogo.
+
+Em **Jogadores**, **Ir até** e **Trazer aqui** exigem outro alvo; os dois controles ficam desabilitados para si mesmo. Delegados ainda podem ir até o host, e **Trazer todos** continua excluindo quem chamou.
 
 As escolhas do host por jogador persistem entre missões: ferramentas, invencibilidade, Fly, Noclip, congelamento, velocidade e role de acesso. O perfil é atribuído pelo mod e guardado no cliente para aquele host; não depende do nome ou número temporário da sessão. Alterações individuais de delegados continuam temporárias; regras de sessão autorizadas podem persistir. **Jogadores → Restaurar opções do jogador** limpa as escolhas pessoais e mantém as regras gerais.
 

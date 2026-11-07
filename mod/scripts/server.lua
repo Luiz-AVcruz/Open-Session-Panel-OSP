@@ -253,8 +253,8 @@ function OSP.installServer()
     add("heal",nil,function(_,p) heal(p) end,{target=true})
     add("kill",nil,function(_,p) stopFlight(players[p]);SetPlayerHealth(0,p) end,{target=true})
     add("respawn",nil,function(_,p) stopFlight(players[p]);RespawnPlayer(p); players[p].alive=false; enforceTools(p) end,{target=true})
-    add("goto",nil,function(c,p) moveTo(c,p) end,{target=true,readTarget=true,aliveCaller=true,aliveTarget=true})
-    add("bring",nil,function(c,p) moveTo(p,c) end,{target=true,aliveCaller=true,aliveTarget=true})
+    add("goto",nil,function(c,p) moveTo(c,p) end,{target=true,readTarget=true,aliveCaller=true,aliveTarget=true,noSelf=true})
+    add("bring",nil,function(c,p) moveTo(p,c) end,{target=true,aliveCaller=true,aliveTarget=true,noSelf=true})
     add("eject",nil,function(_,p) SetPlayerVehicle(0,p) end,{target=true})
     add("god",boolean,function(c,p,v)
         SetPlayerParam("godMode",v,p); players[p].god=v
@@ -569,6 +569,7 @@ function OSP.installServer()
             if not valid then deny(validationCode or "invalid"); return end
         end
         if not isHost(actor) and not P.allows(playerRole(actor).permissions,action,target,arg,actor) then deny("denied");return end
+        if def.noSelf and actor==target then deny("invalid");return end
         if def.guard then local code=def.guard(arg); if code then deny(code);return end end
         if conditional then
             local e=players[target]

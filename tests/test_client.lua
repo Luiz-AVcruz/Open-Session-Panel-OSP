@@ -452,6 +452,30 @@ do
     local before=#w.sent;w:clickControl('confirm_accept')
     eq(#w.sent,before,'revocation prevents a stale confirmation from sending')
 end
+-- Self teleport controls are disabled for hosts and delegates, with localized hints and no RPC.
+for _,localId in ipairs({11,23}) do
+    for _,language in ipairs({'en','pt'}) do
+        local w=world(1920,1080);local e=w.api
+        e.GetLocalPlayer=function() return localId end;e.client.init()
+        w.reg['savegame.mod.osp.language']=language
+        if localId==23 then
+            e.shared.osp.players[2].admin=true;e.shared.osp.players[2].role='admin'
+            e.shared.osp.players[2].permissions=e.OSP.Permissions.resolve('admin').permissions
+        end
+        e.OSP.UI.open(true);w:draw()
+        local expected=language=='pt' and 'Selecione outro jogador' or 'Select another player'
+        eq(e.OSP.L('tip_select_another_player'),expected,'self teleport hint translation')
+        for _,id in ipairs({'player_action_goto','player_action_bring'}) do
+            local r=w:scrollTo(id)
+            eq(r.disabled,true,'self teleport control is disabled for local player')
+            w.mouse={x=r.x+r.w/2,y=r.y+r.h/2};w:draw();w.now=w.now+.61
+            eq(w:draw().tooltip.text,expected,'disabled self teleport has localized hint')
+            local before=#w.sent
+            w:pressAt(r.x+r.w/2,r.y+r.h/2);w:releaseAt(r.x+r.w/2,r.y+r.h/2)
+            eq(#w.sent,before,'disabled self teleport does not send RPC')
+        end
+    end
+end
 -- Numeric edits use the same permission/command path as the +/- controls.
 for _,size in ipairs({{1024,768},{1920,1080}}) do
  for _,language in ipairs({'en','pt'}) do

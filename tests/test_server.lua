@@ -133,6 +133,62 @@ local function world(options)
     return w
 end
 local w=world()
+-- Teleports require a different target, enforced before the accepted-request throttle.
+do
+    local t=world()
+    t.command(11,'admin',23,true)
+    local function direct(actor,action,target)
+        t.api.server.ospCommand(actor,action,target)
+        local response=t.calls[#t.calls]
+        eq(response.fn,'client.ospResult','direct command reply')
+        return response.args[1],response.args[2],response.args[3]
+    end
+    local function prime(p)
+        t.players[p].position={pos={p,p+1,p+2},rot={0,0,0,1}}
+        t.players[p].vehicle=700+p
+        t.players[p].velocity={1,2,3}
+        t.players[p].speed=4
+        return {position=t.api.OSP.copy(t.players[p].position),vehicle=t.players[p].vehicle,
+            velocity=t.api.OSP.copy(t.players[p].velocity),speed=t.players[p].speed}
+    end
+    local function unchanged(p,before)
+        local after=t.players[p]
+        eq(after.vehicle,before.vehicle,'rejected self teleport preserves vehicle')
+        eq(after.speed,before.speed,'rejected self teleport preserves speed')
+        for i=1,3 do
+            eq(after.position.pos[i],before.position.pos[i],'rejected self teleport preserves position')
+            eq(after.velocity[i],before.velocity[i],'rejected self teleport preserves velocity')
+        end
+        for i=1,4 do eq(after.position.rot[i],before.position.rot[i],'rejected self teleport preserves rotation') end
+    end
+    for _,case in ipairs({
+        {actor=11,action='goto',other=23},
+        {actor=11,action='bring',other=23},
+        {actor=23,action='goto',other=11}, -- delegated Go there to the host remains allowed
+        {actor=23,action='bring',other=47},
+    }) do
+        t.now=t.now+1
+        local before=prime(case.actor)
+        local logCount=#t.api.shared.osp.log
+        local ok,code=direct(case.actor,case.action,case.actor)
+        eq(ok,false,'self teleport is refused')
+        eq(code,'invalid','self teleport has invalid result')
+        unchanged(case.actor,before)
+        eq(#t.api.shared.osp.log,logCount,'rejected self teleport does not log success')
+        -- A valid command from the same actor at the same instant proves the
+        -- rejected request did not consume the accepted-request throttle.
+        ok,code=direct(case.actor,case.action,case.other)
+        eq(ok,true,'teleport to another player remains allowed')
+        eq(code,'ok')
+    end
+    t.players[47].health=0
+    local ownPosition=t.api.OSP.copy(t.players[11].position)
+    local beforeLog=#t.api.shared.osp.log
+    local ok,code,details=t.command(11,'bring_all',0)
+    eq(ok,true);eq(details.affected,1);eq(details.skipped,2,'Bring all still excludes caller and skips dead target')
+    eq(t.players[11].position.pos[1],ownPosition.pos[1],'Bring all does not move its caller')
+    check(#t.api.shared.osp.log>beforeLog,'Bring all keeps its accepted history entry')
+end
 local ok,code=w.command(23,'kill',11)
 eq(ok,false);eq(code,'denied');eq(w.players[11].health,1)
 eq(w.command(11,'admin',23,true),true)

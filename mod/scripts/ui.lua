@@ -232,7 +232,8 @@ function OSP.installClient()
             local verb=item[2];local cap=T(verb=="god" and "god_short" or item[1])
             if verb=="god" or verb=="fly" or verb=="noclip" or verb=="freeze" then cap=cap.."  ·  "..T(p[verb] and "on_short" or "off_short") end
             local persistent=verb=="god" or verb=="fly" or verb=="noclip" or verb=="freeze"
-            local dis=(blocked and verb~="goto") or (waiting and persistent) or (verb=="eject" and not p.vehicle)
+            local sameTarget=(verb=="goto" or verb=="bring") and p.id==me
+            local dis=(blocked and verb~="goto") or (waiting and persistent) or (verb=="eject" and not p.vehicle) or sameTarget
             local movement=verb=="fly" or verb=="noclip"
             local configurable=movement or (verb=="god" and p.id==me)
             local configuring=movementSettings and movementSettings.player==p.id and movementSettings.mode==verb
@@ -290,7 +291,8 @@ function OSP.installClient()
                 local relevant=action or id=="player_admin" or id=="reset_player"
                 if relevant then
                     if r.disabled then
-                        if p.host and not host() and action~="goto" then text=T("protects_host")
+                        if (action=="goto" or action=="bring") and p.id==me and permittedControl(id) then text=T("tip_select_another_player")
+                        elseif p.host and not host() and action~="goto" then text=T("protects_host")
                         elseif host() and p.profileReady==false and (persistent[action] or id=="player_admin" or id=="reset_player") then text=T("profile_waiting")
                         elseif not permittedControl(id) then text=T("result_denied")
                         elseif action=="eject" and not p.vehicle then text=T("tip_no_vehicle") end
