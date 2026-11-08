@@ -6,14 +6,21 @@ local count=0
 local function check(v,message) assert(v,message); count=count+1 end
 local function eq(a,b,message) check(a==b,(message or "equality")..": "..tostring(a).." ~= "..tostring(b)) end
 local registry={}
+local function multiply(a,b)
+    return {a[4]*b[1]+a[1]*b[4]+a[2]*b[3]-a[3]*b[2],
+        a[4]*b[2]-a[1]*b[3]+a[2]*b[4]+a[3]*b[1],
+        a[4]*b[3]+a[1]*b[2]-a[2]*b[1]+a[3]*b[4],
+        a[4]*b[4]-a[1]*b[1]-a[2]*b[2]-a[3]*b[3]}
+end
 local function world(options)
     options=options or {}
-    local w={catalog=options.catalog or {'sledge','gun'},now=0,players={},calls={},removed={},time=1,restarted=false,identities={},
+    local w={catalog=options.catalog or {'sledge','gun'},now=0,players={},calls={},ammoWrites={},removed={},time=1,restarted=false,identities={},
         env={rain=0.15,fogparams={80,300,0.8,2}}}
     for _,id in ipairs({11,23,47}) do
         w.players[id]={id=id,name="Player "..id,health=1,host=id==11,
             params={godMode=options.baseGod==true,flyMode=options.baseFly==true,healthRegeneration=true},speed=7,
-            tools={sledge=true,gun=true},tool="gun",vehicle=99,position={pos={0,0,0},rot={0,0,0,1}},velocity={0,0,0}}
+            tools={sledge=true,gun=true},tool="gun",ammo={sledge=0,gun=options.gunAmmo or 50},
+            vehicle=99,position={pos={0,0,0},rot={0,0,0,1}},velocity={0,0,0}}
     end
     local env={server={},shared={},math=math,table=table,string=string,type=type,pairs=pairs,
         ipairs=ipairs,unpack=unpack,tostring=tostring,pcall=pcall,assert=assert,tonumber=tonumber,
@@ -33,13 +40,21 @@ local function world(options)
         assert(v>=0 and v<=1); w.players[p].health=v
     end
     env.RespawnPlayer=function(p)
-        local q=w.players[p]; q.health=1; q.params.godMode=false;q.params.flyMode=false;q.speed=7
+        local q=w.players[p]; q.respawnAmmo={sledge=q.ammo.sledge,gun=q.ammo.gun}
+        q.health=1; q.params.godMode=false;q.params.flyMode=false;q.speed=7
         q.tools={sledge=true,gun=true}; q.tool="gun"
     end
     env.GetPlayerTool=function(p) return w.players[p].tool end
+    env.GetToolAmmo=function(id,p) return w.players[p].ammo[id] end
+    env.SetToolAmmo=function(id,ammo,p)
+        local found=false;for _,tool in ipairs(w.catalog) do if tool==id then found=true end end
+        assert(found,'unregistered ammo tool '..id)
+        w.players[p].ammo[id]=ammo
+        w.ammoWrites[#w.ammoWrites+1]={player=p,tool=id,ammo=ammo}
+    end
     env.IsToolEnabled=function(id,p) return w.players[p].tools[id] or false end
     env.SetToolEnabled=function(id,on,p) local found=false;for _,tool in ipairs(w.catalog) do if tool==id then found=true end end;assert(found,'unregistered tool '..id);w.players[p].tools[id]=on end
-    env.SetPlayerTool=function(id,p) assert(id=='' or w.players[p].tools[id]); w.players[p].tool=id end
+    env.SetPlayerTool=function(id,p) assert(id=='' or id=='none' or w.players[p].tools[id]); w.players[p].tool=id end
     env.GetPlayerVehicle=function(p) return w.players[p].vehicle end
     env.SetPlayerVehicle=function(v,p) w.players[p].vehicle=v end
     env.GetPlayerTransform=function(p) return env.OSP.copy(w.players[p].position) end
@@ -80,7 +95,7 @@ local function world(options)
         return result
     end
     env.GetString=function(k) return registry[k] or '' end
-    env.SetString=function(k,v) assert(k:sub(1,17)=="savegame.mod.osp.");registry[k]=v end
+    env.SetString=function(k,v) assert(k:sub(1,22)=="savegame.mod.osp_beta.");registry[k]=v end
     local randomValue=100
     env.GetRandomInt=function() randomValue=randomValue+1;return randomValue end
     env.HasKey=function(k)
@@ -93,15 +108,51 @@ local function world(options)
         return false
     end
     env.GetInt=function(k) return registry[k] or 0 end
-    env.SetInt=function(k,v) assert(k:sub(1,17)=="savegame.mod.osp.","writes must stay in mod namespace");registry[k]=v end
+    env.SetInt=function(k,v) assert(k:sub(1,22)=="savegame.mod.osp_beta.","writes must stay in mod namespace");registry[k]=v end
     env.GetFloat=function(k) return registry[k] or 0 end
     env.GetBool=function(k) return registry[k] or false end
-    env.SetFloat=function(k,v) assert(k:sub(1,17)=="savegame.mod.osp.","writes must stay in mod namespace");registry[k]=v end
+    env.SetFloat=function(k,v) assert(k:sub(1,22)=="savegame.mod.osp_beta.","writes must stay in mod namespace");registry[k]=v end
     env.SetBool=env.SetFloat
     env.ClearKey=function(k)
         for key in pairs(registry) do if key==k or key:sub(1,#k+1)==k..'.' then registry[key]=nil end end
     end
-    env.GetTime=function() return w.now end
+    -- Physics objects are only used by the strength integration cases.
+    w.bodies={};w.constraints={};w.orientations={};w.impulses={};w.queryRejects={}
+    env.IsHandleValid=function(id) return w.bodies[id]~=nil or (id==1001 and w.rayBody~=nil) end
+    env.IsBodyDynamic=function(id) return w.bodies[id].dynamic~=false end
+    env.IsBodyJointedToStatic=function(id) return w.bodies[id].jointed==true end
+    env.GetBodyPlayer=function(id) return w.bodies[id].player or 0 end
+    env.GetBodyVehicle=function(id) return w.bodies[id].vehicle or 0 end
+    env.GetBodyMass=function(id) return w.bodies[id].mass end
+    env.GetBodyVelocity=function(id) return w.bodies[id].velocity or {0,0,0} end
+    env.GetBodyTransform=function(id) return env.OSP.copy(w.bodies[id].transform) end
+    env.GetBodyCenterOfMass=function(id) return w.bodies[id].com or {0,0,0} end
+    env.GetPlayerBodies=function(id) return {10000+id} end
+    env.GetPlayerGrabBody=function(id) return w.players[id].nativeGrab or 0 end
+    env.ReleasePlayerGrab=function(id) w.players[id].nativeGrab=nil end
+    env.QueryRequire=function(value) assert(value=='physical');w.queryRejects={} end
+    env.QueryRejectBody=function(id) w.queryRejects[id]=true end
+    env.QueryRaycast=function(origin,direction,reach)
+        eq(reach,env.OSP.strength.reach,'server owns pickup reach')
+        if w.rayBody then return true,w.rayDistance or 2,{0,0,1},1001 end
+        return false,0,{0,0,0},0
+    end
+    env.GetShapeBody=function(shape) assert(shape==1001);return w.rayBody end
+    env.VecSub=function(a,b) return {a[1]-b[1],a[2]-b[2],a[3]-b[3]} end
+    env.TransformToLocalPoint=function(t,v) return env.VecSub(v,t.pos) end
+    env.TransformToLocalTransform=function(parent,child)
+        local q=parent.rot
+        return {pos=env.TransformToLocalPoint(parent,child.pos),rot=multiply({-q[1],-q[2],-q[3],q[4]},child.rot)}
+    end
+    env.QuatRotateQuat=multiply
+    env.ConstrainPosition=function(a,b,point,target,speed,impulse)
+        w.constraints[#w.constraints+1]={body=a,other=b,point=point,target=target,speed=speed,impulse=impulse}
+    end
+    env.ConstrainOrientation=function(a,b,rotation,target,speed,impulse)
+        w.orientations[#w.orientations+1]={body=a,other=b,rotation=rotation,target=target,speed=speed,impulse=impulse}
+    end
+    env.ApplyBodyImpulse=function(body,point,impulse) w.impulses[#w.impulses+1]={body=body,point=point,impulse=impulse} end
+    env.GetTime=function() return w.inUpdate and w.physicsNow or w.now end
     env.Restart=function() w.restarted=true end
     env.ClientCall=function(p,fn,...) w.calls[#w.calls+1]={p=p,fn=fn,args={...}} end
     env.DebugPrint=function(s) error('Unexpected engine failure: '..s) end
@@ -149,6 +200,7 @@ local function world(options)
     end
     return w
 end
+if arg[2]=="fixture" then return world end
 local w=world()
 -- Directed requests require a well-formed namespace and current join marker.
 do
@@ -168,7 +220,7 @@ end
 do
     registry={}
     local t=world();local stale=t.context(23);local identity=t.identities[23]
-    local root='savegame.mod.osp.players.'..identity..'.'
+    local root='savegame.mod.osp_beta.players.'..identity..'.'
     local before=#t.api.shared.osp.log
     t.removed={23};t.now=t.now+1;t.api.server.tick();t.removed={}
     local current=t.context(23);check(current.targetJoin~=stale.targetJoin,'reentry receives a new join marker')
@@ -295,7 +347,7 @@ w.command(11,'rule',0,{key='rain',value=.8});w.command(11,'rule',0,{key='fog',va
 w.command(11,'rule',0,{key='time',value=.4});w.command(11,'rule',0,{key='regen',value=false});w.tick();eq(w.time,.4);eq(w.players[47].params.healthRegeneration,false)
 local w2=world();eq(w2.env.rain,.8);eq(w2.api.shared.osp.rules.regen,false);eq(w2.api.shared.osp.players[2].admin,false)
 w2.command(11,'reset_rules',0);eq(w2.env.rain,.15);eq(w2.env.fogparams[1],80);eq(w2.env.fogparams[2],300);eq(w2.players[23].params.healthRegeneration,true)
-eq(w2.api.HasKey('savegame.mod.osp.rules'),false,'reset rules preserves unrelated saved profiles')
+eq(w2.api.HasKey('savegame.mod.osp_beta.rules'),false,'reset rules preserves unrelated saved profiles')
 w2.tick();eq(w2.time,1)
 -- Dead teleport destinations cannot report a successful move.
 w2.players[23].health=0
@@ -528,12 +580,12 @@ assign(47,custom.id)
 access.players[47]=nil;access.removed={47};access.tick()
 eq(access.command(11,'role_delete',0,{id=custom.id,version=custom.version}),true)
 denied(23,'heal',23)
-eq(registry['savegame.mod.osp.players.'..ids[47]..'.role'],'guest','deletion revokes offline assignments')
+eq(registry['savegame.mod.osp_beta.players.'..ids[47]..'.role'],'guest','deletion revokes offline assignments')
 local afterDelete=world({identities=ids})
 eq(afterDelete.api.shared.osp.players[2].admin,false)
 eq(afterDelete.api.shared.osp.players[3].admin,false)
-registry['savegame.mod.osp.players.'..ids[23]..'.role']='deleted_or_corrupt'
-registry['savegame.mod.osp.players.'..ids[23]..'.admin']=true
+registry['savegame.mod.osp_beta.players.'..ids[23]..'.role']='deleted_or_corrupt'
+registry['savegame.mod.osp_beta.players.'..ids[23]..'.admin']=true
 local corrupt=world({identities=ids})
 eq(corrupt.api.shared.osp.players[2].admin,false,'unknown explicit role never resurrects legacy admin')
 local replacement=saveRole('','New role',0,{heal=2})
@@ -573,7 +625,8 @@ flight.api.SetPlayerTransform=function() transforms=transforms+1 end
 local function frame(pressed,dt)
     flight.now=flight.now+(dt or .05)
     pilot.pressed={jump=pressed};pilot.speed=7;pilot.params.jumpSpeed=5
-    flight.api.server.tick(dt or .05);flight.api.server.update(1/60)
+    flight.api.server.tick(dt or .05)
+    flight.inUpdate=true;flight.api.server.update(1/60);flight.inUpdate=false
     pilot.pressed={}
 end
 pilot.inputs={jump=true};frame(true)
@@ -620,6 +673,17 @@ end
 pilot.toolBusy=true;pilot.inputs={up=true};frame(false)
 eq(pilot.velocity[3],0,'unknown tool-busy context fails closed')
 flightInput(true);frame(false);eq(pilot.velocity[3],-9,'grabbing/Plank does not stop Fly')
+-- GetTime uses simulation time in update, but wall time in tick/callbacks.
+-- Pausing or changing time scale can make these clocks diverge permanently.
+flight.physicsNow=flight.now-30
+frame(false);eq(pilot.velocity[3],-9,'held-object flight survives simulation time behind wall time')
+flight.physicsNow=flight.now+30
+frame(false);eq(pilot.velocity[3],-9,'held-object flight survives simulation time ahead of wall time')
+frame(false,.51);eq(pilot.velocity[3],0,'wall-time expiry still blocks movement with a frozen simulation clock')
+flightInput(true);frame(false);eq(pilot.velocity[3],-9,'new report restores movement despite divergent clocks')
+flightInput(false);frame(false);eq(pilot.velocity[3],0,'UI denial remains effective with divergent clocks')
+flightInput(true);flight.physicsNow=nil
+
 pilot.inputs={jump=true,shift=true};frame(false)
 check(math.abs(pilot.velocity[2]-10/60-18)<.00001,'grabbing retains rise and Shift speed')
 pilot.inputs={up=true};flightInput(false);frame(false)
@@ -668,7 +732,7 @@ local flyingMap=world({identities=flight.identities});flyingMap.players[23].vehi
 eq(flyingMap.api.shared.osp.players[2].fly,true,'flight ability persists between maps')
 eq(flyingMap.api.shared.osp.players[2].flying,false,'active flight is not saved')
 eq(flyingMap.players[23].params.flyMode,false)
-local flightRoot='savegame.mod.osp.players.'..flight.identities[23]..'.'
+local flightRoot='savegame.mod.osp_beta.players.'..flight.identities[23]..'.'
 eq(registry[flightRoot..'fly'],false,'older builds cannot turn the new ability into noclip')
 registry[flightRoot..'noclip']=nil;registry[flightRoot..'flight']=nil;registry[flightRoot..'fly']=true
 local oldFlight=world({identities=flight.identities});oldFlight.tick()
@@ -677,17 +741,17 @@ eq(oldFlight.api.shared.osp.players[2].fly,false)
 -- Existing custom-role Fly grants retain their old meaning, independently of
 -- the new capability. Storage remains safe when returning to an older build.
 registry={}
-registry['savegame.mod.osp.templates.c7.name']='Legacy flyer'
-registry['savegame.mod.osp.templates.c7.version']=1
-registry['savegame.mod.osp.templates.c7.permissions.fly']=2
-registry['savegame.mod.osp.templates_next']=7
+registry['savegame.mod.osp_beta.templates.c7.name']='Legacy flyer'
+registry['savegame.mod.osp_beta.templates.c7.version']=1
+registry['savegame.mod.osp_beta.templates.c7.permissions.fly']=2
+registry['savegame.mod.osp_beta.templates_next']=7
 local legacy=world()
 eq(legacy.command(11,'role_assign',23,{id='c7'}),true)
 eq(legacy.command(23,'noclip',47,true),true)
 ok,code=legacy.command(23,'fly',47,true);eq(ok,false);eq(code,'denied')
 eq(legacy.command(11,'role_save',0,{id='c7',name='New flyer',version=1,permissions={fly=1,noclip=0}}),true)
-eq(registry['savegame.mod.osp.templates.c7.permissions.fly'],0,'legacy grant mirrors only noclip')
-eq(registry['savegame.mod.osp.templates.c7.permissions.flight'],1)
+eq(registry['savegame.mod.osp_beta.templates.c7.permissions.fly'],0,'legacy grant mirrors only noclip')
+eq(registry['savegame.mod.osp_beta.templates.c7.permissions.flight'],1)
 local modern=world({identities=legacy.identities})
 eq(modern.command(23,'fly',23,true),true)
 ok,code=modern.command(23,'fly',47,true);eq(ok,false);eq(code,'denied')
@@ -709,8 +773,8 @@ for _,bad in ipairs({0,101,0/0,math.huge,'9'}) do
 end
 tunedMap.command(11,'reset_player',47)
 eq(tunedMap.api.shared.osp.players[3].flySpeed,9);eq(tunedMap.api.shared.osp.players[3].flyBoost,18)
-registry['savegame.mod.osp.players.'..tuningId..'.flight_speed']=-100
-registry['savegame.mod.osp.players.'..tuningId..'.flight_boost']=math.huge
+registry['savegame.mod.osp_beta.players.'..tuningId..'.flight_speed']=-100
+registry['savegame.mod.osp_beta.players.'..tuningId..'.flight_boost']=math.huge
 local invalidTuning=world({identities={[47]=tuningId}})
 eq(invalidTuning.api.shared.osp.players[3].flySpeed,9,'invalid saved tuning falls back')
 eq(invalidTuning.api.shared.osp.players[3].flyBoost,18)
@@ -767,8 +831,8 @@ end
 migrated.command(11,'reset_player',47)
 state=migrated.api.shared.osp.players[3]
 eq(state.flySpeed,9);eq(state.flyBoost,18);eq(state.noclipSpeed,9);eq(state.noclipBoost,18)
-registry['savegame.mod.osp.players.'..modeId..'.noclip_speed']=-4
-registry['savegame.mod.osp.players.'..modeId..'.noclip_boost']=math.huge
+registry['savegame.mod.osp_beta.players.'..modeId..'.noclip_speed']=-4
+registry['savegame.mod.osp_beta.players.'..modeId..'.noclip_boost']=math.huge
 local corruptModes=world({identities={[47]=modeId}})
 eq(corruptModes.api.shared.osp.players[3].noclipSpeed,9);eq(corruptModes.api.shared.osp.players[3].noclipBoost,18)
 -- Selection commands accept an exact cross-page subset and preserve unrelated
@@ -868,7 +932,7 @@ local profile23=selectionPolicy.identities[23]
 local profile47=selectionPolicy.identities[47]
 local encodedTool01=('tool01'):gsub('.',function(c) return string.format('%02x',c:byte()) end)
 local encodedTool02=('tool02'):gsub('.',function(c) return string.format('%02x',c:byte()) end)
-local profileRoot='savegame.mod.osp.players.'
+local profileRoot='savegame.mod.osp_beta.players.'
 eq(registry[profileRoot..profile23..'.tools.'..encodedTool01],2)
 eq(registry[profileRoot..profile47..'.tools.'..encodedTool02],2)
 selectionPolicy.players[47]=nil;selectionPolicy.removed={47};selectionPolicy.tick()
@@ -925,4 +989,238 @@ for _,action in ipairs({'god','fly','noclip'}) do
     eq(conditional.command(11,'admin',23,true),true)
     local own=current(23);eq(conditional.command(23,action,23,{expected=own,value=not own}),true,'delegate can use own permitted toggle')
 end
+
+-- Strength uses the same authorization/profile boundary as other player effects.
+registry={}
+local strong=world();local ids=strong.identities;local se=strong.api
+local function strongState(who,wld)
+    for _,p in ipairs((wld or strong).api.shared.osp.players) do if p.id==who then return p end end
+end
+local root='savegame.mod.osp_beta.players.'..ids[23]..'.'
+eq(strongState(23).strength,false);eq(strongState(23).strengthForce,1)
+eq(strongState(23).strengthMass,5000);eq(strongState(23).strengthThrow,false);eq(strongState(23).strengthThrowSpeed,20)
+for _,spec in ipairs({{'strength_force',4.5},{'strength_mass',12000},{'strength_throw_speed',37.5},{'strength_throw',true}}) do
+    eq(strong.command(11,spec[1],23,spec[2]),true,'host tunes player strength')
+    eq(registry[root..spec[1]],spec[2],'host configuration saved')
+end
+eq(strongState(23).strength,false,'configuration never enables strength')
+eq(strong.command(11,'strength',23,true),true)
+local invalidToggle,invalidCode=strong.command(11,'strength',23,{expected=true,value=false})
+eq(invalidToggle,false);eq(invalidCode,'invalid','conditional payload is reserved for self toggles')
+local remembered=world({identities=ids})
+eq(strongState(23,remembered).strength,true);eq(strongState(23,remembered).strengthForce,4.5)
+eq(strongState(23,remembered).strengthMass,12000);eq(strongState(23,remembered).strengthThrowSpeed,37.5)
+eq(strongState(23,remembered).strengthHolding,false,'held objects are never saved')
+for _,bad in ipairs({0,21,'2',{},math.huge,0/0}) do
+    local ok,code=strong.command(11,'strength_force',23,bad);eq(ok,false);eq(code,'invalid')
+end
+for _,bad in ipairs({0,100001,1.5}) do eq(strong.command(11,'strength_mass',23,bad),false) end
+for _,bad in ipairs({0,101,'20'}) do eq(strong.command(11,'strength_throw_speed',23,bad),false) end
+eq(strong.command(11,'strength_throw',23,1),false)
+local P=se.OSP.Permissions
+eq(P.resolve('guest').permissions.strength,0)
+eq(P.resolve('self').permissions.strength,1)
+eq(P.resolve('helper').permissions.strength,0);eq(P.resolve('moderator').permissions.strength,0)
+eq(P.resolve('admin').permissions.strength,2)
+local _,_,role=strong.command(11,'role_save',0,{id='',name='Personal strength',version=0,permissions={strength=1}})
+eq(strong.command(11,'role_assign',23,{id=role.template.id}),true)
+eq(strong.command(23,'strength_force',23,2),true,'delegate may tune self')
+local ok,code=strong.command(23,'strength_mass',47,100);eq(ok,false);eq(code,'denied')
+ok,code=strong.command(23,'strength',11,true);eq(ok,false);eq(code,'protected')
+eq(registry[root..'strength_force'],4.5,'delegated changes remain temporary')
+local own=strongState(23).strength
+eq(strong.command(23,'strength',23,{expected=not own,value=own}),false,'stale shortcut never flips state')
+eq(strong.command(23,'strength',23,{expected=own,value=not own}),true)
+eq(strong.command(11,'strength',23,true),true)
+strong.players[23].vehicle=0;strong.tick()
+strong.bodies[101]={mass=500,transform={pos={1,0,-2},rot={0,0,0,1}},com={1,0,0}}
+strong.rayBody=101
+local seq=0
+local function context(allowed,overrides)
+    seq=seq+1;overrides=overrides or {}
+    se.server.ospStrengthInput(23,overrides.host or se.shared.osp.profileHost,
+        overrides.join or strongState(23).profileChallenge,overrides.seq or seq,allowed)
+end
+local function step(pressed,dt)
+    strong.now=strong.now+(dt or .21);strong.players[23].pressed=pressed or {}
+    se.server.tick();strong.inUpdate=true;se.server.update(1/60);strong.inUpdate=false
+    strong.players[23].pressed={}
+end
+local q=strong.players[23]
+context(true);step() -- a valid report alone cannot pick objects
+q.inputs={grab=true};step({grab=true})
+check(#strong.constraints>0,'server calls controller after a valid context report')
+eq(strong.constraints[#strong.constraints].body,101)
+check(#strong.orientations>0,'server applies orientation control to a free held body')
+eq(strong.orientations[#strong.orientations].body,101)
+eq(q.tool,'none','native empty-tool sentinel suppresses tool while carrying')
+q.inputs={grab=true,up=true};q.toolBusy=true
+-- Both abilities can drive the same player without consuming movement input.
+eq(strong.command(11,'fly',23,true),true)
+context(true)
+se.server.ospFlightInput(23,se.shared.osp.profileHost,strongState(23).profileChallenge,1,true)
+step({jump=true},.05);step({},.025);step({jump=true},.05)
+eq(q.velocity[3],-9,'Fly movement remains active while Super strength carries a body')
+-- A deliberately divergent simulation clock must not invalidate the heartbeat.
+strong.physicsNow=strong.now-30;context(true);step()
+eq(strongState(23).strengthHolding,true,'Fly-compatible gameplay while holding')
+local before=#strong.constraints
+local orientationsBefore=#strong.orientations
+context(false);step();eq(#strong.constraints,before,'opening UI releases the object before physics')
+eq(#strong.orientations,orientationsBefore,'opening UI also stops angular control')
+eq(strongState(23).strengthHolding,false)
+q.inputs={grab=true};context(true);step({grab=true})
+eq(#strong.constraints,before,'held grab after interruption requires release first')
+q.inputs={};step();q.inputs={grab=true};context(true);step({grab=true})
+check(#strong.constraints>before,'new grab press can resume')
+before=#strong.constraints
+context(true,{host='wrong-host'});step(nil,.51)
+eq(#strong.constraints,before,'invalid heartbeat never refreshes expired context')
+context(true,{join=strongState(23).profileChallenge+100});step()
+eq(#strong.constraints,before,'another player entry cannot refresh the context')
+context('yes');step();eq(#strong.constraints,before,'non-boolean context rejected')
+context(true,{seq=.5});step();eq(#strong.constraints,before,'fractional sequence rejected')
+
+q.inputs={};step();context(true);q.inputs={grab=true};step({grab=true})
+check(strongState(23).strengthHolding,'fresh context can pick again')
+before=#strong.constraints
+context(true,{seq=seq-1});context(false);context(true,{seq=seq-2});step()
+eq(#strong.constraints,before,'late context cannot undo newer UI denial')
+q.inputs={};step();context(true);q.inputs={grab=true};step({grab=true})
+eq(strong.command(11,'reset_player',23),true)
+step();eq(strongState(23).strength,false);eq(strongState(23).strengthHolding,false)
+eq(strongState(23).strengthForce,1);eq(strongState(23).strengthMass,5000)
+eq(strongState(23).strengthThrow,false);eq(strongState(23).strengthThrowSpeed,20)
+local resetMap=world({identities=ids});eq(strongState(23,resetMap).strength,false)
+registry[root..'strength_force']=math.huge
+registry[root..'strength_mass']=2.5
+registry[root..'strength_throw_speed']=-1
+local corruptStrength=world({identities=ids})
+eq(strongState(23,corruptStrength).strengthForce,1,'invalid saved force falls back')
+eq(strongState(23,corruptStrength).strengthMass,5000,'invalid saved mass falls back')
+eq(strongState(23,corruptStrength).strengthThrowSpeed,20,'invalid saved throw speed falls back')
+
+-- Stored custom roles predating strength receive no implicit new grant.
+registry['savegame.mod.osp_beta.templates.c8.name']='Legacy helper'
+registry['savegame.mod.osp_beta.templates.c8.version']=1
+registry['savegame.mod.osp_beta.templates.c8.permissions.heal']=2
+registry['savegame.mod.osp_beta.templates.c8.permissions.noclip']=0
+local legacyStrength=world();local template
+for _,r in ipairs(legacyStrength.api.shared.osp.templates) do if r.id=='c8' then template=r end end
+check(template~=nil);eq(template.permissions.strength,0)
+
+-- Infinite ammo follows the same per-profile, permission and entry lifecycle
+-- boundaries as other player abilities, with transient stock snapshots.
+registry={}
+local ammoMap=world({gunAmmo=60});local ammoIds=ammoMap.identities;local ammoApi=ammoMap.api
+local function ammoState(who,wld)
+    for _,p in ipairs((wld or ammoMap).api.shared.osp.players) do if p.id==who then return p end end
+end
+local ammoRoot='savegame.mod.osp_beta.players.'..ammoIds[23]..'.'
+eq(ammoState(23).ammo,false,'ammo is off by default')
+eq(ammoState(23).ammoRestore,true,'restoration defaults to true')
+eq(ammoMap.command(11,'ammo',23,true),true)
+eq(registry[ammoRoot..'ammo'],true,'host saves ammo by profile')
+eq(ammoMap.players[23].ammo.gun,60,'setting ammo does not act before tick')
+ammoMap.tick();eq(ammoMap.players[23].ammo.gun,9999,'enabled equipped gun refills on server tick')
+ammoMap.players[23].ammo.gun=4;ammoMap.tick();eq(ammoMap.players[23].ammo.gun,9999,'depletion replenishes to reserve')
+local ammoWriteCount=#ammoMap.ammoWrites
+eq(ammoMap.command(11,'ammo_restore',23,false),true)
+eq(registry[ammoRoot..'ammo_restore'],false,'host saves restoration preference by profile')
+eq(#ammoMap.ammoWrites,ammoWriteCount,'changing restoration preference does not write ammo')
+eq(ammoMap.command(11,'ammo',23,false),true)
+eq(ammoMap.players[23].ammo.gun,9999,'restore false conserves current ammo on disable')
+local ammoRemembered=world({identities=ammoIds,gunAmmo=33})
+eq(ammoState(23,ammoRemembered).ammo,false,'disabled ammo choice loads in a later mission')
+eq(ammoState(23,ammoRemembered).ammoRestore,false,'false restoration preference loads')
+ammoRemembered.tick();eq(ammoRemembered.players[23].ammo.gun,33,'disabled saved ability stays off in later mission')
+
+-- The preference is consulted when an effect ends. Turning it back on during
+-- the effect restores the original stock, while turning it off does not.
+eq(ammoMap.command(11,'ammo_restore',23,true),true)
+eq(ammoMap.command(11,'ammo',23,true),true)
+ammoMap.players[23].ammo.gun=80;ammoMap.tick()
+eq(ammoMap.players[23].ammo.gun,9999)
+ammoMap.players[23].ammo.gun=6;ammoMap.tick()
+ammoWriteCount=#ammoMap.ammoWrites
+eq(ammoMap.command(11,'ammo_restore',23,false),true)
+eq(#ammoMap.ammoWrites,ammoWriteCount,'active restore toggle does not immediately alter ammo')
+eq(ammoMap.command(11,'ammo_restore',23,true),true)
+eq(#ammoMap.ammoWrites,ammoWriteCount,'restoring preference while active stays passive')
+eq(ammoMap.command(11,'ammo',23,false),true)
+eq(ammoMap.players[23].ammo.gun,80,'latest true preference restores captured stock')
+eq(ammoMap.command(11,'ammo',23,true),true)
+local trueAmmoRemembered=world({identities=ammoIds,gunAmmo=33})
+eq(ammoState(23,trueAmmoRemembered).ammoRestore,true,'true restoration preference loads from profile')
+eq(ammoState(23,trueAmmoRemembered).ammo,true,'enabled ammo choice loads in a later mission')
+trueAmmoRemembered.tick();eq(trueAmmoRemembered.players[23].ammo.gun,9999,'saved ammo ability reapplies in later mission')
+
+-- Death, OSP respawns and reset all end transient control without revoking the
+-- ability; explicit respawns restore before the engine respawns the player.
+eq(ammoMap.command(11,'ammo',23,true),true)
+ammoMap.players[23].ammo.gun=51;ammoMap.tick();eq(ammoMap.players[23].ammo.gun,9999)
+ammoMap.players[23].ammo.gun=3;ammoMap.tick()
+ammoMap.players[23].health=0;ammoMap.api.server.tick()
+eq(ammoMap.players[23].ammo.gun,51,'observed death restores the current baseline')
+check(ammoState(23).ammo,'death leaves ability enabled')
+ammoMap.players[23].health=1;ammoMap.players[23].ammo.gun=25;ammoMap.tick()
+eq(ammoMap.players[23].ammo.gun,9999,'alive player starts a fresh baseline after death')
+ammoMap.players[23].ammo.gun=5
+eq(ammoMap.command(11,'respawn',23),true)
+eq(ammoMap.players[23].respawnAmmo.gun,25,'explicit respawn restores before RespawnPlayer')
+check(ammoState(23).ammo,'respawn leaves ability enabled')
+ammoMap.tick();eq(ammoMap.players[23].ammo.gun,9999,'ability resumes on the next live tick')
+
+eq(ammoMap.command(11,'ammo',23,false),true)
+ammoMap.players[23].ammo.gun=37;eq(ammoMap.command(11,'ammo',23,true),true);ammoMap.tick()
+ammoMap.players[23].ammo.gun=1;ammoMap.players[23].health=0
+eq(ammoMap.command(11,'heal',23),true)
+eq(ammoMap.players[23].respawnAmmo.gun,37,'heal of a dead player restores before RespawnPlayer')
+check(ammoState(23).ammo,'dead-player heal leaves ability enabled')
+ammoMap.tick();eq(ammoMap.players[23].ammo.gun,9999,'heal reapplies the ability after respawn')
+
+-- Reset ends the effect using the current preference, then returns to false/true
+-- defaults. Identity, host namespace and global data remain intact.
+eq(ammoMap.command(11,'ammo_restore',23,false),true)
+ammoMap.players[23].ammo.gun=2;ammoMap.tick()
+eq(ammoMap.command(11,'rule',0,{key='rain',value=.4}),true)
+eq(ammoMap.command(11,'reset_player',23),true)
+eq(ammoMap.players[23].ammo.gun,9999,'reset with restore false conserves current stock')
+eq(ammoState(23).ammo,false);eq(ammoState(23).ammoRestore,true)
+eq(registry[ammoRoot..'exists'],true,'reset keeps profile identity')
+eq(registry['savegame.mod.osp_beta.hostid'],ammoApi.shared.osp.profileHost,'reset keeps host namespace')
+eq(registry['savegame.mod.osp_beta.rules.rain'],.4,'player reset keeps global session rules')
+local resetAmmoMap=world({identities=ammoIds})
+eq(ammoState(23,resetAmmoMap).ammo,false);eq(ammoState(23,resetAmmoMap).ammoRestore,true)
+
+-- Delegates receive only self scope for ammo and its restore alias. Old roles
+-- lacking the new capability stay at zero; the host can persist both fields.
+local P=ammoApi.OSP.Permissions
+eq(P.resolve('guest').permissions.ammo,0)
+eq(P.resolve('self').permissions.ammo,1)
+eq(P.resolve('helper').permissions.ammo,0);eq(P.resolve('moderator').permissions.ammo,0)
+eq(P.resolve('admin').permissions.ammo,2)
+registry['savegame.mod.osp_beta.templates.c9.name']='Legacy ammo role'
+registry['savegame.mod.osp_beta.templates.c9.version']=1
+registry['savegame.mod.osp_beta.templates.c9.permissions.heal']=2
+registry['savegame.mod.osp_beta.templates.c9.permissions.noclip']=0
+local oldAmmoRole=world();local oldTemplate
+for _,r in ipairs(oldAmmoRole.api.shared.osp.templates) do if r.id=='c9' then oldTemplate=r end end
+check(oldTemplate~=nil);eq(oldTemplate.permissions.ammo,0,'legacy template gets no new ammo grant')
+local delegatedAmmo=world();local _,_,ammoRole=delegatedAmmo.command(11,'role_save',0,
+    {id='',name='Ammo self',version=0,permissions={ammo=1}})
+eq(delegatedAmmo.command(11,'role_assign',23,{id=ammoRole.template.id}),true)
+local delegatedRoot='savegame.mod.osp_beta.players.'..delegatedAmmo.identities[23]..'.'
+eq(delegatedAmmo.command(23,'ammo',23,{expected=false,value=true}),true,'self role may use conditional ammo toggle')
+eq(delegatedAmmo.command(23,'ammo_restore',23,false),true,'ammo_restore alias follows ammo permission')
+eq(registry[delegatedRoot..'ammo'],nil,'delegated ammo change is temporary')
+eq(registry[delegatedRoot..'ammo_restore'],nil,'delegated restore change is temporary')
+local delegatedOk,delegatedCode=delegatedAmmo.command(23,'ammo',47,true)
+eq(delegatedOk,false);eq(delegatedCode,'denied','self ammo grant cannot target another player')
+delegatedOk,delegatedCode=delegatedAmmo.command(23,'ammo_restore',47,false)
+eq(delegatedOk,false);eq(delegatedCode,'denied','ammo restore alias keeps target scope')
+delegatedOk,delegatedCode=delegatedAmmo.command(23,'ammo',47,{expected=false,value=true})
+eq(delegatedOk,false);eq(delegatedCode,'invalid','conditional ammo payload remains self-only')
+eq(P.resolve('guest').permissions.ammo,0,'guest receives no implicit ammo grant')
+
 print('PASS server boundary: '..count..' assertions')

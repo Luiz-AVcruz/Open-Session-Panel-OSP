@@ -1,9 +1,9 @@
 -- Copyright (C) 2026 Luiz-AVcruz
 -- AGPL-3.0-or-later; see LICENSE and ADDITIONAL-PERMISSION.
 -- Local presentation preferences; hiding a tab never grants or revokes access.
-OSP.Navigation={tabs={"players","session","tools","permissions","activity","settings","about"}}
+OSP.Navigation={tabs={"players","session","tools","permissions","activity","appearance","settings","about"}}
 local N=OSP.Navigation
-local root="savegame.mod.osp.navigation.hidden."
+local root="savegame.mod.osp_beta.navigation.hidden."
 local function known(id)
     for _,tab in ipairs(N.tabs) do if tab==id then return true end end
     return false
@@ -18,17 +18,18 @@ end
 function N.reset()
     for _,id in ipairs(N.tabs) do if id~="settings" then N.setVisible(id,true) end end
 end
-function N.list()
-    local out={};for _,id in ipairs(N.tabs) do if N.visible(id) then out[#out+1]=id end end
+function N.list(eligible)
+    local out={};for _,id in ipairs(N.tabs) do if N.visible(id) and (not eligible or eligible(id)) then out[#out+1]=id end end
     return out
 end
-function N.choose(wanted,accessible)
-    if N.visible(wanted) and accessible(wanted) then return wanted end
-    for _,id in ipairs(N.list()) do if accessible(id) then return id end end
+function N.choose(wanted,accessible,eligible)
+    if N.visible(wanted) and (not eligible or eligible(wanted)) and accessible(wanted) then return wanted end
+    for _,id in ipairs(N.list(eligible)) do if accessible(id) then return id end end
     return "settings"
 end
-function N.draw(api,x,y,width)
-    local top=y;api.label(x,y,OSP.L("navigation_title"),20,width);y=y+32
+function N.draw(api,x,y,width,bodyOnly)
+    local top=y
+    if not bodyOnly then api.label(x,y,OSP.L("navigation_title"),20,width);y=y+32 end
     local cols=width>=460 and 2 or 1;local bw=(width-8*(cols-1))/cols;local i=0
     for _,id in ipairs(N.tabs) do
         if id~="settings" then

@@ -1,14 +1,14 @@
 -- Copyright (C) 2026 Luiz-AVcruz
 -- AGPL-3.0-or-later; see LICENSE and ADDITIONAL-PERMISSION.
 -- Bindings and capture are local preferences; gameplay authority stays on the server.
-OSP.Shortcuts={actions={"god","fly","noclip"},capture=nil,message=nil}
+OSP.Shortcuts={actions={"god","fly","noclip","strength","ammo"},capture=nil,message=nil}
 local S=OSP.Shortcuts
-local root="savegame.mod.osp."
+local root="savegame.mod.osp_beta."
 local keys={}
 for key in ("abcdefghijklmnopqrstuvwxyz0123456789"):gmatch('.') do keys[#keys+1]=key end
 for i=1,12 do keys[#keys+1]="f"..i end
 for _,key in ipairs({"insert","home","end","delete","esc","tab","backspace","space","shift","ctrl","alt","return","uparrow","downarrow","leftarrow","rightarrow","pgup","pgdown"}) do keys[#keys+1]=key end
-local function known(id) return id=="god" or id=="fly" or id=="noclip" end
+local function known(id) return id=="god" or id=="fly" or id=="noclip" or id=="strength" or id=="ammo" end
 function S.menuKey()
     local key=GetString(root.."menu_key");return OSP.validKey(key) and key or "p"
 end

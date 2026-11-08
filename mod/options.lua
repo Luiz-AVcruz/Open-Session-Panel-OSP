@@ -4,13 +4,18 @@
 #include "scripts/common.lua"
 #include "scripts/strings.lua"
 #include "scripts/navigation.lua"
+#include "scripts/view_mode.lua"
+#include "scripts/settings_sections.lua"
 #include "scripts/shortcuts.lua"
 #include "scripts/number_input.lua"
 #include "scripts/theme.lua"
+#include "scripts/number_control.lua"
 
-local root = "savegame.mod.osp."
+local root = "savegame.mod.osp_beta."
 local capturing = false
 local appearance = false
+local appearanceScroll,appearanceHeight=0,0
+local appearanceHit=nil
 local navigation = false
 local personalShortcuts = false
 local shortcuts = OSP.Shortcuts
@@ -18,6 +23,7 @@ local colors = OSP.Theme.colors()
 local confirming = false
 local message = nil
 local pressed, consumed = false, false
+local numericFrame={time=0}
 
 OSP.getLanguage = function()
     return GetString(root .. "language") == "pt" and "pt" or "en"
@@ -40,22 +46,26 @@ local function label(x, y, value, size, width, color, clipped)
     UiText(value)
     UiPop()
 end
-local function button(x, y, width, caption, selected, modal, recovery, clipCaption, disabled)
+local function button(x, y, width, caption, selected, modal, recovery, clipCaption, disabled, height, kind)
+    height=height or 40
     UiPush()
     UiTranslate(x, y)
     local mx, my = UiGetMousePos()
-    local enabled = not disabled and (not confirming or modal)
-    local hovered = enabled and mx >= 0 and my >= 0 and mx < width and my < 40
+    local enabled = not disabled and appearanceHit~=false and (not confirming or modal)
+    local hovered = enabled and mx >= 0 and my >= 0 and mx < width and my < height
     local clicked = hovered and pressed and not consumed
     if clicked then
         consumed = true
-        OSP.NumberInput.cancel()
+        OSP.NumberControl.beforeAction()
         shortcuts.cancel();capturing=false
     end
-    local color = selected and colors.selected or hovered and colors.hover or colors.surface
-    if recovery then color={.08,.08,.08,1} end
-    UiColor(unpack(color))
-    UiRect(width, 40)
+    local color,edge=OSP.Theme.buttonPaint(colors,recovery and "recovery" or selected and "active" or kind,hovered,clicked)
+    if color then UiColor(unpack(color));UiRect(width,height) end
+    if edge then
+        UiColor(unpack(edge));UiRect(width,1)
+        UiPush();UiTranslate(0,height-1);UiRect(width,1);UiPop()
+        UiRect(1,height);UiPush();UiTranslate(width-1,0);UiRect(1,height);UiPop()
+    end
     label(12, 9, caption, 20, clipCaption and math.max(0, width-24) or nil,
         recovery and {1,1,1,1} or disabled and colors.disabled or colors.text, clipCaption)
     UiPop()
@@ -73,8 +83,10 @@ end
 
 function draw()
     colors = OSP.Theme.colors()
-    pressed, consumed = InputPressed("lmb"), false
-    if OSP.NumberInput.active() then OSP.NumberInput.key() else captureKey() end
+    numericFrame=OSP.NumberInput.sample()
+    pressed, consumed = numericFrame.mousePressed, false
+    if OSP.NumberInput.active() then OSP.NumberInput.key(numericFrame) else captureKey() end
+    OSP.NumberControl.beginFrame(numericFrame)
     local width, height = 800, 720
     local scale = math.min(1, UiWidth() / 840, UiHeight() / 760)
     UiPush()
@@ -89,41 +101,62 @@ function draw()
             return button(x,y,width,value,kind=="active",false,false,true,disabled)
         end},28,90,744)
         if button(28,658,220,text("back")) then personalShortcuts=false;shortcuts.cancel() end
-        UiPop();return
+        OSP.NumberControl.endFrame(consumed);UiPop();return
     end
     if navigation then
+        local y=90+OSP.ViewMode.draw({label=label,button=function(id,x,y,w,h,value,kind) return button(x,y,w,value,kind=="active") end},28,90,744)
         OSP.Navigation.draw({
             label=label,
             button=function(id,x,y,width,height,value,kind) return button(x,y,width,value,kind=="active") end,
-        },28,90,744)
+        },28,y,744)
         if button(28,658,220,text("back")) then navigation=false end
-        UiPop();return
+        OSP.NumberControl.endFrame(consumed);UiPop();return
     end
     if appearance then
-        OSP.Theme.draw({
+        label(28,64,text("appearance"),20)
+        local mx,my=UiGetMousePos()
+        appearanceHit=mx>=28 and mx<772 and my>=90 and my<640 and not confirming
+        local wheel=InputValue("mousewheel")
+        if appearanceHit and wheel~=0 and not OSP.NumberControl.dragging() then
+            appearanceScroll=math.max(0,math.min(math.max(0,appearanceHeight-550),appearanceScroll-wheel*40))
+            OSP.Theme.cancelDrag()
+        end
+        UiPush();UiTranslate(28,90);UiWindow(744,550,true,true);UiTranslate(0,-appearanceScroll)
+        appearanceHeight=OSP.Theme.drawAppearance({
             label=label,
             button=function(id,x,y,width,height,value,kind)
-                return button(x,y,width,value,kind=="active",false,kind=="recovery")
+                return button(x,y,width,value,kind=="active",false,kind=="recovery",false,false,height,kind)
             end,
-            number=function(id,x,y,width,height,value,minimum,maximum,decimals,onCommit)
-                local active=OSP.NumberInput.active(id)
-                if button(x,y,width,OSP.NumberInput.caption(id,value),active,false,false,true) then
-                    capturing=false
-                    OSP.NumberInput.begin(id,value,minimum,maximum,decimals,onCommit)
-                end
+            image=function(x,y,path) UiPush();UiTranslate(x,y);UiColor(unpack(colors.muted));UiImage(path);UiPop() end,
+            number=function(id,x,y,width,height,value,minimum,maximum,decimals,onCommit,disabled,caption,modal,extra)
+                UiPush();UiTranslate(x,y)
+                OSP.NumberControl.draw({id=id,w=width,h=height,value=value,minimum=minimum,maximum=maximum,
+                    decimals=decimals,onCommit=onCommit,colors=colors,disabled=disabled,caption=caption,
+                    gradient=extra and extra.gradient,visible=y+height>appearanceScroll and y<appearanceScroll+550,
+                    pointerAllowed=appearanceHit,consumed=consumed,
+                    valid=function() return appearance and not confirming end,
+                    consume=function() consumed=true end,
+                    focus=function() capturing=false;shortcuts.cancel() end})
+                UiPop()
             end,
             rect=function(x,y,width,height,color)
                 UiPush();UiTranslate(x,y);UiColor(unpack(color));UiRect(width,height);UiPop()
             end,
             mouse=function() return UiGetMousePos() end,
-            visible=function() return not confirming end,
+            visible=function() return appearanceHit end,
             pressed=function() return pressed and not consumed end,
             down=function() return InputDown("lmb") end,
             consume=function() consumed=true end,
-        },28,90,744)
+        },0,0,744)
+        UiPop();appearanceHit=nil
+        appearanceScroll=math.max(0,math.min(math.max(0,appearanceHeight-550),appearanceScroll))
+        if appearanceHeight>550 then
+            UiPush();UiTranslate(778,90);UiColor(unpack(colors.line));UiRect(3,550)
+            local h=550*550/appearanceHeight
+            UiTranslate(0,(550-h)*appearanceScroll/(appearanceHeight-550));UiColor(unpack(colors.muted));UiRect(3,h);UiPop()
+        end
         if button(28,658,220,text("back")) then appearance=false;OSP.Theme.cancelDrag() end
-        UiPop()
-        return
+        OSP.NumberControl.endFrame(consumed);UiPop();return
     end
     OSP.Theme.cancelDrag()
     label(28, 67, text("main_options_help"), 17, 744)
@@ -145,8 +178,10 @@ function draw()
         SetString(root .. "language", "en")
         SetString(root .. "menu_key", "p")
         capturing = false
-        OSP.Theme.reset()
+        OSP.Theme.resetAppearance()
         OSP.Navigation.reset()
+        OSP.ViewMode.set("auto")
+        OSP.SettingsSections.reset()
         shortcuts.reset()
         message = text("preferences_reset")
     end
@@ -159,9 +194,9 @@ function draw()
     label(28, 428, text("reset_saved_host_help"), 17, 744)
     if message then label(28, 508, message, 17, 744) end
     if button(408, 568, 364, text("personal_shortcuts")) then personalShortcuts=true;capturing=false;shortcuts.cancel();OSP.NumberInput.cancel() end
-    if button(28, 568, 368, text("navigation_title")) then shortcuts.cancel();navigation=true;capturing=false;OSP.NumberInput.cancel() end
+    if button(28, 568, 368, text("interface_settings")) then shortcuts.cancel();navigation=true;capturing=false;OSP.NumberInput.cancel() end
     if button(28, 658, 170, text("back")) then shortcuts.cancel();Menu() end
-    if button(210,658,350,text("palette")) then shortcuts.cancel();appearance=true;capturing=false end
+    if button(210,658,350,text("appearance")) then shortcuts.cancel();appearance=true;appearanceScroll=0;capturing=false end
     label(610, 668, text("version", OSP.version), 16)
     if confirming then
         UiColor(0, 0, 0, 0.82)
@@ -185,5 +220,5 @@ function draw()
         end
         UiPop()
     end
-    UiPop()
+    OSP.NumberControl.endFrame(consumed);UiPop()
 end

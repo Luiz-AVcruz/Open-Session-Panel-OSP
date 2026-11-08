@@ -3,19 +3,29 @@
 -- Shared permission vocabulary. The server owns assignments and templates.
 OSP.Permissions = {}
 local P = OSP.Permissions
+P.categories = {{id="players"},{id="movement"},{id="abilities"},{id="tools"},{id="session"},{id="admin"}}
 P.spec = {
-    {id="heal",target=true},{id="respawn",target=true},{id="goto",target=true},
-    {id="bring",target=true},{id="kill",target=true},{id="eject",target=true},
-    {id="god",target=true},{id="fly",target=true},{id="noclip",target=true},{id="freeze",target=true},
-    {id="speed",target=true},{id="tools",target=true},
-    {id="heal_all"},{id="bring_all"},{id="tools_all"},{id="announce"},
-    {id="rule_time"},{id="rule_rain"},{id="rule_fog"},{id="rule_regen"},{id="reset_rules"},
+    {id="heal",target=true,category="players"},{id="respawn",target=true,category="players"},
+    {id="goto",target=true,category="movement"},{id="bring",target=true,category="movement"},
+    {id="kill",target=true,category="players"},{id="eject",target=true,category="players"},
+    {id="god",target=true,category="abilities"},{id="fly",target=true,category="movement"},
+    {id="noclip",target=true,category="movement"},{id="freeze",target=true,category="players"},
+    {id="speed",target=true,category="movement"},{id="strength",target=true,category="abilities"},
+    {id="tools",target=true,category="tools"},{id="ammo",target=true,category="tools"},
+    {id="heal_all",category="players"},{id="bring_all",category="movement"},
+    {id="tools_all",category="tools"},{id="announce",category="session"},
+    {id="rule_time",category="session"},{id="rule_rain",category="session"},
+    {id="rule_fog",category="session"},{id="rule_regen",category="session"},{id="reset_rules",category="session"},
+    {id="role_assign",category="admin"},{id="role_create",category="admin"},
+    {id="role_edit",category="admin"},{id="role_delete",category="admin"},
+    {id="tool_policy",category="admin"},{id="reset_player",target=true,category="admin"},{id="restart",category="admin"},
 }
-P.reserved = {admin=true,reset_player=true,restart=true,tool_policy=true,tool_policy_bulk=true,
-    tool_policy_selection=true,role_assign=true,role_save=true,role_delete=true}
-local aliases = {tool="tools",tools_filtered="tools",tool_all="tools_all",tools_filtered_all="tools_all",
+-- Legacy all-or-nothing assignment remains host-only for older clients.
+P.reserved = {admin=true}
+local aliases = {tool_policy_bulk="tool_policy",tool_policy_selection="tool_policy",ammo_restore="ammo",tool="tools",tools_filtered="tools",tool_all="tools_all",tools_filtered_all="tools_all",
     tools_selection="tools",tools_selection_all="tools_all",
-    fly_speed="fly",fly_boost="fly",noclip_speed="noclip",noclip_boost="noclip"}
+    fly_speed="fly",fly_boost="fly",noclip_speed="noclip",noclip_boost="noclip",
+    strength_force="strength",strength_mass="strength",strength_throw="strength",strength_throw_speed="strength"}
 function P.normalize(values)
     if type(values)~="table" then return nil end
     local result,known={},{}
@@ -33,10 +43,10 @@ local function preset(id,values)
     return {id=id,nameKey="role_"..id,builtin=true,version=0,permissions=P.normalize(values)}
 end
 local all={}
-for _,spec in ipairs(P.spec) do all[spec.id]=2 end
+for _,spec in ipairs(P.spec) do all[spec.id]=spec.category=="admin" and 0 or 2 end
 P.builtins={
     preset("guest",{}),
-    preset("self",{heal=1,respawn=1,["goto"]=2,eject=1,god=1,fly=1,noclip=1,speed=1,tools=1}),
+    preset("self",{heal=1,respawn=1,["goto"]=2,eject=1,god=1,fly=1,noclip=1,speed=1,strength=1,ammo=1,tools=1}),
     preset("helper",{heal=2,respawn=2,["goto"]=2,bring=2,announce=2}),
     preset("moderator",{heal=2,respawn=2,["goto"]=2,bring=2,eject=2,freeze=2,speed=2,tools=2,heal_all=2,bring_all=2,tools_all=2,announce=2}),
     preset("admin",all),
@@ -63,7 +73,10 @@ end
 function P.allows(values,action,target,arg,actor)
     if P.reserved[action] then return false end
     local key=aliases[action] or action
-    if action=="rule" then
+    if action=="role_save" then
+        if type(arg)~="table" or type(arg.id)~="string" then return false end
+        key=arg.id=="" and "role_create" or "role_edit"
+    elseif action=="rule" then
         if type(arg)~="table" or type(arg.key)~="string" then return false end
         key="rule_"..arg.key
     end
@@ -73,4 +86,19 @@ end
 function P.validName(name)
     return type(name)=="string" and #name>=1 and #name<=40 and name:find("%S")~=nil
         and not name:find("[^ -~]") and name==name:match("^%s*(.-)%s*$")
+end
+
+-- Scope values are ordered: blocked < self < any. Missing new grants stay off.
+function P.within(grants,ceiling)
+    if type(grants)~="table" or type(ceiling)~="table" then return false end
+    for _,spec in ipairs(P.spec) do
+        if (grants[spec.id] or 0)>(ceiling[spec.id] or 0) then return false end
+    end
+    return true
+end
+function P.canManageRoles(values)
+    for _,id in ipairs({"role_assign","role_create","role_edit","role_delete"}) do
+        if values and values[id]==2 then return true end
+    end
+    return false
 end

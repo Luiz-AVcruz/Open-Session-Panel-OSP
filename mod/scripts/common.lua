@@ -1,7 +1,11 @@
 -- Copyright (C) 2026 Luiz-AVcruz
 -- AGPL-3.0-or-later; additional Teardown permission: see ADDITIONAL-PERMISSION.
-OSP = { version = "1.4.0" }
+OSP = { version = "1.5.0" }
 OSP.flight = {normal=9,shift=18,min=.5,max=100}
+OSP.strength = {force=1,mass=5000,throwSpeed=20,minForce=1,maxForce=20,
+    minMass=1,maxMass=100000,minThrowSpeed=1,maxThrowSpeed=100,
+    reach=3,maxVelocity=24,maxAngularVelocity=18,acceleration=180,
+    jointedMaxVelocity=6,jointedAcceleration=30,breakDistance=6}
 
 function OSP.finite(n)
     return type(n) == "number" and n == n and n > -math.huge and n < math.huge

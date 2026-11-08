@@ -1,6 +1,6 @@
-name = Open Session Panel
+name = Open Session Panel Beta
 version = 2
 preview = preview-menu.png
 author = Luiz-AVcruz
-description = Compact independent session administration for solo and multiplayer. Host choices for each player persist between missions: tools, effects, speed and admin access. Vanilla/Mods filters, weather, announcements and activity. English / Portugues. Open with P or the pause menu. AGPLv3 or later with an additional Teardown runtime permission. Readable source included. Source code: https://github.com/Luiz-AVcruz/Open-Session-Panel-OSP AI Disclosure and Usage: Feel free to use this mod however you like, although I don't really see the point of reuploading it unchanged. I reviewed and guided the AI throughout development. I originally made this mod just to play with my friends, and I'm only publishing it to make it easier for them to download and for anyone else who might enjoy it. If I find any bugs or someone reports one, I can try to fix them. No AI image generators or anything like that were used. I only used Codex to help with the code and text, since I don't know how to program in Lua. I just wanted a project that worked for me. So if you'd rather not use the mod because AI was involved, I completely understand and won't judge.
+description = Compact independent session administration for solo and multiplayer. Host choices for each player persist between missions: tools, effects, speed and admin access. Vanilla/Mods filters, weather, announcements and activity. English / Portugues. Open with P or the pause menu. AGPLv3 or later with an additional Teardown runtime permission.
 tags = Gameplay, Tool

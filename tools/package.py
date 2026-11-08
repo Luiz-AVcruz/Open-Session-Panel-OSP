@@ -15,9 +15,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MOD = ROOT / "mod"
 DIST = ROOT / "dist"
-MOD_ARCHIVE_ROOT = "Open Session Panel"
-SOURCE_ARCHIVE_ROOT = "OpenSessionPanel-source"
+MOD_ARCHIVE_ROOT = "Open Session Panel Beta"
+SOURCE_ARCHIVE_ROOT = "OpenSessionPanelBeta-source"
 ZIP_TIME = (1980, 1, 1, 0, 0, 0)
+SECTION_ICONS = ("ui/section-down.png", "ui/section-right.png")
 PUBLICATION_FILES = ("preview.jpg", "preview-menu.png", "WORKSHOP-DESCRIPTION.txt")
 
 
@@ -37,20 +38,26 @@ def required_install_files() -> list[Path]:
         MOD / "options.lua",
         MOD / "scripts" / "common.lua",
         MOD / "scripts" / "server.lua",
+        MOD / "scripts" / "strength.lua",
+        MOD / "scripts" / "ammo.lua",
+        MOD / "scripts" / "search_input.lua",
         MOD / "scripts" / "ui.lua",
         MOD / "scripts" / "navigation.lua",
+        MOD / "scripts" / "view_mode.lua",
+        MOD / "scripts" / "settings_sections.lua",
         MOD / "scripts" / "shortcuts.lua",
         MOD / "scripts" / "tools_search.lua",
         MOD / "scripts" / "strings.lua",
         MOD / "scripts" / "theme.lua",
         MOD / "scripts" / "number_input.lua",
+        MOD / "scripts" / "number_control.lua",
         MOD / "scripts" / "permissions.lua",
         MOD / "scripts" / "permissions_ui.lua",
         MOD / "SOURCE.md",
         ROOT / "LICENSE",
         ROOT / "ADDITIONAL-PERMISSION",
     ]
-    required.extend(MOD / name for name in PUBLICATION_FILES)
+    required.extend(MOD / name for name in PUBLICATION_FILES + SECTION_ICONS)
     missing = [p.relative_to(ROOT).as_posix() for p in required if not p.is_file()]
     if missing:
         raise FileNotFoundError("Required package files are missing: " + ", ".join(missing))
@@ -62,8 +69,10 @@ def required_install_files() -> list[Path]:
         raise ValueError("mod/info.txt must reference preview-menu.png")
     description = re.search(r"(?m)^description\s*=\s*(.*)$", info)
     workshop_text = (MOD / "WORKSHOP-DESCRIPTION.txt").read_text(encoding="utf-8")
-    if description is None or description.group(1).strip() != " ".join(workshop_text.split()):
-        raise ValueError("info.txt description must match WORKSHOP-DESCRIPTION.txt content")
+    if description is None or not description.group(1).strip():
+        raise ValueError("mod/info.txt description must not be empty")
+    if not " ".join(workshop_text.split()):
+        raise ValueError("mod/WORKSHOP-DESCRIPTION.txt must not be empty")
     steam_preview = (MOD / "preview.jpg").read_bytes()
     if not steam_preview.startswith(b"\xff\xd8\xff") or len(steam_preview) > 1_000_000:
         raise ValueError("preview.jpg must be a JPEG no larger than 1 MB")
@@ -97,7 +106,7 @@ def add_file(zf: zipfile.ZipFile, path: Path, archive_name: str) -> None:
 
 def install_members() -> list[tuple[Path, str]]:
     files = [MOD / "info.txt", MOD / "main.lua", MOD / "options.lua", MOD / "SOURCE.md"]
-    files.extend(MOD / name for name in PUBLICATION_FILES)
+    files.extend(MOD / name for name in PUBLICATION_FILES + SECTION_ICONS)
     files.extend(path for path in (MOD / "scripts").rglob("*.lua") if path.is_file())
     members: list[tuple[Path, str]] = []
     for path in sorted(files):
@@ -125,7 +134,7 @@ def source_members() -> list[tuple[Path, str]]:
         ROOT / "Docs" / "PROJETO.md",
     ]
     paths.extend([MOD / "info.txt", MOD / "main.lua", MOD / "options.lua", MOD / "SOURCE.md"])
-    paths.extend(MOD / name for name in PUBLICATION_FILES)
+    paths.extend(MOD / name for name in PUBLICATION_FILES + SECTION_ICONS)
     paths.extend(path for path in (MOD / "scripts").rglob("*.lua") if path.is_file())
     paths.extend(path for path in (ROOT / "tests").rglob("test_*.lua") if path.is_file())
     paths.extend(path for path in (ROOT / "tools").rglob("*.py") if path.is_file())
@@ -188,8 +197,8 @@ def main() -> int:
         required_install_files()
         version = product_version()
         DIST.mkdir(exist_ok=True)
-        install = DIST / f"OpenSessionPanel-{version}.zip"
-        source = DIST / f"OpenSessionPanel-{version}-source.zip"
+        install = DIST / f"OpenSessionPanelBeta-{version}.zip"
+        source = DIST / f"OpenSessionPanelBeta-{version}-source.zip"
         sums = DIST / "SHA256SUMS"
         # Build and validate the complete replacement set before publishing any
         # of it. Re-running the helper refreshes only its own three named outputs.

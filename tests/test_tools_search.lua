@@ -4,6 +4,7 @@ local n=0
 local function check(v,m) assert(v,m);n=n+1 end
 local key,clears='',0
 local env=setmetatable({OSP={},InputLastPressedKey=function() return key end,InputClear=function() clears=clears+1 end},{__index=_G})
+local inputChunk=assert(loadfile('mod/scripts/search_input.lua'));setfenv(inputChunk,env);inputChunk()
 local chunk=assert(loadfile('mod/scripts/tools_search.lua'));setfenv(chunk,env);chunk()
 local s=env.OSP.ToolSearch
 s.query='camera';check(s.matches('CÂMERA avançada','other'),'accent and case folding')
@@ -17,4 +18,6 @@ key='esc';s.key();check(not s.focused and #s.query==80,'Escape keeps query')
 key='x';s.key();check(#s.query==80,'blurred field ignores keys')
 s.clear();check(s.query=='');s.focused=true;key='space';s.key();check(s.query==' ')
 key='return';s.key();check(not s.focused)
+local other=env.OSP.SearchInput.new();s.query='tools';other.query='ammo';check(not s.matches('camera','other'),'search instances keep independent queries')
+check(other.matches('Munição infinita','ammo'),'new search instance shares normalization behavior')
 print('PASS tools search normalization and capture: '..n..' assertions')

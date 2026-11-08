@@ -5,16 +5,19 @@
 function OSP.installServer()
     local players, rules, logs, tools, known = {}, {}, {}, {}, {}
     local original, sequence, refreshAt = {}, 0, 0
-    local save = "savegame.mod.osp.rules."
+    local save = "savegame.mod.osp_beta.rules."
     local lastRequest, removalSeen = {}, {}
     local policies = {}
-    local toolSave = "savegame.mod.osp.tools"
-    local profileSave = "savegame.mod.osp.players."
+    local toolSave = "savegame.mod.osp_beta.tools"
+    local profileSave = "savegame.mod.osp_beta.players."
     local profileHost
+    local flightInputClock=0
+    local strengthController=OSP.Strength.new()
+    local ammoController=OSP.Ammo.new()
     local actions = {}
     local templates = {}
     local P=OSP.Permissions
-    local templateSave="savegame.mod.osp.templates"
+    local templateSave="savegame.mod.osp_beta.templates"
     local function roster() return GetAllPlayers() end
     local function isHost(p) return IsPlayerValid(p) and IsPlayerHost(p) end
     local function playerRole(p)
@@ -36,6 +39,20 @@ function OSP.installServer()
         if HasKey(root.."noclip") then e.noclip=GetBool(root.."noclip")
         elseif HasKey(root.."fly") then e.noclip=GetBool(root.."fly") end
         e.fly=GetBool(root.."flight")
+        e.strength=GetBool(root.."strength")
+        e.ammo=GetBool(root.."ammo")
+        if HasKey(root.."ammo_restore") then e.ammoRestore=GetBool(root.."ammo_restore")
+        else e.ammoRestore=true end
+        e.strengthThrow=GetBool(root.."strength_throw")
+        for _,spec in ipairs({{"strength_force","strengthForce",OSP.strength.minForce,OSP.strength.maxForce},
+            {"strength_mass","strengthMass",OSP.strength.minMass,OSP.strength.maxMass},
+            {"strength_throw_speed","strengthThrowSpeed",OSP.strength.minThrowSpeed,OSP.strength.maxThrowSpeed}}) do
+            if HasKey(root..spec[1]) then
+                local value=GetFloat(root..spec[1])
+                if OSP.finite(value) and value>=spec[3] and value<=spec[4]
+                    and (spec[1]~="strength_mass" or value%1==0) then e[spec[2]]=value end
+            end
+        end
         for key,field in pairs({flight_speed="flySpeed",flight_boost="flyBoost",noclip_speed="noclipSpeed",noclip_boost="noclipBoost"}) do
             if HasKey(root..key) then
                 local value=GetFloat(root..key)
@@ -64,13 +81,16 @@ function OSP.installServer()
         if type(value)=="boolean" then SetBool(path,value) else SetFloat(path,value) end
     end
     local function snapshot(p)
-        local join=GetInt("savegame.mod.osp.nextjoin")+1
+        local join=GetInt("savegame.mod.osp_beta.nextjoin")+1
         if join<1 or join>2147483647 then join=1 end
-        SetInt("savegame.mod.osp.nextjoin",join)
+        SetInt("savegame.mod.osp_beta.nextjoin",join)
         local e={
             admin=false, god=nil, fly=false, noclip=nil, flying=false, freeze=false, speed=1,
             flySpeed=OSP.flight.normal,flyBoost=OSP.flight.shift,
             noclipSpeed=OSP.flight.normal,noclipBoost=OSP.flight.shift,
+            strength=false,strengthForce=OSP.strength.force,strengthMass=OSP.strength.mass,
+            strengthThrow=false,strengthThrowSpeed=OSP.strength.throwSpeed,
+            ammo=false,ammoRestore=true,
             baseSpeed=GetPlayerWalkingSpeed(p),
             baseGod=GetPlayerParam("godMode", p),
             baseFly=GetPlayerParam("flyMode", p),
@@ -95,6 +115,10 @@ function OSP.installServer()
                     vehicle=GetPlayerVehicle(p)~=0,host=isHost(p),admin=isAdmin(p),god=e.god==true or (e.god==nil and e.baseGod==true),
                     fly=e.fly==true,flying=e.flying==true,flySpeed=e.flySpeed,flyBoost=e.flyBoost,
                     noclip=e.noclip==true or (e.noclip==nil and e.baseFly==true),noclipSpeed=e.noclipSpeed,noclipBoost=e.noclipBoost,
+                    strength=e.strength,strengthForce=e.strengthForce,strengthMass=e.strengthMass,
+                    strengthThrow=e.strengthThrow,strengthThrowSpeed=e.strengthThrowSpeed,
+                    strengthHolding=strengthController:heldBody(p)~=0,
+                    ammo=e.ammo,ammoRestore=e.ammoRestore,
                     freeze=e.freeze,speed=e.speed,role=playerRole(p).id,permissions=OSP.copy(playerRole(p).permissions),profileReady=e.profile~=nil,profileChallenge=e.challenge}
             end
         end
@@ -123,6 +147,8 @@ function OSP.installServer()
         ClientCall(actor,"client.ospResult",ok,code,details or {},requestId)
     end
     local function clearPlayer(p)
+        strengthController:remove(p)
+        ammoController:remove(p)
         players[p]=nil
         lastRequest[p]=nil
     end
@@ -228,6 +254,7 @@ function OSP.installServer()
         for _,tool in ipairs(tools) do if tool.id==id then tool.policy=mode end end
     end
     local function moveTo(p,anchor)
+        strengthController:release(p,true)
         local t=GetPlayerTransform(anchor)
         local dest=Transform(TransformToParentPoint(t,Vec(0,0.2,-2.5)),t.rot)
         SetPlayerVehicle(0,p)
@@ -248,11 +275,11 @@ function OSP.installServer()
         e.flying=false;e.jumpAt=nil;e.flightInput=nil;e.flightInputAt=nil
     end
     local function heal(p)
-        if GetPlayerHealth(p)<=0 then stopFlight(players[p]);RespawnPlayer(p); players[p].alive=false; enforceTools(p) else SetPlayerHealth(1,p) end
+        if GetPlayerHealth(p)<=0 then ammoController:stop(p,players[p].ammoRestore==true);strengthController:release(p,true);stopFlight(players[p]);RespawnPlayer(p); players[p].alive=false; enforceTools(p) else SetPlayerHealth(1,p) end
     end
     add("heal",nil,function(_,p) heal(p) end,{target=true})
-    add("kill",nil,function(_,p) stopFlight(players[p]);SetPlayerHealth(0,p) end,{target=true})
-    add("respawn",nil,function(_,p) stopFlight(players[p]);RespawnPlayer(p); players[p].alive=false; enforceTools(p) end,{target=true})
+    add("kill",nil,function(_,p) ammoController:stop(p,players[p].ammoRestore==true);strengthController:release(p,true);stopFlight(players[p]);SetPlayerHealth(0,p) end,{target=true})
+    add("respawn",nil,function(_,p) ammoController:stop(p,players[p].ammoRestore==true);strengthController:release(p,true);stopFlight(players[p]);RespawnPlayer(p); players[p].alive=false; enforceTools(p) end,{target=true})
     add("goto",nil,function(c,p) moveTo(c,p) end,{target=true,readTarget=true,aliveCaller=true,aliveTarget=true,noSelf=true})
     add("bring",nil,function(c,p) moveTo(p,c) end,{target=true,aliveCaller=true,aliveTarget=true,noSelf=true})
     add("eject",nil,function(_,p) SetPlayerVehicle(0,p) end,{target=true})
@@ -291,10 +318,38 @@ function OSP.installServer()
     add("noclip_boost",function(v) return numberIn(v,OSP.flight.min,OSP.flight.max) end,function(c,p,v)
         players[p].noclipBoost=v;saveField(c,p,"noclip_boost",v)
     end,{target=true,persistent=true})
+    add("strength",boolean,function(c,p,v)
+        local e=players[p]
+        e.strength=v;e.strengthInput=nil;e.strengthInputAt=nil
+        if not v then strengthController:release(p,true) end
+        saveField(c,p,"strength",v)
+    end,{target=true,persistent=true})
+    for _,spec in ipairs({{"strength_force","strengthForce",OSP.strength.minForce,OSP.strength.maxForce},
+        {"strength_mass","strengthMass",OSP.strength.minMass,OSP.strength.maxMass},
+        {"strength_throw_speed","strengthThrowSpeed",OSP.strength.minThrowSpeed,OSP.strength.maxThrowSpeed}}) do
+        local action,field,lo,hi=unpack(spec)
+        add(action,function(v) return numberIn(v,lo,hi) and (action~="strength_mass" or v%1==0) end,function(c,p,v)
+            players[p][field]=v;saveField(c,p,action,v)
+        end,{target=true,persistent=true})
+    end
+    add("strength_throw",boolean,function(c,p,v)
+        players[p].strengthThrow=v;saveField(c,p,"strength_throw",v)
+    end,{target=true,persistent=true})
+    add("ammo",boolean,function(c,p,v)
+        local e=players[p]
+        e.ammo=v
+        if not v then ammoController:stop(p,e.ammoRestore==true) end
+        saveField(c,p,"ammo",v)
+    end,{target=true,persistent=true})
+    add("ammo_restore",boolean,function(c,p,v)
+        players[p].ammoRestore=v
+        saveField(c,p,"ammo_restore",v)
+    end,{target=true,persistent=true})
     add("freeze",boolean,function(c,p,v)
         players[p].freeze=v
         stopFlight(players[p])
         if v then
+            strengthController:release(p,true)
             SetPlayerVehicle(0,p); players[p].anchor=GetPlayerTransform(p)
             SetPlayerVelocity(Vec(0,0,0),p)
         else players[p].anchor=nil end
@@ -305,12 +360,12 @@ function OSP.installServer()
     end,{target=true,persistent=true})
     local function assignRole(c,p,id)
         players[p].role=id;players[p].admin=id=="admin"
-        saveField(c,p,"admin",id=="admin")
+        SetBool(profileSave..players[p].profile..".admin",id=="admin")
         SetString(profileSave..players[p].profile..".role",id)
     end
-    add("admin",boolean,function(c,p,v) assignRole(c,p,v and "admin" or "guest") end,{target=true,host=true,noHost=true,persistent=true})
+    add("admin",boolean,function(c,p,v) assignRole(c,p,v and "admin" or "guest") end,{target=true,host=true,noHost=true,persistent=true,profileRequired=true})
     add("role_assign",function(v) return type(v)=="table" and type(v.id)=="string" and P.resolve(v.id,templates).id==v.id end,
-        function(c,p,v) assignRole(c,p,v.id) end,{target=true,host=true,noHost=true,persistent=true})
+        function(c,p,v) assignRole(c,p,v.id) end,{target=true,noHost=true,persistent=true,profileRequired=true})
     local function loadTemplates()
         templates={}
         for _,id in ipairs(ListKeys(templateSave)) do
@@ -348,7 +403,7 @@ function OSP.installServer()
         end
         SetInt(path.."permissions.fly",role.permissions.noclip)
         return {affected=1,skipped=0,template=OSP.copy(role)}
-    end,{host=true,guard=function(v)
+    end,{guard=function(v)
         if (v.id=="" and v.version~=0) or (v.id~="" and templates[v.id].version~=v.version) then return "conflict" end
         local count=0
         for id,role in pairs(templates) do
@@ -367,8 +422,10 @@ function OSP.installServer()
             end
             return {affected=1,skipped=0,deleted=v.id}
         end,
-        {host=true,guard=function(v) if templates[v.id].version~=v.version then return "conflict" end end})
+        {guard=function(v) if templates[v.id].version~=v.version then return "conflict" end end})
     add("reset_player",nil,function(_,p)
+        ammoController:stop(p,players[p].ammoRestore==true)
+        strengthController:release(p,true)
         local e=players[p]
         ClearKey(profileSave..e.profile)
         -- Keep the assigned identity, so reconnecting does not allocate a new one.
@@ -376,10 +433,14 @@ function OSP.installServer()
         e.admin=false;e.role="guest";e.god=nil;e.fly=false;e.noclip=nil;stopFlight(e);e.freeze=false;e.anchor=nil;e.speed=1;e.toolRules={}
         e.flySpeed=OSP.flight.normal;e.flyBoost=OSP.flight.shift
         e.noclipSpeed=OSP.flight.normal;e.noclipBoost=OSP.flight.shift
+        e.strength=false;e.strengthForce=OSP.strength.force;e.strengthMass=OSP.strength.mass
+        e.strengthThrow=false;e.strengthThrowSpeed=OSP.strength.throwSpeed
+        e.ammo=false;e.ammoRestore=true
+        e.strengthInput=nil;e.strengthInputAt=nil
         SetPlayerParam("godMode",e.baseGod,p);SetPlayerParam("flyMode",e.baseFly,p)
         for id,on in pairs(e.toolBase) do if known[id] then applyTool(p,id,on) end end
         enforceTools(p)
-    end,{target=true,host=true,persistent=true})
+    end,{target=true,persistent=true,profileRequired=true})
     local function each(c,fn)
         local d={affected=0,skipped=0}
         for _,p in ipairs(roster()) do
@@ -431,13 +492,13 @@ function OSP.installServer()
         function(_,_,v)
             setPolicy(v.id,v.mode)
             return {affected=#roster(),skipped=0,tools=1}
-        end,{host=true})
+        end)
     add("tool_policy_bulk",function(v) return type(v)=="table" and category(v.category) and mode(v.mode) end,
         function(_,_,v)
             local ids=chooseCategory(v.category)
             for _,id in ipairs(ids) do setPolicy(id,v.mode) end
             return {affected=#ids>0 and #roster() or 0,skipped=0,tools=#ids}
-        end,{host=true})
+        end)
     local function selectionArg(v,policy)
         if type(v)~="table" or not category(v.category) then return false end
         local allowed=policy and {category=true,ids=true,mode=true} or {category=true,ids=true,enabled=true}
@@ -478,7 +539,7 @@ function OSP.installServer()
     add("tool_policy_selection",function(v) return selectionArg(v,true) end,function(_,_,v)
         for _,id in ipairs(v.ids) do setPolicy(id,v.mode) end
         return {affected=#roster(),skipped=0,tools=#v.ids}
-    end,{host=true})
+    end)
     local function ruleArg(v)
         if type(v)~="table" then return false end
         if v.key=="regen" then return boolean(v.value) end
@@ -512,17 +573,20 @@ function OSP.installServer()
         restoreRules()
         for _,key in ipairs({"time","rain","fog","regen"}) do ClearKey(save..key) end
     end)
-    add("restart",nil,function() Restart() end,{host=true})
+    add("restart",nil,function() Restart() end)
     add("announce",cleanText,function(c,_,v) ClientCall(0,"client.ospAnnouncement",GetPlayerName(c),v) end)
 
     function server.init()
         players,rules,logs,lastRequest,removalSeen={},{},{},{},{}
         sequence,refreshAt=0,0
-        profileHost=GetString("savegame.mod.osp.hostid")
+        flightInputClock=GetTime()
+        strengthController=OSP.Strength.new()
+        ammoController=OSP.Ammo.new()
+        profileHost=GetString("savegame.mod.osp_beta.hostid")
         if not profileHost:match("^[0-9a-f]+$") or #profileHost~=32 then
             profileHost=""
             for _=1,4 do profileHost=profileHost..string.format("%08x",GetRandomInt(0,2147483647)) end
-            SetString("savegame.mod.osp.hostid",profileHost)
+            SetString("savegame.mod.osp_beta.hostid",profileHost)
         end
         original={rain=GetEnvironmentProperty("rain"),fog={GetEnvironmentProperty("fogparams")}}
         loadTemplates(); loadPolicies(); syncPlayers(); refreshTools()
@@ -535,6 +599,28 @@ function OSP.installServer()
             end
         end
         publish()
+    end
+    local administrative={role_assign=true,role_save=true,role_delete=true,reset_player=true,
+        tool_policy=true,tool_policy_bulk=true,tool_policy_selection=true,restart=true}
+    local function administrationGuard(actor,action,target,arg)
+        if isHost(actor) then return end
+        local ceiling=playerRole(actor).permissions
+        local current,proposed,templateId
+        if action=="role_assign" then
+            current=playerRole(target).permissions
+            proposed=P.resolve(arg.id,templates).permissions
+        elseif action=="role_save" then
+            proposed=P.normalize(arg.permissions)
+            if arg.id~="" then current=templates[arg.id].permissions;templateId=arg.id end
+        elseif action=="role_delete" then
+            current=templates[arg.id].permissions;templateId=arg.id
+        elseif action=="reset_player" then current=playerRole(target).permissions end
+        if templateId then
+            for _,p in ipairs(roster()) do
+                if isHost(p) and playerRole(p).id==templateId then return "protected" end
+            end
+        end
+        if current and not P.within(current,ceiling) or proposed and not P.within(proposed,ceiling) then return "denied" end
     end
     function server.ospCommand(actor,action,target,arg,requestId,targetContext)
         if not OSP.finite(actor) or not IsPlayerValid(actor) then return end
@@ -550,6 +636,9 @@ function OSP.installServer()
         if not isAdmin(actor) then deny("denied"); return end
         if not def then deny("invalid"); return end
         if def.host and not isHost(actor) then deny("denied"); return end
+        if administrative[action] and not isHost(actor) and not P.allows(playerRole(actor).permissions,action,target,arg,actor) then
+            deny("denied");return
+        end
         if def.aliveCaller and GetPlayerHealth(actor)<=0 then deny("unavailable"); return end
         if def.target then
             if not OSP.finite(target) or not IsPlayerValid(target) or not players[target] then deny("unavailable"); return end
@@ -567,9 +656,9 @@ function OSP.installServer()
                 or targetContext.targetJoin~=players[target].challenge then deny("unavailable");return end
             if def.aliveTarget and GetPlayerHealth(target)<=0 then deny("unavailable"); return end
             if isHost(target) and (def.noHost or (not isHost(actor) and not def.readTarget)) then deny("protected"); return end
-            if def.persistent and isHost(actor) and not players[target].profile then deny("unavailable"); return end
+            if (def.profileRequired or def.persistent and isHost(actor)) and not players[target].profile then deny("unavailable"); return end
         end
-        local conditional=type(arg)=="table" and (action=="god" or action=="fly" or action=="noclip")
+        local conditional=type(arg)=="table" and (action=="god" or action=="fly" or action=="noclip" or action=="strength" or action=="ammo")
         local expected
         if conditional then
             if actor~=target or type(arg.expected)~="boolean" or type(arg.value)~="boolean" or arg.expected==arg.value then deny("invalid");return end
@@ -581,6 +670,8 @@ function OSP.installServer()
             if not valid then deny(validationCode or "invalid"); return end
         end
         if not isHost(actor) and not P.allows(playerRole(actor).permissions,action,target,arg,actor) then deny("denied");return end
+        local administrationCode=administrationGuard(actor,action,target,arg)
+        if administrationCode then deny(administrationCode);return end
         if def.noSelf and actor==target then deny("invalid");return end
         if def.guard then local code=def.guard(arg); if code then deny(code);return end end
         if conditional then
@@ -588,6 +679,8 @@ function OSP.installServer()
             local current
             if action=="god" then current=e.god==true or (e.god==nil and e.baseGod==true)
             elseif action=="noclip" then current=e.noclip==true or (e.noclip==nil and e.baseFly==true)
+            elseif action=="strength" then current=e.strength==true
+            elseif action=="ammo" then current=e.ammo==true
             else current=e.fly==true end
             if current~=expected then deny("state_changed");return end
         end
@@ -603,7 +696,9 @@ function OSP.installServer()
         publish(); reply(actor,ok,code,details,requestId)
     end
     local function flightInputAllowed(p,e)
-        local age=e.flightInputAt and GetTime()-e.flightInputAt
+        -- GetTime is wall time in tick but simulation time in update.
+        -- Use the tick clock for both receipt and expiry, including physics steps.
+        local age=e.flightInputAt and flightInputClock-e.flightInputAt
         local fresh=age~=nil and age>=0 and age<=0.5
         if fresh and e.flightInput==false then return false end
         if GetPlayerCanUseTool(p) then return true end
@@ -620,7 +715,21 @@ function OSP.installServer()
         if not e or challenge~=e.challenge or not e.fly
             or sequence<=(e.flightInputSequence or 0) then return end
         -- This transient input report grants no ability, role or saved setting.
-        e.flightInputSequence=sequence;e.flightInput=allowed;e.flightInputAt=GetTime()
+        e.flightInputSequence=sequence;e.flightInput=allowed;e.flightInputAt=flightInputClock
+    end
+    local function strengthInputAllowed(p,e)
+        local age=e.strengthInputAt and flightInputClock-e.strengthInputAt
+        return e.strengthInput==true and age~=nil and age>=0 and age<=0.5
+            and GetPlayerScreen(p)==0 and not IsPlayerDisabled(p)
+    end
+    function server.ospStrengthInput(actor,namespace,challenge,sequence,allowed)
+        if not OSP.finite(actor) or not IsPlayerValid(actor) or namespace~=profileHost
+            or type(allowed)~="boolean" or not OSP.finite(sequence)
+            or sequence<1 or sequence>2147483647 or sequence%1~=0 then return end
+        local e=players[actor]
+        if not e or challenge~=e.challenge or not e.strength
+            or sequence<=(e.strengthInputSequence or 0) then return end
+        e.strengthInputSequence=sequence;e.strengthInput=allowed;e.strengthInputAt=flightInputClock
     end
     local function updatePlayer(p,readInput)
         local e=players[p]
@@ -632,7 +741,7 @@ function OSP.installServer()
             if e.freeze then e.anchor=GetPlayerTransform(p) end
         end
         e.alive=alive
-        if not alive then stopFlight(e);return end
+        if not alive then ammoController:stop(p,e.ammoRestore==true);stopFlight(e);return end
         if e.god~=nil then SetPlayerParam("godMode",e.god,p) end
         if e.noclip~=nil then SetPlayerParam("flyMode",e.noclip,p) end
         if e.speed~=1 and not e.noclip then SetPlayerParam("walkingSpeed",e.baseSpeed*e.speed,p) end
@@ -686,9 +795,9 @@ function OSP.installServer()
                 if p~=actor and other.profile==id then valid=false end
             end
             if not valid then
-                local nextId=GetInt("savegame.mod.osp.nextprofile")+1
+                local nextId=GetInt("savegame.mod.osp_beta.nextprofile")+1
                 if nextId<1 or nextId>2147483647 then return end
-                SetInt("savegame.mod.osp.nextprofile",nextId)
+                SetInt("savegame.mod.osp_beta.nextprofile",nextId)
                 id="p"..nextId
                 SetBool(profileSave..id..".exists",true)
             end
@@ -699,6 +808,7 @@ function OSP.installServer()
         ClientCall(actor,"client.ospIdentity",profileHost,e.challenge,e.profile)
     end
     function server.tick()
+        flightInputClock=GetTime()
         syncPlayers()
         local refresh=GetTime()>=refreshAt
         if refresh then refreshAt=GetTime()+0.2;refreshTools() end
@@ -713,12 +823,18 @@ function OSP.installServer()
             end
         end
         if rules.time~=nil then SetTimeScale(rules.time) end
-        for _,p in ipairs(roster()) do updatePlayer(p,true) end
+        for _,p in ipairs(roster()) do
+            updatePlayer(p,true)
+            local e=players[p]
+            ammoController:tick(p,e)
+            strengthController:tick(p,e,strengthInputAllowed(p,e))
+        end
         if refresh then publish() end
     end
     function server.update(dt)
         for _,p in ipairs(roster()) do
             local e=players[p]
+            if e then strengthController:update(p,e,dt,strengthInputAllowed(p,e)) end
             if e and e.flying then
                 if not e.fly or e.noclip or e.freeze or GetPlayerHealth(p)<=0 or GetPlayerVehicle(p)~=0 then stopFlight(e)
                 else
@@ -756,6 +872,8 @@ function OSP.installServer()
         for _,p in ipairs(roster()) do
             local e=players[p]
             if e then
+                ammoController:stop(p,e.ammoRestore==true)
+                strengthController:release(p,false)
                 SetPlayerParam("godMode",e.baseGod,p)
                 SetPlayerParam("flyMode",e.baseFly,p)
             end

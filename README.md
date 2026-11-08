@@ -1,10 +1,20 @@
-# Open Session Panel
+# Open Session Panel Beta
 
-An independently written Teardown administration panel for solo and multiplayer. Completed version **1.4.0**, by **Luiz-AVcruz**, uses Lua 5.1 and multiplayer scripting version 2. English is the default; Brazilian Portuguese is available.
+An independently written Teardown administration panel for solo and multiplayer. Development version **1.5.0**, by **Luiz-AVcruz**, uses Lua 5.1 and multiplayer scripting version 2. English is the default; Brazilian Portuguese is available.
+
+This is the separate **beta** branch and Workshop item. The original release and its `main` branch remain unchanged. Beta preferences, player profiles, rules and roles use `savegame.mod.osp_beta.*`; no game saves or preferences were copied. Keep only one of the two panels enabled at a time.
+
+## Appearance
+
+**Appearance** is a personal tab available to every player, with collapsible Colors and Background sections. It contains the existing palettes and RGB editor, an optional Graphite palette and main-background opacity from 65% to 100%. Classic and 98% opacity remain the defaults. Changes apply locally and persist. Header/sidebar and popup surfaces keep their own opacity. Buttons use the original OSP styling. **Restore default appearance** restores these defaults without deleting custom RGB values; **Restore default palette** changes only the palette. Before loading a map, use **Mod Manager → Options → Appearance**, whose content scrolls above a fixed Back button.
 
 ## Panel and controls
 
-Open with **P** or the pause menu. In **Settings → Panel tabs**, hide tabs you do not use; the remaining tabs move into the freed spaces. Settings always stays visible. The same controls are available from the Mod Manager Options, and choices are saved locally across missions and restarts. **Show all tabs** restores visibility without changing session rules or permissions. The centered panel adapts its layout to the available canvas instead of enlarging a fixed screen. Players, Session, Tools and Activity are administrative areas. **Settings** contains language, shortcut and the color palette; **About** contains version, license and source information. Both remain available to ordinary guests.
+Open with **P** or the pause menu. In **Settings → Panel tabs**, hide tabs you do not use; the remaining tabs move into the freed spaces. Settings always stays visible. The same controls are available from the Mod Manager Options, and choices are saved locally across missions and restarts. **Show all tabs** restores visibility without changing session rules or permissions. The centered panel adapts its layout to the available canvas instead of enlarging a fixed screen. Players, Session, Tools and Activity are administrative areas. **Settings** contains language, shortcut, panel mode and tab visibility; **About** contains version, license and source information. Both remain available to ordinary guests.
+
+**Settings → Panel mode** selects Automatic, Singleplayer or Multiplayer. Automatic uses the native session type, including multiplayer hosts who are alone. Singleplayer keeps your player controls and global tools while hiding multiplayer controls. You can override detection locally; this changes presentation without granting permissions or erasing saved rules. Before loading a map, the selector is in **Mod Manager → Options → Interface**.
+
+Settings sections can be collapsed by clicking their headers. All start collapsed, with graphical disclosure arrows; your choices persist locally. **Reset personal preferences** in Mod Manager Options collapses them again.
 
 Only the host can save player options and global tool policies, grant access, restart the map or directly change the host. A delegate may use the host as a teleport destination but cannot move or change the host. Bulk actions skip the host when issued by a delegate.
 
@@ -14,19 +24,33 @@ In **Players**, **Go to** and **Bring here** require selecting another player; b
 
 Buttons use their full visible rectangle and react on press. Holding or releasing does not repeat an action. Gameplay commands show immediate pending feedback and still wait for the server's acknowledgement.
 
+Numeric fields combine a slider and editable number. Click the number to position the cursor and select/edit text, or drag the bar to adjust. Enter or clicking outside applies valid text; Escape cancels. Slider changes apply when you release the mouse. Values stay within each setting's range. Ctrl+A selects all; clipboard shortcuts are unavailable. The same controls are available in Mod Manager Options.
+
+## Super strength
+
+**Player → Super strength** enables carrying heavier loose objects with the normal Grab button. Its **...** popup sets force (1–20×), maximum mass (1–100,000 in the game's mass scale) and optional throwing. Throwing starts off; when enabled, Use tool throws once at the configured speed (1–100 m/s). Force defaults to 1×, mass to 5,000 and throw speed to 20 m/s. Configuring these values does not enable the ability.
+
+Your shortcut has no default key. Set it in your own Super strength popup or in **Mod Manager → Options → Personal shortcuts**. Host choices persist per player; delegated changes remain temporary and use the Super strength role permission. Disabling the ability returns to normal grabbing. The temporary grip releases on death, vehicle entry, UI/context loss or an invalid object, and objects are never carried across missions. Held objects keep their mass and collisions; the server excludes occupied vehicles and player bodies. Native physics and multiplayer acceptance still require testing in Teardown.
+
+## Infinite ammo
+
+**Players → Infinite ammo** supplies the equipped, enabled tool using the game's standard ammo counter. It starts off. Open **...** to choose **Restore ammo when disabling** (on by default) and an optional personal shortcut. Host choices persist per player; delegated changes are temporary and follow the Infinite ammo role permission.
+
+Restoration returns each affected tool to the amount captured before its first refill. Turning restoration off leaves the supplied stock when the ability ends. Death or an OSP respawn ends the current stock snapshot; the ability stays granted and starts a new snapshot after respawning. Original amounts above 9,999 are preserved. Tools with private ammo systems may be unaffected. The mod does not enable blocked tools, change campaign unlocks or modify other mods. Snapshot data is temporary; stopping the mod abruptly cannot guarantee restoration.
+
 ## Panel roles and permissions
 
-The host's **Permissions** tab assigns a role to each player. Built-in roles are Guest, Self only, Helper, Moderator and Administrator. **Self only** offers healing, respawning, leaving vehicles, invincibility, Fly, Noclip, speed and tools for the caller; going to another player moves only the caller. Other players and the host are protected from changes by that role.
+The **Permissions** tab assigns a role to each player. It is available to the host and to delegates with role-management permissions. Built-in roles are Guest, Self only, Helper, Moderator and Administrator. **Self only** offers healing, respawning, leaving vehicles, invincibility, Fly, Noclip, speed, Super strength, infinite ammo and tools for the caller; going to another player moves only the caller. Other players and the host are protected from changes by that role.
 
-The default view selects a player and role and shows a read-only permissions preview. **Create custom role** copies the selected role into a separate editor; **Edit custom role** opens that editor for an existing custom role. Name, capability, save and delete controls appear only in the editor. Saving returns to assignment with the saved role selected; discarding returns without writing changes. Up to **16 custom roles** are supported, with ASCII names of up to 40 characters. Targeted actions allow **Blocked / Self only / Any player**. Bulk actions, announcements, each session rule and resetting all session rules have separate on/off permissions. Built-ins are read-only; save a custom copy before assigning it.
+The default view selects a player and uses a dropdown to choose a role, with a read-only permissions preview. **Create custom role** copies the selected role into a separate editor; **Edit custom role** opens that editor for an existing custom role. Name, capability, save and delete controls appear only in the editor. Saving returns to assignment with the saved role selected; discarding returns without writing changes. Up to **16 custom roles** are supported, with ASCII names of up to 40 characters. Targeted actions allow **Blocked / Self only / Any player**. Bulk actions, announcements, each session rule and resetting all session rules have separate on/off permissions. Built-ins are read-only; save a custom copy before assigning it. Permissions are grouped into collapsible categories, closed initially, with a separate search by name, ID or category. Search does not open groups or discard hidden values. Scope choices are explicit buttons. **Expand** offers the same assignment, copy, edit and delete functions, with management beside the permission list on wide screens and a scrolling layout on smaller ones; X or clicking outside closes it and preserves the draft. Save/discard remain explicit.
 
 Assignments and custom roles are saved on the host across missions and restarts. Editing a role changes access for all linked players on their next command. Deleting it revokes those assignments, including offline profiles. Guests retain Settings and About. Existing full-admin grants remain Administrator grants; the quick admin button still grants full delegated access or revokes panel access.
 
-Granting access, managing roles, resetting saved player options, restarting the map, changing the host and setting global tool policies remain host-only. A role cannot grant those powers. These permissions govern panel commands; they do not restrict ordinary actions in the game world.
+**Admin** separates role assignment, custom-role creation, editing and deletion, global tool policies, player-option reset and map restart. Existing roles receive none of these new powers automatically. The host can grant them in a custom role. Delegates can only manage roles whose permissions fit within their own, and cannot grant a higher scope or change the host's access. Role assignments, explicit player resets and global policies persist; ordinary delegated player changes remain temporary. These permissions govern panel commands; they do not restrict ordinary actions in the game world.
 
 ## Player options between missions
 
-The host's choices for a player are saved automatically: tool access, invincibility, Fly, Noclip, freeze, speed and permission role. They are restored on a new map or reconnect. Freeze uses the player's new spawn position. Healing, killing, respawning and teleporting remain one-time actions. Player changes made by a delegate are temporary and do not overwrite the host's saved choices. Granted session-rule changes are saved separately and persist.
+The host's choices for a player are saved automatically: tool access, invincibility, Fly, Noclip, freeze, speed, Super strength, infinite ammo, ammo restoration and permission role. They are restored on a new map or reconnect. Freeze uses the player's new spawn position. Healing, killing, respawning and teleporting remain one-time actions. Player changes made by a delegate are temporary and do not overwrite the host's saved choices. Granted session-rule changes are saved separately and persist.
 
 The public game API does not expose a persistent account identity to mods. This panel assigns its own profile and stores its reference on the client, separately for each host. It does not identify players by their name or recyclable session number. A new or missing client profile starts without saved permissions; copied profiles are not authenticated identities. Keeping both the host's saved mod data and the client's profile reference is required. This mechanism supports normal clients, not anti-cheat enforcement.
 
@@ -46,7 +70,7 @@ Player controls show contextual help after a 0.6-second hover, including reasons
 
 ## Personal shortcuts
 
-The Mod Manager **Options** keep the complete list of optional keys for **Invincibility**, **Fly** and **Noclip**, all unassigned by default. During a mission, set a key beside its action in **Players**: select yourself and open the **...** popup beside Invincibility, Fly or Noclip. Invincibility has a small shortcut popup; Fly and Noclip keep their normal and Shift speed fields and show your shortcut in the same popup. That field appears only when you have selected yourself. When configuring another player's Fly or Noclip, the popup remains speed-only. The in-game Settings page no longer repeats the shortcut list.
+The Mod Manager **Options** keep the complete list of optional keys for **Invincibility**, **Fly**, **Noclip**, **Super strength** and **Infinite ammo**, all unassigned by default. During a mission, set a key beside its action in **Players**: select yourself and open the **...** popup beside Invincibility, Fly, Noclip, Super strength or Infinite ammo. Invincibility has a small shortcut popup; Fly and Noclip keep their normal and Shift speed fields and show your shortcut in the same popup. That field appears only when you have selected yourself. When configuring another player's Fly or Noclip, the popup remains speed-only. The in-game Settings page no longer repeats the shortcut list.
 
 These keys always act on your own player while the panel is closed, regardless of the selected player. They remain available while holding objects or using tools in normal gameplay. Fly grants/removes the ability, keeping double Jump to start/stop active flight. Keys are local preferences across hosts and missions. Clear a binding beside its action or use Options to clear the group; personal recovery also clears the group.
 
@@ -54,27 +78,27 @@ The panel rejects internal duplicate keys and collisions with its opening shortc
 
 ## Numeric values
 
-Click the value for movement speed, time scale, rain, fog or an RGB channel to type it. Enter applies; clicking another control discards the unfinished edit. Values are rounded to the field precision and clamped to its range: player speed 0.5–3, Fly/Noclip speeds 0.5–100, time scale 0.1–2, rain 0–1, fog 10–1000 m and RGB 0–255. Decimal points and commas are accepted. The +/- buttons and RGB bars remain available. Commands still require the appropriate role permission.
+Click the value for movement speed, time scale, rain, fog or an RGB channel to type it. Enter or clicking outside applies valid text; Escape cancels. Values are rounded to the field precision and clamped to its range: player speed 0.5–3, Fly/Noclip speeds 0.5–100, time scale 0.1–2, rain 0–1, fog 10–1000 m and RGB 0–255. Decimal points and commas are accepted. The +/- buttons and RGB bars remain available. Commands still require the appropriate role permission.
 
 ## Settings before loading a map
 
-Select **Open Session Panel → Options** in the Mod Manager. This separate menu runs without a map, player or server. It changes language, the panel shortcut and the color palette using the same saved preferences as the in-game panel. **Restore personal preferences** returns to English, P and the Classic palette.
+Select **Open Session Panel Beta → Options** in the Mod Manager. This separate menu runs without a map, player or server. It changes language, the panel shortcut and the color palette using the same saved preferences as the in-game panel. **Restore personal preferences** returns to English, P and the Classic palette.
 
 **Reset saved host options on this computer** requires confirmation and removes this computer's saved session rules, tool policies and player choices, including permission assignments. It keeps custom role definitions, personal preferences, the host identity, profile identity references and profile slots. It does not modify another host or native campaign unlocks. Changes take effect on the next map load.
 
-The install archive uses the folder **Open Session Panel**, with spaces, for the local Mod Manager entry. Keep a single local copy enabled. Renaming an older local folder changes its settings namespace, so existing local preferences must be transferred with the game closed. Workshop updates keep their existing item identity. The Workshop ID remains in the installed `id.txt`; do not delete it when updating.
+The install archive uses the folder **Open Session Panel Beta**, with spaces, for the local Mod Manager entry. Publish it as a new Workshop item, restricted to friends, without an `id.txt`; do not reuse the original item's ID. The original item stays on `main` with its existing settings. Enable only one panel at a time.
 
 ## Color palettes
 
-In the in-game **Settings**, choose Classic, Ocean, Forest, Violet, Light or Custom. Before loading a map, open **Options → Color palette** in the Mod Manager. Both screens share the same personal preference, applied immediately and saved between missions.
+In the in-game **Appearance → Color palette**, choose Classic, Ocean, Forest, Violet, Light, Graphite or Custom. Before loading a map, open **Options → Appearance** in the Mod Manager. Both screens share the same personal preference, applied immediately and saved between missions.
 
 Custom lets you choose each interface color with the previous/next role arrows, drag its RGB bars or use the +/- buttons for exact one-step adjustments. The hex value and color swatch are shown alongside the role. Background, header/sidebar, buttons, hover, selection, dividers, primary/secondary/disabled text, accent, danger and success are editable. Switching presets keeps the custom colors. A low-contrast warning helps identify hard-to-read combinations. **Restore default palette** has fixed contrast, and the main Options page also keeps **Restore personal preferences** readable regardless of the palette; both return to Classic without deleting your custom colors.
 
 ## Install and develop
 
-The **1.4.0 development bundle is closed**. Any later corrections will be handled as hotfixes; no next version number has been chosen.
+The original **1.4.0 release is complete**. This separate Beta branch carries its **1.5.0** development bundle.
 
-Players do not need Python or LuaJIT. Extract `dist/OpenSessionPanel-1.4.0.zip` as its own folder in Teardown's local mods directory and enable **Open Session Panel**. After updating an already loaded mod, reload the map to load the new scripts. Keep only one administration panel active while testing conflicting gameplay controls.
+Players do not need Python or LuaJIT. Extract `dist/OpenSessionPanelBeta-1.5.0.zip` as its own folder in Teardown's local mods directory and enable **Open Session Panel Beta**. After updating an already loaded mod, reload the map to load the new scripts. Keep only one administration panel active while testing conflicting gameplay controls.
 
 Before disabling or removing the mod, restore session/tool defaults as desired, then reload the map to clear temporary effects. A global mod's `server.destroy` callback is not guaranteed cleanup. Remove only this mod's folder; no game files or campaign saves are included.
 
@@ -85,9 +109,9 @@ python3 tools/check.py
 python3 tools/package.py
 ```
 
-Packaging creates an install ZIP, complete matching source ZIP and `SHA256SUMS`. Both contain readable source and licensing notices; there is no compilation or minification. Source repository: [Luiz-AVcruz/Open-Session-Panel-OSP](https://github.com/Luiz-AVcruz/Open-Session-Panel-OSP).
+Packaging creates `OpenSessionPanelBeta-1.5.0.zip`, `OpenSessionPanelBeta-1.5.0-source.zip` and `SHA256SUMS`. Both contain readable source and licensing notices; there is no compilation or minification. Source repository: [Luiz-AVcruz/Open-Session-Panel-OSP, beta branch](https://github.com/Luiz-AVcruz/Open-Session-Panel-OSP/tree/beta).
 
-Workshop assets are included in both archives. `preview.jpg` (512 × 512, below 1 MB) and `preview-menu.png` (512 × 292) use the logo supplied by Luiz-AVcruz, fitted with black padding. `WORKSHOP-DESCRIPTION.txt` preserves the author's complete description and AI disclosure with paragraph breaks; `info.txt` contains the same words on one line for its key/value format. Editing the Steam page does not automatically update the local metadata file. Before publishing an update, check the description displayed by the game against this text. To replace the thumbnail, replace `preview.jpg` and use **Publish update**, preserving the existing `id.txt`. Packaging validates preview headers/size/dimensions and matching description content.
+Workshop assets are included in both archives. `preview.jpg` (512 × 512, below 1 MB) and `preview-menu.png` (512 × 292) use the logo supplied by Luiz-AVcruz, fitted with black padding. `WORKSHOP-DESCRIPTION.txt` keeps the complete Steam description and one-paragraph AI disclosure; `info.txt` contains only a short Mod Manager summary, without the source link or disclosure. The descriptions are validated independently as nonempty. The new Workshop item receives its own ID when the author publishes it; no ID is stored in this project or its archives.
 
 ## Verification and limits
 
@@ -103,12 +127,24 @@ Original code is **AGPL-3.0-or-later**, with a narrow additional permission for 
 
 Painel de administração por **Luiz-AVcruz**, com inglês padrão e opção de português brasileiro. Abra com **P** ou pelo menu de pausa. Configurações e Sobre são áreas separadas. O mod usa o HUD nativo do jogo.
 
+**Configurações → Modo do painel** permite escolher Automático, Singleplayer ou Multiplayer. O modo automático usa o tipo da sessão, mesmo quando só o host está no multiplayer. Singleplayer mantém seus controles e as ferramentas globais, ocultando os controles de multiplayer. A escolha é local e persistente, sem conceder permissões ou apagar regras. Antes de carregar um mapa, use **Gerenciador de mods → Options → Interface**.
+
+A aba **Aparência** reúne cores e opacidade do fundo (65–100%). O preset Grafite é opcional; Clássico e 98% de opacidade continuam como padrão. As mesmas opções ficam nas Options do gerenciador, sem mapa.
+
+Os blocos de Configurações podem ser recolhidos pelo cabeçalho. Todos começam recolhidos, com ícones gráficos de seta, e suas escolhas ficam salvas localmente. A restauração de preferências pessoais nas Options do gerenciador recolhe todos os blocos.
+
+Os campos numéricos combinam slider e número editável. Clique no número para posicionar o cursor, selecionar e editar trechos, ou arraste a barra para ajustar. Enter ou clique fora aplica o texto válido; Esc cancela. O slider aplica ao soltar o mouse, respeitando a faixa de cada opção. Ctrl+A seleciona tudo; os atalhos de clipboard não estão disponíveis. O mesmo controle aparece nas Options do gerenciador.
+
 Em **Jogadores**, **Ir até** e **Trazer aqui** exigem outro alvo; os dois controles ficam desabilitados para si mesmo. Delegados ainda podem ir até o host, e **Trazer todos** continua excluindo quem chamou.
+
+**Jogador → Superforça** permite carregar objetos soltos pelo botão Agarrar. O botão **...** configura força (1–20×), massa máxima (1–100.000 na escala do jogo) e arremesso opcional, inicialmente desligado. Com arremesso ligado, Usar ferramenta lança uma vez à velocidade escolhida (1–100 m/s). O atalho pessoal começa sem tecla e também pode ser configurado nas Options. Os padrões são força 1×, massa 5.000 e velocidade de arremesso 20 m/s. Configurar não ativa a habilidade.
 
 As escolhas do host por jogador persistem entre missões: ferramentas, invencibilidade, Fly, Noclip, congelamento, velocidade e role de acesso. O perfil é atribuído pelo mod e guardado no cliente para aquele host; não depende do nome ou número temporário da sessão. Alterações individuais de delegados continuam temporárias; regras de sessão autorizadas podem persistir. **Jogadores → Restaurar opções do jogador** limpa as escolhas pessoais e mantém as regras gerais.
 
-Os atalhos pessoais de **Invencibilidade**, **Fly** e **Noclip** começam sem tecla atribuída. A lista completa fica em **Open Session Panel → Options** no gerenciador de mods. Durante a missão, selecione a si mesmo em **Jogadores** e abra **...** ao lado da ação para configurar o atalho. Fly e Noclip mantêm seus campos de velocidade nesse popup; para outro jogador, esses popups mostram apenas as velocidades. As teclas são locais e sempre agem no próprio jogador com o painel fechado. Os avisos se ajustam ao texto, quebram mensagens longas e descem enquanto um anúncio de sessão está ativo.
+Os atalhos pessoais de **Invencibilidade**, **Fly** e **Noclip** começam sem tecla atribuída. A lista completa fica em **Open Session Panel Beta → Options** no gerenciador de mods. Durante a missão, selecione a si mesmo em **Jogadores** e abra **...** ao lado da ação para configurar o atalho. Fly e Noclip mantêm seus campos de velocidade nesse popup; para outro jogador, esses popups mostram apenas as velocidades. As teclas são locais e sempre agem no próprio jogador com o painel fechado. Os avisos se ajustam ao texto, quebram mensagens longas e descem enquanto um anúncio de sessão está ativo.
 
-Em **Permissões**, o host pode usar Convidado, Apenas em si, Ajudante, Moderador e Administrador, ou criar até 16 roles customizadas. Cada ação individual aceita bloqueio, apenas em si ou qualquer jogador; ações coletivas, anúncios e regras têm permissões próprias. Editar uma role altera todos os vinculados; excluí-la revoga o acesso inclusive de perfis offline. Os vínculos persistem entre missões. Gerenciar acesso/roles, alterar o host, restaurar perfis, reiniciar mapas e definir políticas gerais de ferramentas continua exclusivo do host.
+Em **Jogadores → Munição infinita**, o contador padrão da ferramenta equipada é reabastecido. O botão **...** oferece restauração ao desligar (padrão ligado) e atalho pessoal sem tecla padrão. Restaurar devolve cada ferramenta à quantidade capturada antes da primeira reposição; desligar a restauração mantém o estoque fornecido. Morte ou reaparecimento pelo OSP encerra a captura atual. Ferramentas com munição própria podem não ser afetadas; interromper o mod abruptamente não garante restauração.
+
+Em **Permissões**, o host pode usar Convidado, Apenas em si, Ajudante, Moderador e Administrador, ou criar até 16 roles customizadas. Cada ação individual aceita bloqueio, apenas em si ou qualquer jogador; ações coletivas, anúncios e regras têm permissões próprias. As permissões ficam em categorias recolhíveis, inicialmente fechadas, com busca independente e escolhas explícitas de escopo. **Ampliar** abre um editor maior; fechar pelo X ou por clique fora preserva o rascunho. Editar uma role altera todos os vinculados; excluí-la revoga o acesso inclusive de perfis offline. Os vínculos persistem entre missões. A categoria **Admin** permite delegar separadamente atribuição, criação, edição e exclusão de Roles, políticas gerais de ferramentas, restauração de jogadores e reinício do mapa. Esses poderes começam bloqueados nas Roles existentes. Delegados não podem conceder permissões que não possuem, gerenciar Roles mais fortes ou alterar o acesso do host.
 
 Os controles de ferramentas ficam em **Ferramentas**, com filtros Vanilla e Mods; ações de categoria abrangem os IDs registrados naquele momento. Restaurar padrões não muda os desbloqueios da campanha. Recarregue o mapa após atualizar. Persistência dos perfis e multiplayer real ainda precisam ser observados no jogo com os mesmos arquivos em todos os participantes.
