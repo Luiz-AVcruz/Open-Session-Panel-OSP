@@ -138,6 +138,7 @@ for _,language in ipairs({'en','pt'}) do
         e.IsToolEnabled=function(id) return id=='gun' or id=='sledge' end
         for _,p in ipairs(e.shared.osp.players) do p.toolConflicts={gun=true} end
         w:tick('p');w:draw();w:clickControl('tab_tools')
+        w:draw();w:clickControl('compatibility_notice_close')
         w:scrollTo('tool_gun');local st=w:draw()
         check(not st.controls.tool_gun.disabled,'global usage control remains available')
         if st.controls.tool_sledge then check(not st.controls.tool_sledge.disabled,'normal tool stays interactive') end
@@ -162,5 +163,41 @@ for _,language in ipairs({'en','pt'}) do
         w:clickControl('tool_more_gun');st=w:draw()
         check(not st.controls.tools_disable_everyone.disabled,'bulk usage block remains available')
     end
+end
+-- First encounter is informational: it must not send a gameplay command,
+-- consume a pending response, or recur after a map/game restart.
+for _,language in ipairs({'en','pt'}) do
+    local reg={['savegame.mod.osp_beta.language']=language}
+    local w=ui(1024,768,reg);local e=w.api
+    e.shared.osp.players[1].toolConflicts={gun=true}
+    w:tick('p');w:draw();w:clickControl('tab_tools')
+    local st=w:draw();check(st.confirm and st.confirm.info,'first encounter opens informational modal')
+    eq(#w.sent,0,'showing notice sends no gameplay command')
+    check(st.confirm.message:find(e.OSP.L('compatibility_notice'),1,true),'notice explains limitation in selected language')
+    w:clickControl('compatibility_notice_close')
+    check(not w:draw().confirm,'acknowledgement closes notice')
+    w:clickControl('tab_about');w:draw()
+    local found=false
+    for _,text in ipairs(w.texts) do if text==e.OSP.L('compatibility_airstrike') then found=true end end
+    check(found,'About attributes the examined conflict to Airstrike behavior')
+    local again=ui(1024,768,reg)
+    again.api.shared.osp.players[1].toolConflicts={gun=true}
+    again:tick('p');again:draw();again:clickControl('tab_tools')
+    check(not again:draw().confirm,'local preference survives a new client/map')
+    -- A different tool gets its own warning; unknown conflicts have no
+    -- invented mod identity. Escape dismisses the notice without a request.
+    again.api.shared.osp.players[1].toolConflicts.sledge=true
+    check(again:draw().confirm.info,'new conflicting tool has separate first encounter')
+    again:tick('esc');check(not again:draw().confirm,'Escape does not immediately reopen the notice')
+    eq(#again.sent,0,'dismissal sends no gameplay command')
+end
+do
+    local w=ui(1024,768,{});local e=w.api
+    w:tick('p');w:draw();w:clickControl('tab_tools');w:clickControl('tool_gun')
+    check(e.OSP.UI.getState().requestPending,'tool command is pending')
+    e.shared.osp.players[1].toolConflicts={gun=true}
+    check(not w:draw().confirm,'notice waits for pending command')
+    w:ack();check(w:draw().confirm.info,'notice appears after response')
+    eq(#w.sent,1,'informational modal never duplicates the tool command')
 end
 print('PASS tool conflict suspension, command boundaries and UI: '..count..' assertions')
