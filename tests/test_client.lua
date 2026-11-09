@@ -11,8 +11,8 @@ local function world(width,height,previousRegistry)
         tools={{id='gun',name='gun',nameKey='TOOL_NAME_GUN',origin='vanilla',policy='default'},
                {id='sledge',name='Sledge',origin='vanilla',policy='enabled'},
                {id='mytool',name=string.rep('X',90),origin='mod',policy='disabled'}},
-        players={{id=11,name='Host',health=1,host=true,admin=true,god=false,fly=false,freeze=false,speed=1,ammo=false,ammoRestore=false,strength=false,strengthForce=1,strengthMass=5000,strengthThrow=false,strengthThrowSpeed=20,vehicle=false,profileChallenge=1},
-                 {id=23,name=string.rep('Long name ',20),health=1,host=false,admin=false,god=false,fly=false,freeze=false,speed=1,ammo=false,ammoRestore=false,strength=false,strengthForce=1,strengthMass=5000,strengthThrow=false,strengthThrowSpeed=20,vehicle=true,profileChallenge=2}}}}},{__index=_G})
+        players={{id=11,name='Host',health=1,host=true,admin=true,god=false,fly=false,freeze=false,speed=1,ammo=false,ammoRestore=false,strength=false,strengthForce=1,strengthMass=5000,strengthThrow=false,strengthThrowSpeed=20,vehicle=false,profileChallenge=1,profileReady=true},
+                 {id=23,name=string.rep('Long name ',20),health=1,host=false,admin=false,god=false,fly=false,freeze=false,speed=1,ammo=false,ammoRestore=false,strength=false,strengthForce=1,strengthMass=5000,strengthThrow=false,strengthThrowSpeed=20,vehicle=true,profileChallenge=2,profileReady=true}}}}},{__index=_G})
     -- Older scenarios explicitly exercise expanded Settings; use an empty
     -- supplied registry below to test the actual first-run defaults.
     if not previousRegistry then
@@ -460,15 +460,19 @@ for _,size in ipairs({{1024,768},{1920,1080}}) do
     eq(st.controls.role_editor_name,nil,'assignment view hides editor name')
     eq(st.controls.role_editor_save,nil,'assignment view hides editor save')
     eq(st.controls.role_scope_heal,nil,'assignment view hides editable permissions')
-    w:clickControl('role_target_next')
     w:chooseRole('self')
-    w:clickControl('role_apply');eq(e.OSP.UI.getState().confirm.action,'role_assign')
+    w:clickControl('permission_view_target_23')
+    eq(e.OSP.PermissionUI.getState().batchSelected,1,'manual Permissions entry starts from an empty checkbox list')
+    w:clickControl('permission_view_batch_apply');eq(e.OSP.UI.getState().confirm.action,'roles_assign_many')
+    eq(e.OSP.UI.getState().confirm.arg.role,'self','confirmation captures the chosen Role')
+    eq(e.OSP.UI.getState().confirm.arg.targets[1].id,23,'confirmation captures the checked target')
     w:clickControl('confirm_accept')
-    eq(w.sent[#w.sent].args[2],'role_assign');eq(w.sent[#w.sent].args[3],23);eq(w.sent[#w.sent].args[4].id,'self');w:ack()
+    eq(w.sent[#w.sent].args[2],'roles_assign_many');eq(w.sent[#w.sent].args[3],0)
+    eq(w.sent[#w.sent].args[4].role,'self');eq(w.sent[#w.sent].args[4].targets[1].id,23);w:ack()
     w:clickControl('role_create_custom')
     st=w:draw()
-    eq(st.controls.role_apply,nil,'editor hides role assignment')
-    eq(st.controls.role_target_prev,nil,'editor hides player selection')
+    eq(st.controls.permission_view_batch_apply,nil,'role editor hides player assignment')
+    eq(st.controls.role_target_prev,nil,'legacy individual selector is absent from the editor')
     eq(st.controls.role_create_custom,nil,'editor hides custom-role browser actions')
     eq(w:scrollTo('role_editor_save').disabled,false,'new custom role can be saved')
     w:clickControl('role_editor_name');check(e.OSP.PermissionUI.capturing(),'name capture starts')
@@ -479,7 +483,7 @@ for _,size in ipairs({{1024,768},{1920,1080}}) do
     local beforeDiscard=#w.sent
     w:clickControl('role_editor_discard')
     eq(#w.sent,beforeDiscard,'discarding a new role sends no save request')
-    eq(w:draw().controls.role_apply~=nil,true,'discard returns to role assignment')
+    eq(w:draw().controls.permission_view_batch_apply~=nil,true,'discard returns to role assignment')
     w:clickControl('role_create_custom');w:clickControl('role_editor_name')
     for i=1,40 do w:tick('backspace') end
     for letter in ('medi'):gmatch('.') do w:tick(letter) end
@@ -496,12 +500,16 @@ for _,size in ipairs({{1024,768},{1920,1080}}) do
     eq(st.controls.role_editor_name,nil,'ACK returns to assignment view')
     eq(st.controls.role_create_custom,nil,'ACK returns to compact assignment without advanced controls')
     eq(w:scrollTo('role_edit_custom').disabled,false,'saved copy survives delayed shared state')
-    w:clickControl('role_apply');eq(e.OSP.UI.getState().confirm.arg.id,'c1')
-    w:clickControl('confirm_cancel')
     e.shared.osp.templates[#e.shared.osp.templates+1]=saved
+    w:clickControl('permission_view_target_23')
+    eq(e.OSP.PermissionUI.getState().batchSelected,1,'reopened panel requires an explicit target selection')
+    w:clickControl('permission_view_batch_apply');eq(e.OSP.UI.getState().confirm.action,'roles_assign_many')
+    eq(e.OSP.UI.getState().confirm.arg.role,'c1')
+    eq(e.OSP.UI.getState().confirm.arg.targets[1].id,23)
+    w:clickControl('confirm_cancel')
     w:clickControl('role_edit_custom')
     st=w:draw()
-    eq(st.controls.role_apply,nil,'editing a role cannot assign it in the editor')
+    eq(st.controls.permission_view_batch_apply,nil,'editing a role cannot assign players in the editor')
     w:clickControl('permission_group_players')
     w:clickControl('role_scope_heal_2')
     local editedRequestRect=w:scrollTo('role_editor_save')
@@ -527,7 +535,7 @@ for _,size in ipairs({{1024,768},{1920,1080}}) do
     w:draw()
     eq(w:scrollTo('role_editor_reload').disabled,false,'failed save preserves the latest draft')
     w:clickControl('role_editor_discard')
-    eq(w:draw().controls.role_apply~=nil,true,'discard returns to assignment mode')
+    eq(w:draw().controls.permission_view_batch_apply~=nil,true,'discard returns to assignment mode')
     w:clickControl('role_edit_custom')
     w:clickControl('role_editor_delete');w:clickControl('confirm_accept')
     eq(w.sent[#w.sent].args[2],'role_delete')
@@ -536,6 +544,33 @@ for _,size in ipairs({{1024,768},{1920,1080}}) do
     eq(st.controls.role_editor_delete,nil,'delete ACK returns to assignment mode')
     eq(st.controls.permission_view_role_select~=nil,true,'deleted role is hidden before shared catches up')
  end
+end
+-- Permissions selection is roster-based, so loss of the last Players target cannot retarget a confirmed batch.
+do
+    local w=world(1024,768);local e=w.api
+    local added=e.OSP.copy(e.shared.osp.players[2]);added.id=47;added.name='Player 47';added.profileChallenge=3;added.profileReady=true
+    e.shared.osp.players[#e.shared.osp.players+1]=added
+    e.OSP.UI.open(true)
+    w:clickControl('player_23');eq(e.OSP.UI.getState().selected,23,'Players selects the navigation target')
+    w:clickControl('tab_permissions')
+    eq(e.OSP.PermissionUI.getState().batchSelected,0,'manual Permissions entry does not inherit global selection')
+    w:chooseRole('self');w:clickControl('permission_view_target_47')
+    eq(e.OSP.PermissionUI.getState().batchSelected,1,'checkbox selection records the independently marked player')
+    w:clickControl('permission_view_batch_apply')
+    eq(e.OSP.UI.getState().confirm.action,'roles_assign_many','assignment confirmation is open')
+    eq(e.OSP.UI.getState().confirm.arg.targets[1].id,47,'confirmation captures player 47')
+    table.remove(e.shared.osp.players,2)
+    e.IsPlayerValid=function(id) return id==11 or id==47 end
+    w:tick();local st=w:draw()
+    eq(st.confirm.action,'roles_assign_many','losing the stale Players target does not discard confirmation')
+    eq(st.confirm.arg.targets[1].id,47,'stale Players selection does not retarget the confirmation')
+    eq(e.OSP.PermissionUI.getState().batchSelected,1,'independent checkbox target remains selected')
+    w:clickControl('confirm_accept')
+    local request=w.sent[#w.sent]
+    eq(request.args[2],'roles_assign_many','accepted confirmation keeps the unified RPC')
+    eq(request.args[3],0,'unified RPC uses target zero and the frozen target array')
+    eq(request.args[4].targets[1].id,47,'request snapshot remains the checked player')
+    eq(request.args[4].targets[1].join,3,'request snapshot retains the target join marker')
 end
 -- Per-control UI gating agrees with the server's public capability vocabulary.
 do
@@ -1638,19 +1673,47 @@ do
     w:tick('1');w:tick('2');w:tick('.');w:tick('5');w:tick('return')
     eq(w.sent[#w.sent].args[4],12.5,'throw speed accepts fractional values')
 end
--- Compact Permissions keeps management beside the Role selector.
+-- Permissions assignment stays unified across EN/PT and three canvas sizes.
 for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
-    local w=world(unpack(size));w:tick('p');w:clickControl('tab_permissions');local st=w:draw()
-    local manage=w:scrollTo('permission_view_expand');st=w:draw()
-    local dropdown=st.controls.permission_view_role_select
-    eq(manage.h,32,'management button keeps its full height')
-    eq(manage.x+manage.w,dropdown.x+dropdown.w,'management aligns with dropdown right edge')
-    check(manage.y+manage.h<=dropdown.y,'management stays beside the Role label, above the dropdown')
-    check(manage.y>=st.layout.oy+st.layout.contentY and manage.y+manage.h<=st.layout.oy+st.layout.contentY+st.layout.contentH,'management is reachable inside the viewport')
-    check(st.controls.permission_view_role_select and st.controls.role_apply,'compact assignment controls are visible')
-    check(not st.controls.role_create_custom and not st.controls.permission_group_players,'advanced controls stay outside compact view')
-    local apply=w:scrollTo('role_apply');st=w:draw()
-    check(apply.y+apply.h<=st.layout.oy+st.layout.contentY+st.layout.contentH+0.01,'compact assignment stays reachable on small screens')
+ for _,language in ipairs({'en','pt'}) do
+    local w=world(unpack(size));local e=w.api
+    w.reg['savegame.mod.osp_beta.language']=language
+    w:tick('p');w:clickControl('tab_permissions');local st=w:draw()
+    local row=st.controls.permission_view_target_23
+    local visible={};for _,text in ipairs(w.texts) do visible[text]=true end
+    check(row~=nil,'target list renders at '..size[1]..'x'..size[2]..' ('..language..')')
+    eq(e.OSP.PermissionUI.getState().batchSelected,0,'manual Permissions entry starts with no checked targets')
+    eq(e.OSP.PermissionUI.getState().batchMode,nil,'unified state has no batch mode')
+    eq(e.OSP.PermissionUI.getState().batchListOpen,nil,'unified state has no list visibility mode')
+    for _,id in ipairs({'role_target_prev','role_target_next','role_apply','permission_view_batch_mode','permission_view_batch_list'}) do
+        eq(st.controls[id],nil,'removed assignment control is absent: '..id)
+    end
+    local dropdown=w:scrollTo('permission_view_role_select')
+    local apply=w:scrollTo('permission_view_batch_apply')
+    local manage=w:scrollTo('permission_view_expand')
+    check(dropdown and apply and manage,'Role, Apply and Manage roles remain reachable by scrolling')
+    eq(apply.w,180,'Apply stays a normal-width button')
+    eq(manage.w,180,'Manage roles is a normal-width secondary button')
+    check(apply.x>=dropdown.x and apply.x+apply.w<=dropdown.x+dropdown.w,'Apply aligns with its destination Role block')
+    if st.layout.contentW>=720 then
+        check(dropdown.x>=row.x+row.w+24,'wide content puts the Role column to the right of the target list')
+        eq(dropdown.w,288,'wide Role selector sits inside a padded 320-unit column')
+    end
+    check(visible[e.OSP.L('role_targets_title')],'target-list heading uses the selected language')
+    check(visible[e.OSP.L('role_guest')],'target rows display each player\'s current Role')
+    local applyRect=w:scrollTo('permission_view_batch_apply');st=w:draw()
+    check(applyRect.y+applyRect.h<=st.layout.oy+st.layout.contentY+st.layout.contentH+0.01,'Apply remains reachable by scrolling')
+    check(not st.controls.role_create_custom and not st.controls.permission_group_players,'expanded editor actions stay outside compact view')
+ end
+end
+-- A solo host sees the empty state, can open role management, and cannot Apply.
+do
+    local w=world(1024,768);local e=w.api;e.shared.osp.players={e.shared.osp.players[1]}
+    w:tick('p');w:clickControl('tab_permissions');local st=w:draw()
+    eq(st.controls.permission_view_target_11,nil,'host never appears as a checkbox target')
+    check(st.controls.permission_view_batch_apply.disabled,'solo host cannot apply without a target')
+    check(table.concat(w.texts,'|'):find(e.OSP.L('role_targets_none'),1,true)~=nil,'solo host sees the dedicated empty state')
+    w:clickControl('permission_view_expand');check(e.OSP.PermissionUI.isExpanded(),'Manage roles remains available without targets')
 end
 -- Expanded Permissions draws outside the normal panel and preserves local work.
 for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
@@ -1807,7 +1870,11 @@ do
     check(not e.OSP.PermissionUI.isExpanded(),'create ACK closes enlarged editor')
     local created=e.OSP.PermissionUI.getState().selected
     check(created:match('^c%d+$')~=nil)
-    w:clickControl('role_apply');w:clickControl('confirm_accept')
+    eq(e.OSP.PermissionUI.getState().batchSelected,1,'Manage role keeps its explicit target through role creation')
+    w:clickControl('permission_view_batch_apply')
+    eq(e.OSP.UI.getState().confirm.action,'roles_assign_many','Manage role uses the unified confirmation')
+    eq(e.OSP.UI.getState().confirm.arg.targets[1].id,47,'unified confirmation keeps the explicit player target')
+    w:clickControl('confirm_accept')
     local target
     for _,p in ipairs(e.shared.osp.players) do if p.id==47 then target=p end end
     eq(target.role,created,'UI assignment is accepted for delegate')

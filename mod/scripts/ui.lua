@@ -758,7 +758,8 @@ function OSP.installClient()
         y=y+43
         if not solo() and rolesAccess() and not p.host then
             if button("player_role_manage",ax,y,aw,37,T("manage_player_role"),"plain",p.profileReady==false) then
-                OSP.PermissionUI.focusPlayerRole(p.role or (p.admin and "admin" or "guest"));setTab("permissions",true)
+                setTab("permissions",true)
+                OSP.PermissionUI.focusPlayerRole(p.role or (p.admin and "admin" or "guest"),p,state() and state().profileHost)
             end
             y=y+49
         end
@@ -834,13 +835,24 @@ function OSP.installClient()
         for i,value in ipairs(lines) do label(x+12,y+10+(i-1)*18,value,14,C.text) end
         tooltip={id=candidate.id,text=text,x=layout.ox+x,y=layout.oy+y,w=w,h=h,lines=lines}
     end
-    local function permissionAPI(p,list,expanded)
-        local function playerIndex()
-            for i,q in ipairs(list) do if p and p.id==q.id then return i end end
-            return 1
-        end
+    local function permissionAPI(list,expanded)
         return {
-            label=function(x,y,value,size,width) label(x,y,value,size,C.text,width) end,
+            label=function(x,y,value,size,width,muted,bold) label(x,y,value,size,muted and C.muted or C.text,width,bold) end,
+            height=function() return layout.contentH end,
+            panel=function(x,y,w,h)
+                rect(x,y,w,h,C.side);rect(x,y,w,1,C.line)
+            end,
+            selectionRow=function(id,x,y,w,h,name,role,checked,disabled)
+                local clicked=button(id,x,y,w,h,"","plain",disabled or (expanded and confirm~=nil),expanded)
+                local edge=checked and C.accent or C.muted
+                local boxY=y+(h-16)/2
+                rect(x+10,boxY,16,16,edge);rect(x+11,boxY+1,14,14,C.side)
+                if checked then rect(x+14,boxY+4,8,8,C.accent) end
+                label(x+36,y+5,name,15,disabled and C.disabled or C.text,w-46)
+                label(x+36,y+25,role,12,C.muted,w-46)
+                rect(x+8,y+h-1,w-16,1,C.line)
+                return clicked
+            end,
             paragraph=function(x,y,value,size,width)
                 UiPush();UiTranslate(x,y);UiAlign("left top");UiFont("regular.ttf",size)
                 UiTextDisableWildcards(true);UiWordWrap(width);rgb(C.muted)
@@ -875,7 +887,6 @@ function OSP.installClient()
             end,
             pending=function() return pending~=nil end,
             ask=ask,command=command,resetScroll=function() scroll=0 end,
-            playerCaption=function() return p and utf8clip(p.name,24) or "?" end,
             players=function() return list end,
             profileHost=function() return state() and state().profileHost end,
             groupAssignment=function(role,targets)
@@ -885,15 +896,12 @@ function OSP.installClient()
                 for _,target in ipairs(targets or {}) do captured[#captured+1]={id=target.id,join=target.join} end
                 return {host=s.profileHost,actorJoin=own.profileChallenge,role=role,targets=captured}
             end,
-            playerIndex=playerIndex,playerCount=function() return #list end,
-            playerStep=function(d) local q=list[playerIndex()+d];if q then selectPlayer(q.id) end end,
         }
     end
     local function drawPermissions()
         if not rolesAccess() then setTab("settings");return 0 end
         title(T("permissions"),T("permissions_subtitle"))
-        local p=selectedPlayer()
-        return OSP.PermissionUI.draw(permissionAPI(p,roster(),false),state() and state().templates,p,layout.contentW)
+        return OSP.PermissionUI.draw(permissionAPI(roster(),false),state() and state().templates,nil,layout.contentW)
     end
     local function drawSession()
         local w=layout.contentW;local s=state();local rules=s and s.rules or {}
@@ -1452,11 +1460,10 @@ function OSP.installClient()
         layout={w=w,h=h,ox=x,oy=y,contentW=w-40,contentH=h-40,permissionModal=true}
         mouseX,mouseY=mx-x,my-y;drawOx,drawOy=x,y;clip={x=0,y=0,w=w,h=h}
         rect(0,0,w,h,C.side);rect(0,0,w,3,C.accent)
-        local p=selectedPlayer()
         UiPush();UiTranslate(20,16)
         mouseX,mouseY=mouseX-20,mouseY-16;drawOx,drawOy=x+20,y+16
         clip={x=0,y=0,w=w-40,h=h-52}
-        OSP.PermissionUI.drawExpanded(permissionAPI(p,roster(),true),state() and state().templates,p,w-40,h-52)
+        OSP.PermissionUI.drawExpanded(permissionAPI(roster(),true),state() and state().templates,nil,w-40,h-52)
         UiPop();mouseX,mouseY=mx-x,my-y;drawOx,drawOy=x,y;clip={x=0,y=0,w=w,h=h}
         if button("permission_view_close",w-54,12,36,34,"X","outlined",confirm~=nil,true) then OSP.PermissionUI.closeExpanded() end
         if status and GetTime()<statusUntil then label(20,h-20,status,13,C.accent,w-40) end
@@ -1626,7 +1633,7 @@ function OSP.installClient()
             if shortcutRequest then shortcutMessage(shortcutRequest.action,T("request_unknown"),10);shortcutRequest=nil else setStatus(T("request_unknown"),10) end
             pending=nil;lastAction=nil
         end
-        validateSelection()
+        if tab~="permissions" then validateSelection() end
         if movementSettings then
             local target=findPlayer(movementSettings.player)
             if not target or target.profileChallenge~=movementSettings.challenge or selected~=target.id

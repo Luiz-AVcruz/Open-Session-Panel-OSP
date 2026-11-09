@@ -29,9 +29,11 @@ local strings={
     confirm_role_assign="Assign %s to %s?",confirm_role_delete="Delete %s?",confirm_role_reset="Reset %s?",permission_host_reserved="Host access is reserved.",
     permission_view_expand="Manage roles",permission_search="Search permissions by name, ID or category",role_select_label="Role",
     permission_search_empty="No matching permissions.",permission_builtin_readonly="Built-in role is read-only.",
-    role_batch_mode="Assign to multiple players",role_batch_list_show="Select players",role_batch_list_hide="Hide player list",
     role_batch_selected="Selected: %d",role_batch_apply_count="Assign role (%d)",role_batch_empty="Select at least one eligible player.",
     confirm_role_batch="Assign %s to %d eligible players?",
+    role_targets_title="Players",role_targets_none="There are no other players in this session.",
+    role_targets_mark_all="Select all",role_targets_clear="Clear",role_targets_hint="Select players from the list.",
+    role_targets_eligible="%d players will receive this role.",role_targets_unchanged="No changes for this selection.",
     permission_scope_off="Off",permission_scope_self="Self",permission_scope_any="Any",permission_scope_on="On",
     permission_category_players="Players",permission_category_players_help="Health and player control.",
     permission_category_movement="Movement",permission_category_movement_help="Teleport, flight and speed.",
@@ -73,10 +75,11 @@ local function world(registry)
     load("mod/scripts/permissions.lua")
     load("mod/scripts/permissions_ui.lua")
 
-    local api={controls={},labels={},paragraphs={},images={},commands={},asks={},viewports={},dropdowns={},canCalls={},pendingValue=false,
+    local api={controls={},labels={},paragraphs={},images={},commands={},asks={},viewports={},dropdowns={},canCalls={},panels={},rows={},pendingValue=false,
+        heightValue=800,
         click=nil,dropdownChoice=nil,wheelValue=0,resetCount=0,canHandler=nil,denied={},playerStepCalls=0,playerCountValue=2}
     function api.beginDraw()
-        api.controls={};api.labels={};api.paragraphs={};api.images={};api.commands={};api.asks={};api.viewports={};api.dropdowns={};api.canCalls={}
+        api.controls={};api.labels={};api.paragraphs={};api.images={};api.commands={};api.asks={};api.viewports={};api.dropdowns={};api.canCalls={};api.panels={};api.rows={}
     end
     function api.dropdown(id,x,y,w,h,items,current,disabled,onSelect)
         api.dropdowns[id]={x=x,y=y,w=w,h=h,items=copy(items),current=current,disabled=disabled==true}
@@ -86,8 +89,8 @@ local function world(registry)
             if not disabled then onSelect(choice) end
         end
     end
-    function api.label(x,y,value,size,width)
-        api.labels[#api.labels+1]={x=x,y=y,text=tostring(value),size=size,width=width}
+    function api.label(x,y,value,size,width,muted,bold)
+        api.labels[#api.labels+1]={x=x,y=y,text=tostring(value),size=size,width=width,muted=muted==true,bold=bold==true}
     end
     function api.paragraph(x,y,value,size,width)
         api.paragraphs[#api.paragraphs+1]={x=x,y=y,text=tostring(value),size=size,width=width}
@@ -99,6 +102,14 @@ local function world(registry)
             api.click=nil
             return disabled~=true
         end
+        return false
+    end
+    function api.panel(x,y,w,h) api.panels[#api.panels+1]={x=x,y=y,w=w,h=h} end
+    function api.height() return api.heightValue end
+    function api.selectionRow(id,x,y,w,h,name,roleName,checked,disabled)
+        local row={x=x,y=y,w=w,h=h,text=name,role=roleName,checked=checked==true,disabled=disabled==true}
+        api.controls[id]=row;api.rows[#api.rows+1]=row
+        if api.click==id then api.click=nil;return disabled~=true end
         return false
     end
     function api.image(x,y,path) api.images[#api.images+1]={x=x,y=y,path=path} end
@@ -129,7 +140,7 @@ local function world(registry)
         api.lastWheel={x=x,y=y,w=w,h=h}
         local value=api.wheelValue;api.wheelValue=0;return value
     end
-    function api.enableBatch(players,namespace,actorJoin)
+    function api.enableAssignment(players,namespace,actorJoin)
         api.batchPlayers=players;api.batchNamespace=namespace or string.rep('a',32);api.batchActorJoin=actorJoin or 1
         api.players=function() return api.batchPlayers end
         api.profileHost=function() return api.batchNamespace end
@@ -188,20 +199,37 @@ local function within(rect,width,height,message)
     check(rect and rect.x>=0 and rect.y>=0 and rect.x+rect.w<=width and rect.y+rect.h<=height,message)
 end
 
--- Compact assignment keeps advanced controls in the expanded editor.
-for _,width in ipairs({400,800}) do
-    local w=world();local roles=builtinRoles(w)
-    w.api.beginDraw();local height=w.UI.draw(w.api,roles,player,width)
-    check(height<=282,"compact assignment has a short content area")
-    check(w.api.dropdowns.permission_view_role_select~=nil,"compact keeps its Role dropdown")
-    check(w.api.controls.role_apply~=nil,"compact keeps assignment")
-    local manage=w.api.controls.permission_view_expand
-    local dropdown=w.api.dropdowns.permission_view_role_select
-    check(manage~=nil,"compact exposes role management beside the selector")
-    eq(manage.x+manage.w,dropdown.x+dropdown.w,"management aligns with dropdown right edge")
-    check(manage.y+manage.h<=dropdown.y,"management is above the dropdown")
-    check(not w.api.controls.role_create_custom and not w.api.controls.role_edit_custom,"compact hides custom Role management")
-    check(not w.api.controls.permission_view_search and not w.api.controls.permission_group_players,"compact hides detailed permissions")
+-- Compact assignment always uses the target list, with a fixed-width Role column on wide content.
+for _,width in ipairs({400,719,720,800}) do
+    local w=world();local roles=builtinRoles(w);local api=w.api
+    local roster={{id=1,name="Host",role="admin",host=true,profileReady=true,profileChallenge=1},
+        {id=9,name="Player",role="guest",host=false,profileReady=true,profileChallenge=2}}
+    api.enableAssignment(roster);api.dropdownChoice="admin";api.beginDraw()
+    w.UI.draw(api,roles,roster[2],width)
+    local dropdown=api.dropdowns.permission_view_role_select
+    local row=api.controls.permission_view_target_9
+    local apply=api.controls.permission_view_batch_apply
+    local manage=api.controls.permission_view_expand
+    check(dropdown and row and apply and manage,"compact keeps targets, destination and actions at width "..width)
+    eq(api.controls.permission_view_target_1,nil,"the host is outside the checkbox list")
+    for _,id in ipairs({"role_target_prev","role_target_next","role_apply","permission_view_batch_mode","permission_view_batch_list"}) do
+        eq(api.controls[id],nil,"removed assignment control is absent: "..id)
+    end
+    eq(w.UI.getState().batchMode,nil,"unified selection has no mode state")
+    eq(w.UI.getState().batchListOpen,nil,"unified selection has no list visibility state")
+    eq(apply.w,180,"Apply uses the normal 180-unit button width")
+    eq(manage.w,180,"Manage roles uses the normal 180-unit secondary width")
+    check(apply.x>=dropdown.x and apply.x+apply.w<=dropdown.x+dropdown.w,"Apply is aligned inside the Role block")
+    if width>=720 then
+        eq(api.panels[2].x,api.panels[1].x+api.panels[1].w+24,"wide content separates columns by 24 units")
+        eq(api.panels[2].w,320,"wide content gives the Role destination a 320-unit column")
+        eq(dropdown.w,288,"Role selector fills the padded destination column")
+    else
+        eq(api.panels[2].x,0,"narrow content stacks the Role destination below the list")
+        check(dropdown.y>row.y+row.h,"narrow destination follows the target rows")
+    end
+    check(not api.controls.role_create_custom and not api.controls.role_edit_custom,"compact hides custom Role management")
+    check(not api.controls.permission_view_search and not api.controls.permission_group_players,"compact hides detailed permissions")
     w.UI.openExpanded();expanded(w,roles,width,800)
     clickExpanded(w,roles,"role_create_custom",width,800)
     local before=w.UI.getState().draft
@@ -318,11 +346,12 @@ end
 -- Both assignment layouts use one Role dropdown; focusPlayerRole never destroys an editor draft.
 do
     local w=world();local roles=builtinRoles(w);roles[#roles+1]=customRole(w,{heal=2})
+    local roster={{id=1,name="Host",role="admin",host=true,profileReady=true,profileChallenge=1},
+        {id=9,name="Player",role="guest",host=false,profileReady=true,profileChallenge=2}}
+    w.api.enableAssignment(roster)
     local api=advanced(w,roles,800)
     check(api.dropdowns.permission_view_role_select~=nil,"compact assignment uses the Role dropdown")
     eq(api.dropdowns.permission_view_role_select.current,"guest","compact dropdown starts at the selected role")
-    eq(api.controls.permission_view_role_prev,nil,"compact assignment has no previous-role control")
-    eq(api.controls.permission_view_role_next,nil,"compact assignment has no next-role control")
     api.dropdownChoice="builder"
     advanced(w,roles,800)
     eq(w.UI.getState().selected,"builder","compact dropdown selects the requested role")
@@ -332,17 +361,20 @@ do
     api.dropdownChoice="helper"
     expanded(w,roles,800,560)
     eq(w.UI.getState().selected,"helper","expanded dropdown selects locally")
-    w.UI.focusPlayerRole("builder")
-    eq(w.UI.getState().selected,"builder","player focus selects a role in assignment view")
     w.UI.closeExpanded()
+    w.UI.focusPlayerRole("builder",roster[2],w.api.batchNamespace)
+    eq(w.UI.getState().selected,"builder","player focus selects a role in assignment view")
+    advanced(w,roles,800)
+    eq(w.UI.getState().batchSelected,1,"explicit player focus selects one target")
+    eq(w.UI.getState().batchSelection[w.api.batchNamespace..":9:2"].id,9,"focus records target ID and join marker")
     enterExistingEditor(w,roles,800)
     local draft=copy(w.UI.getState().draft)
-    w.UI.focusPlayerRole("admin")
+    w.UI.focusPlayerRole("admin",roster[2],w.api.batchNamespace)
     eq(w.UI.getState().selected,"builder","player focus does not switch roles inside the editor")
     eq(w.UI.getState().draft.name,draft.name,"player focus preserves the editor draft")
     eq(w.UI.getState().draft.permissions.heal,draft.permissions.heal,"player focus preserves draft grants")
     clickAdvanced(w,roles,"role_editor_discard",800)
-    w.UI.focusPlayerRole("admin")
+    w.UI.focusPlayerRole("admin",roster[2],w.api.batchNamespace)
     eq(w.UI.getState().selected,"admin","player focus works again after discarding the editor")
 end
 
@@ -380,7 +412,7 @@ do
     eq(state.draft.builtin,false,"copy is a custom Role draft")
     local api=advanced(w,roles)
     eq(api.controls.role_apply,nil,"editor has no player assignment action")
-    eq(api.controls.role_target_next,nil,"editor has no player selector")
+    eq(api.controls.permission_view_batch_apply,nil,"editor has no player assignment action")
     eq(api.dropdowns.permission_view_role_select,nil,"editor has no Role picker that could discard its draft")
     api=clickAdvanced(w,roles,"role_editor_save")
     eq(api.commands[1].action,"role_save","creation uses the role save command")
@@ -390,6 +422,10 @@ end
 -- A delegate can delete without edit, while proposed grants above their ceiling are disabled.
 do
     local w=world();local roles=builtinRoles(w);roles[#roles+1]=customRole(w,{heal=2})
+    w.api.enableAssignment({
+        {id=1,name="Host",role="admin",host=true,profileReady=true,profileChallenge=1},
+        {id=9,name="Player",role="guest",host=false,profileReady=true,profileChallenge=2},
+    })
     w.api.canHandler=function(action)
         if action=="role_delete" then return true end
         if action=="role_save" or action=="role_assign" then return false end
@@ -400,7 +436,8 @@ do
     check(api.controls.role_edit_custom.disabled,"role_save/role_edit denial disables Edit")
     check(api.controls.role_create_custom.disabled,"role_save/role_create denial disables copying this stronger Role")
     check(not api.controls.role_delete.disabled,"role_delete remains independent of role_edit")
-    check(api.controls.role_apply.disabled,"role_assign denial disables assignment")
+    check(api.controls.permission_view_target_9.disabled,"role_assign denial disables the target checkbox")
+    check(api.controls.permission_view_batch_apply.disabled,"role_assign denial leaves no applicable target")
     api=clickAdvanced(w,roles,"role_delete")
     eq(api.asks[1].action,"role_delete","Delete asks the existing server confirmation")
     eq(api.asks[1].arg.id,"builder","Delete targets the selected Role")
@@ -429,9 +466,11 @@ for _,width in ipairs({400,800,1200}) do
     local dropdown=api.dropdowns.permission_view_role_select
     check(dropdown~=nil,"expanded Role dropdown exists at width "..width)
     within(dropdown,width,560,"Role dropdown stays inside width "..width)
-    check(api.controls.role_apply and api.controls.role_create_custom and api.controls.role_edit_custom and api.controls.role_reset and api.controls.role_delete,
+    check(api.controls.permission_view_batch_apply and api.controls.role_create_custom and api.controls.role_edit_custom and api.controls.role_reset and api.controls.role_delete,
         "expanded assignment actions remain available at width "..width)
-    within(api.controls.role_apply,width,560,"Apply stays inside width "..width)
+    within(api.controls.permission_view_batch_apply,width,560,"Apply stays inside width "..width)
+    eq(api.controls.permission_view_batch_apply.w,180,"expanded Apply stays a normal button, not a page-width action")
+    eq(api.controls.role_apply,nil,"legacy Apply control is absent")
     within(api.controls.role_create_custom,width,560,"Create stays inside width "..width)
     within(api.controls.role_edit_custom,width,560,"Edit stays inside width "..width)
     within(api.controls.role_reset,width,560,"Reset stays inside width "..width)
@@ -447,11 +486,8 @@ for _,width in ipairs({400,800,1200}) do
     eq(api.controls.role_reset.text,"Reset","preview uses a short Reset caption")
     eq(api.controls.role_delete.text,"Delete","preview uses a short Delete caption")
     check(api.viewports[1] and api.viewports[1].h>0,"permission list has a scroll viewport at width "..width)
-    if width>=760 then check(api.viewports[1].x>0,"wide layout places management beside the permission list")
-    else
-        eq(api.viewports[1].x,0,"narrow layout stacks management and permissions")
-        check(api.controls.role_apply.y+api.controls.role_apply.h<=560,"narrow Apply remains fixed in its footer")
-    end
+    eq(api.viewports[1].x,0,"short expanded layout scrolls management and permissions together")
+    check(api.controls.permission_view_batch_apply.y+api.controls.permission_view_batch_apply.h<=560,"short expanded Apply remains fixed in its footer")
     local clear=api.controls.permission_view_search_clear
     check(clear.x+clear.w<=width-60,"expanded search leaves room for the tab close button")
 end
@@ -524,7 +560,7 @@ do
     w.UI.openExpanded()
     local api=expanded(w,roles,561,380)
     eq(api.viewports[1].y,47,"narrow scroll region starts below fixed search")
-    eq(api.controls.role_apply.y,341,"narrow Apply remains at the bottom of a 640x480 style layout")
+    eq(api.controls.permission_view_batch_apply.y,341,"narrow Apply remains at the bottom of a 640x480 style layout")
     check(api.viewports[1].h>0,"narrow management and permission list can scroll in a short panel")
 end
 
@@ -618,9 +654,13 @@ do
     eq(w.UI.getState().draft.permissions.heal,before.permissions.heal,"cancelInput preserves permissions")
 end
 
--- Pending still permits local player/Role selection and browsing, but blocks server mutations.
+-- Pending still permits local Role selection and permission browsing, but blocks target changes and Apply.
 do
     local w=world();local roles=builtinRoles(w);roles[#roles+1]=customRole(w,{heal=1})
+    w.api.enableAssignment({
+        {id=1,name="Host",role="admin",host=true,profileReady=true,profileChallenge=1},
+        {id=9,name="Player",role="guest",host=false,profileReady=true,profileChallenge=2},
+    })
     w.UI.openExpanded()
     w.api.pendingValue=true
     w.api.dropdownChoice="builder"
@@ -628,15 +668,14 @@ do
     eq(w.UI.getState().selected,"builder","pending leaves Role selection local")
     check(api.dropdowns.permission_view_role_select and not api.dropdowns.permission_view_role_select.disabled,
         "pending leaves the Role dropdown enabled")
-    check(api.controls.role_target_next and not api.controls.role_target_next.disabled,
-        "pending leaves player selection enabled")
-    check(api.controls.role_apply.disabled,"pending disables assignment")
+    check(api.controls.permission_view_target_9.disabled,"pending disables target selection")
+    check(api.controls.permission_view_batch_apply.disabled,"pending disables unified assignment")
+    api=clickExpanded(w,roles,"permission_view_target_9",400,560)
+    eq(w.UI.getState().batchSelected,0,"pending target input cannot alter the selection")
     check(api.controls.role_create_custom.disabled and api.controls.role_edit_custom.disabled and api.controls.role_reset.disabled and api.controls.role_delete.disabled,
         "pending disables role mutations")
     check(not api.controls.permission_view_search.disabled and not api.controls.permission_group_players.disabled,
         "pending leaves search and group browsing enabled")
-    api=clickExpanded(w,roles,"role_target_next",400,560)
-    eq(api.playerStepCalls,1,"pending still routes local player selection")
     api=clickExpanded(w,roles,"permission_group_players",400,560)
     eq(w.UI.getState().groups.players,true,"pending still expands a permission group")
 end
@@ -677,54 +716,103 @@ do
     eq(w.UI.capturing(),false,"closeExpanded clears focus")
 end
 
--- Batch role selection keeps identity across pages, honors eligibility, and stays outside the editor draft.
+-- Unified assignment always uses a host-free checkbox list and owns its selection state.
 local function batchRoster()
     local roster={{id=1,name="Host",role="admin",host=true,profileReady=true,profileChallenge=1}}
-    for id=9,16 do roster[#roster+1]={id=id,name="Player "..id,role="guest",host=false,profileReady=true,profileChallenge=id-7} end
+    for id=9,19 do
+        roster[#roster+1]={id=id,name="Player "..id,role="guest",host=false,profileReady=true,profileChallenge=id-7}
+    end
     return roster
 end
-for _,width in ipairs({380,520,1000}) do
-    local w=world();local roles=builtinRoles(w);local api=w.api;api.enableBatch(batchRoster())
-    api.dropdownChoice="admin";api.beginDraw();w.UI.draw(api,roles,player,width)
-    local dropdown=api.dropdowns.permission_view_role_select;local toggle=api.controls.permission_view_batch_mode
-    check(dropdown and toggle,"compact view offers the role destination and multiple selection at width "..width)
-    check(toggle.y>=dropdown.y+dropdown.h,"compact batch selector does not overlap the role dropdown at width "..width)
-    w.UI.openExpanded();api.beginDraw();w.UI.drawExpanded(api,roles,player,width,600)
-    dropdown=api.dropdowns.permission_view_role_select;toggle=api.controls.permission_view_batch_mode
-    check(dropdown and toggle,"expanded view keeps multiple selection at width "..width)
-    check(toggle.y>=dropdown.y+dropdown.h,"expanded batch selector does not overlap the role dropdown at width "..width)
-    w.UI.closeExpanded()
+do
+    local w=world();local roles=builtinRoles(w);local api=w.api
+    local host={id=1,name="Host",role="admin",host=true,profileReady=true,profileChallenge=1}
+    api.enableAssignment({host})
+    api.beginDraw();w.UI.draw(api,roles,host,520)
+    eq(#api.rows,0,"host-only lobby has its own empty target state")
+    local emptyState=false;for _,paragraph in ipairs(api.paragraphs) do if paragraph.text=="There are no other players in this session." then emptyState=true end end
+    check(emptyState,"empty state explains that no assignment target exists")
+    eq(api.controls.permission_view_batch_apply.disabled,true,"host-only Apply is disabled")
+    check(not api.controls.permission_view_expand.disabled,"role management still works in the empty state")
+    eq(w.UI.getState().batchSelected,0,"host is never inserted into batch state")
 end
 do
-    local w=world();local roles=builtinRoles(w);local api=w.api;api.enableBatch(batchRoster())
-    api.dropdownChoice="admin";api.beginDraw();w.UI.draw(api,roles,player,520)
-    api.click="permission_view_batch_mode";api.beginDraw();w.UI.draw(api,roles,player,520)
-    check(w.UI.getState().batchMode,"multiple assignment mode is a checkbox toggle")
-    check(api.controls.permission_view_target_1.disabled,"host is never an assignment target")
-    api.click="permission_view_target_9";api.beginDraw();w.UI.draw(api,roles,player,520)
-    api.click="permission_view_batch_page_next";api.beginDraw();w.UI.draw(api,roles,player,520)
-    api.click="permission_view_target_14";api.beginDraw();w.UI.draw(api,roles,player,520)
-    api.click="permission_view_batch_page_prev";api.beginDraw();w.UI.draw(api,roles,player,520)
-    api.beginDraw();w.UI.draw(api,roles,player,520)
-    eq(w.UI.getState().batchSelected,2,"selection survives pagination")
-    check(api.controls.permission_view_target_9.checked,"selected checkbox remains checked on return to its page")
-    api.canHandler=function(action,target) return not (action=="role_assign" and target==14) end
-    api.click="permission_view_batch_apply";api.beginDraw();w.UI.draw(api,roles,player,520)
+    local w=world();local roles=builtinRoles(w);local api=w.api
+    local roster={
+        {id=1,name="Host",role="admin",host=true,profileReady=true,profileChallenge=1},
+        {id=9,name="Player",role="guest",host=false,profileReady=true,profileChallenge=2},
+    }
+    api.enableAssignment(roster);api.dropdownChoice="self";api.beginDraw();w.UI.draw(api,roles,roster[2],520)
+    check(api.controls.permission_view_target_9~=nil,"one-player lobby shows the eligible target")
+    eq(api.controls.permission_view_batch_apply.disabled,true,"Apply is disabled before marking a target")
+    api.click="permission_view_target_9";api.beginDraw();w.UI.draw(api,roles,roster[2],520)
+    eq(w.UI.getState().batchSelected,1,"single-target selection uses the same list state")
+    check(w.UI.hasBatchSelection(),"hasBatchSelection reflects a marked target")
+    api.click="permission_view_batch_apply";api.beginDraw();w.UI.draw(api,roles,roster[2],520)
     local ask=api.asks[#api.asks]
-    eq(ask.action,"roles_assign_many","batch apply asks for confirmation before sending")
-    eq(ask.arg.role,"admin","the Role dropdown is the assignment destination")
-    eq(#ask.arg.targets,1,"ineligible delegated target is omitted")
-    eq(ask.arg.targets[1].id,9,"only an eligible selected target is submitted")
-    check(ask.message:find("Admin",1,true) and ask.message:find("1",1,true),"confirmation names the destination and eligible count")
+    eq(ask.action,"roles_assign_many","single-target Apply uses the collective RPC")
+    eq(ask.target,0,"collective assignment has no individual target argument")
+    eq(ask.arg.role,"self","Role dropdown supplies the destination")
+    eq(ask.arg.host,api.batchNamespace,"assignment snapshot is bound to the host namespace")
+    eq(ask.arg.actorJoin,1,"assignment snapshot includes the author's join marker")
+    eq(#ask.arg.targets,1,"single-target confirmation contains exactly one target")
+    eq(ask.arg.targets[1].id,9,"single-target confirmation captures the selected ID")
+    eq(ask.arg.targets[1].join,2,"single-target confirmation captures the selected join marker")
+    check(ask.message:find("Self",1,true) and ask.message:find("1",1,true),"confirmation names the destination and target count")
     eq(#api.commands,0,"assignment waits for confirmation")
-    w.UI.openExpanded();api.beginDraw();w.UI.drawExpanded(api,roles,player,1000,700)
-    eq(w.UI.getState().batchSelected,2,"closing and reopening the editor preserves the batch selection")
+end
+do
+    local w=world();local roles=builtinRoles(w);local api=w.api;local roster=batchRoster()
+    roster[2].role="self" -- Selecting an unchanged Role is allowed, but Apply omits that player.
+    roster[3].profileReady=false
+    roster[4].profileReady=nil
+    api.enableAssignment(roster);api.heightValue=800;api.dropdownChoice="self"
+    api.beginDraw();w.UI.draw(api,roles,roster[2],1000)
+    api.click="permission_view_mark_all";api.beginDraw();w.UI.draw(api,roles,roster[2],1000)
+    eq(w.UI.getState().batchSelected,9,"Mark all selects ready non-host targets across every page")
+    eq(#api.rows,6,"target pages show no more than six rows")
+    check(api.controls.permission_view_target_10.disabled,"profileReady=false remains restrictive")
+    check(api.controls.permission_view_target_11.disabled,"missing profileReady remains restrictive")
+    check(api.controls.permission_view_batch_page_next~=nil,"twelve-player lobby exposes pagination")
+    api.click="permission_view_batch_page_next";api.beginDraw();w.UI.draw(api,roles,roster[2],1000)
+    eq(w.UI.getState().batchPage,2,"Next opens the later page")
+    eq(w.UI.getState().batchSelected,9,"marks survive pagination")
+    check(#api.rows<=6,"later pages also cap the visible rows at six")
+    api.click="permission_view_clear";api.beginDraw();w.UI.draw(api,roles,roster[2],1000)
+    eq(w.UI.getState().batchSelected,0,"Clear unmarks targets from all pages")
+    eq(api.controls.permission_view_batch_apply.disabled,true,"empty selection cannot be applied")
+    api.click="permission_view_mark_all";api.beginDraw();w.UI.draw(api,roles,roster[2],1000)
+    eq(w.UI.getState().batchSelected,9,"Mark all can be used again after Clear")
+    api.canHandler=function(action,target)
+        return not (action=="role_assign" and target==14)
+    end
+    api.beginDraw();w.UI.draw(api,roles,roster[2],1000)
+    api.click="permission_view_batch_apply";api.beginDraw();w.UI.draw(api,roles,roster[2],1000)
+    local ask=api.asks[#api.asks]
+    eq(ask.action,"roles_assign_many","multi-target Apply uses the same collective RPC")
+    eq(#ask.arg.targets,7,"Apply filters unchanged and unauthorized target Roles")
+    for _,target in ipairs(ask.arg.targets) do check(target.id~=9 and target.id~=14,"snapshot excludes unchanged or denied target") end
+    check(ask.message:find("Self",1,true) and ask.message:find("7",1,true),"multi-target confirmation reports eligible count")
+    local snapshot=copy(ask.arg)
+    api.batchPlayers[2].profileChallenge=99
+    api.batchNamespace=string.rep("b",32)
+    api.beginDraw();w.UI.draw(api,roles,roster[2],1000)
+    eq(w.UI.getState().batchSelected,0,"reused IDs and changed namespaces clear stale selection")
+    eq(ask.arg.targets[1].id,snapshot.targets[1].id,"pending confirmation keeps its target snapshot")
+    eq(ask.arg.host,snapshot.host,"pending confirmation keeps its host snapshot")
+end
+do
+    local w=world();local roles=builtinRoles(w);local api=w.api;local roster=batchRoster()
+    api.enableAssignment(roster);api.dropdownChoice="admin";api.beginDraw();w.UI.draw(api,roles,roster[2],520)
+    api.click="permission_view_target_9";api.beginDraw();w.UI.draw(api,roles,roster[2],520)
+    api.canHandler=function(action) return action~="roles_assign_many" end
+    api.beginDraw();w.UI.draw(api,roles,roster[2],520)
+    check(api.controls.permission_view_batch_apply.disabled,"role_assign_many authority gates the unified Apply")
+    api.click="permission_view_batch_apply";api.beginDraw();w.UI.draw(api,roles,roster[2],520)
+    eq(#api.asks,0,"denied collective assignment never asks for confirmation")
+    w.UI.openExpanded();api.beginDraw();w.UI.drawExpanded(api,roles,roster[2],1000,700)
+    eq(w.UI.getState().batchSelected,1,"opening the expanded manager preserves marked targets")
     w.UI.closeExpanded()
-    api.batchPlayers[2].profileChallenge=99;api.beginDraw();w.UI.draw(api,roles,player,520)
-    eq(w.UI.getState().batchSelected,1,"reused player ID does not inherit a stale selection")
-    api.batchNamespace=string.rep("b",32);api.beginDraw();w.UI.draw(api,roles,player,520)
-    eq(w.UI.getState().batchSelected,0,"changing host namespace clears batch targets")
-    eq(w.UI.getState().batchMode,false,"changing host namespace returns to individual assignment")
 end
 
 print("PASS permission UI categories, scopes, search, viewport and ACK state: "..assertions.." assertions")
