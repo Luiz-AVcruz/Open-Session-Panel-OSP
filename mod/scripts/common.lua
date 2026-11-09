@@ -1,6 +1,6 @@
 -- Copyright (C) 2026 Luiz-AVcruz
 -- AGPL-3.0-or-later; additional Teardown permission: see ADDITIONAL-PERMISSION.
-OSP = { version = "1.5.1" }
+OSP = { version = "1.5.0" }
 OSP.flight = {normal=9,shift=18,min=.5,max=100}
 OSP.strength = {force=1,mass=5000,throwSpeed=20,minForce=1,maxForce=20,
     minMass=1,maxMass=100000,minThrowSpeed=1,maxThrowSpeed=100,

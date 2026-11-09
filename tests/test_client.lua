@@ -7,7 +7,7 @@ local function eq(a,b,msg) check(a==b,(msg or 'equality')..': '..tostring(a)..' 
 local function world(width,height,previousRegistry)
     local w={reg=previousRegistry or {},sent={},identitySent={},flightReports={},strengthReports={},texts={},now=0,input='',wheel=0,mouse={x=0,y=0},click=false,held=false,released=false,armed={},
         width=width,height=height,t={x=0,y=0,s=1},stack={},drawn=false,hp=1,vehicle=0,screen=0}
-    local env=setmetatable({client={},shared={osp={ready=true,version='1.5.1',profileHost=string.rep('a',32),effectsOffOnLoad=false,rules={},log={},
+    local env=setmetatable({client={},shared={osp={ready=true,version='1.5.0',profileHost=string.rep('a',32),effectsOffOnLoad=false,rules={},log={},
         tools={{id='gun',name='gun',nameKey='TOOL_NAME_GUN',origin='vanilla',policy='default'},
                {id='sledge',name='Sledge',origin='vanilla',policy='enabled'},
                {id='mytool',name=string.rep('X',90),origin='mod',policy='disabled'}},
@@ -101,7 +101,7 @@ local function world(width,height,previousRegistry)
         local advanced=id:match("^role_editor_") or id:match("^role_scope_") or id:match("^permission_group_")
             or id=="role_create_custom" or id=="role_edit_custom" or id=="role_delete" or id=="role_reset" or id=="permission_view_search" or id=="permission_view_search_clear"
         if advanced and current.tab=='permissions' and not current.permissionExpanded and not current.controls[id] then
-            self:clickControl(current.controls.permission_view_resume and 'permission_view_resume' or 'permission_view_expand')
+            self:clickControl('permission_view_expand')
         end
         for _=1,40 do
             local st=self:draw();local r=st.controls[id]
@@ -1634,16 +1634,13 @@ do
     w:tick('1');w:tick('2');w:tick('.');w:tick('5');w:tick('return')
     eq(w.sent[#w.sent].args[4],12.5,'throw speed accepts fractional values')
 end
--- Compact Permissions exposes role management beneath assignment.
+-- Compact Permissions keeps assignment visible and the expand button unclipped.
 for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
     local w=world(unpack(size));w:tick('p');w:clickControl('tab_permissions');local st=w:draw()
-    local manage=w:scrollTo('permission_view_expand');st=w:draw()
-    eq(manage.h,36,'role management uses a normal content button')
-    check(manage.y>=st.controls.role_apply.y+st.controls.role_apply.h,'role management sits below assignment')
-    check(math.abs(manage.x+manage.w/2-(st.layout.ox+st.layout.contentX+st.layout.contentW/2))<1,'single management button is centered')
+    eq(st.controls.permission_view_expand.h,32,'expand button is fully inside the content viewport')
     check(st.controls.permission_view_role_select and st.controls.role_apply,'compact assignment controls are visible')
     check(not st.controls.role_create_custom and not st.controls.permission_group_players,'advanced controls stay outside compact view')
-    check(manage.y>=st.layout.oy+st.layout.contentY and manage.y+manage.h<=st.layout.oy+st.layout.contentY+st.layout.contentH,'role management is reachable inside the viewport')
+    eq(st.maxScroll,0,'compact assignment needs no scroll in supported canvases')
 end
 -- Expanded Permissions draws outside the normal panel and preserves local work.
 for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
@@ -1665,13 +1662,13 @@ for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
     w:clickControl('permission_view_close')
     check(not w:draw().permissionExpanded,'X closes enlarged editor')
     eq(e.OSP.PermissionUI.getState().draft.name,before..'x','X preserves unsaved draft')
-    w:clickControl('permission_view_resume');w:pressAt(1,1);w:releaseAt(1,1)
+    w:clickControl('permission_view_expand');w:pressAt(1,1);w:releaseAt(1,1)
     check(not w:draw().permissionExpanded,'outside press closes enlarged editor')
     eq(e.OSP.PermissionUI.getState().query,'ammo','outside press preserves query')
-    w:clickControl('permission_view_resume');w:tick('esc')
+    w:clickControl('permission_view_expand');w:tick('esc')
     check(not w:draw().permissionExpanded,'Escape closes enlarged editor without text focus')
     check(e.OSP.UI.getState().open,'Escape leaves the normal panel open')
-    w:clickControl('permission_view_resume');w:clickControl('permission_view_search_clear')
+    w:clickControl('permission_view_expand');w:clickControl('permission_view_search_clear')
     w:clickControl('role_editor_save');check(w:draw().requestPending,'save waits for server ACK')
     w:clickControl('permission_view_search');for c in ('heal'):gmatch('.') do w:tick(c) end
     w:clickControl('permission_group_players')

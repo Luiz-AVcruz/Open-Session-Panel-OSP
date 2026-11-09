@@ -40,16 +40,16 @@ Antes de remover o mod, restaurar regras conforme desejado e recarregar o mapa. 
 
 ## Organização e comandos
 
-Lua 5.1, scripting version 2 do Teardown, sem dependências no runtime. Código jogável em `mod/`, teste do contrato do servidor/cliente em `tests/`, ferramentas locais em `tools/`. A versão de produto em desenvolvimento é **1.5.1**; `version = 2` no manifesto continua significando a geração do scripting.
+Lua 5.1, scripting version 2 do Teardown, sem dependências no runtime. Código jogável em `mod/`, teste do contrato do servidor/cliente em `tests/`, ferramentas locais em `tools/`. A versão estável desta branch é **1.5.0**; `version = 2` no manifesto continua significando a geração do scripting.
 
 ```sh
 python3 tools/check.py
 python3 tools/package.py
 ```
 
-O usuário encerrou o bundle de desenvolvimento **1.4.0** em 2026-11-07 e confirmou a versão como pronta. As mudanças posteriores integram o bundle **1.5.0**, conforme orientação posterior do usuário. O desenvolvimento atual segue em **1.5.1**, por orientação posterior do usuário; manter esse número até nova orientação. Não reescrever o histórico Git.
+O usuário encerrou o bundle de desenvolvimento **1.4.0** em 2026-11-07 e confirmou a versão como pronta. As mudanças posteriores integram o bundle **1.5.0**, conforme orientação posterior do usuário. O desenvolvimento posterior segue na Beta 1.5.1; esta branch conserva a versão estável até promoção autorizada. Não reescrever o histórico Git.
 
-O empacotador produz `OpenSessionPanel-1.5.1.zip`, `OpenSessionPanel-1.5.1-source.zip` e hashes determinísticos. A raiz instalável é `Open Session Panel` e a raiz das fontes é `OpenSessionPanel-source`. O pacote não inclui `.git`, identificadores de Workshop, backups, tokens ou assets proprietários. Não é necessário Python para jogar.
+O empacotador produz `OpenSessionPanel-1.5.0.zip`, `OpenSessionPanel-1.5.0-source.zip` e hashes determinísticos. A raiz instalável é `Open Session Panel` e a raiz das fontes é `OpenSessionPanel-source`. O pacote não inclui `.git`, identificadores de Workshop, backups, tokens ou assets proprietários. Não é necessário Python para jogar.
 
 ## Backlog futuro
 
@@ -68,9 +68,9 @@ Pendências já levantadas:
 - [ ] Automatizar e padronizar verificação, empacotamento, instalação e promoção da Beta para a main, reaproveitando as ferramentas existentes.
 - [ ] Tratar a compatibilidade do bloqueio com ferramentas que se reabilitam continuamente, como o Air Strike.
 
-## Bundle 1.5.1 em desenvolvimento
+## Desenvolvimento 1.5.1 na Beta
 
-O acesso ao editor de Permissões passa a se chamar Gerenciar Roles / Manage roles e fica abaixo da atribuição de Role na visão compacta, centralizado. O cabeçalho perde o botão e o ícone de expansão. Um rascunho mantém Continuar edição/Descartar como entradas, sem botão duplicado. A janela existente, seus dados e as regras de acesso são preservados. O recorte é local à interface; o refinamento geral de UX/UI permanece no backlog.
+As mudanças da **1.5.1** são desenvolvidas, instaladas e avaliadas primeiro na branch e no mod **Beta**. A `main` permanece na versão estável **1.5.0**. Promover uma versão para a principal exige orientação explícita do autor; aprovação de um plano de interface não autoriza essa promoção.
 
 ## Bundle 1.5.0
 

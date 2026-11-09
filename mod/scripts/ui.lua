@@ -613,6 +613,17 @@ function OSP.installClient()
     local function drawPermissions()
         if not rolesAccess() then setTab("settings");return 0 end
         title(T("permissions"),T("permissions_subtitle"))
+        local x=layout.contentW-112
+        if button("permission_view_expand",x,0,112,32,"","outlined",false) then
+            closeDropdown();OSP.PermissionUI.openExpanded()
+        end
+        local ix,iy=x+10,6
+        for _,corner in ipairs({{0,0,1,1},{12,0,-1,1},{0,12,1,-1},{12,12,-1,-1}}) do
+            local px,py=ix+corner[1],iy+corner[2]
+            rect(px+(corner[3]<0 and -4 or 0),py,6,2,C.muted)
+            rect(px,py+(corner[4]<0 and -4 or 0),2,6,C.muted)
+        end
+        label(x+34,6,T("permission_view_expand"),14,C.text,72)
         local p=selectedPlayer()
         return OSP.PermissionUI.draw(permissionAPI(p,roster(),false),state() and state().templates,p,layout.contentW)
     end
