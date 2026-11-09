@@ -29,6 +29,9 @@ local strings={
     confirm_role_assign="Assign %s to %s?",confirm_role_delete="Delete %s?",confirm_role_reset="Reset %s?",permission_host_reserved="Host access is reserved.",
     permission_view_expand="Manage roles",permission_search="Search permissions by name, ID or category",role_select_label="Role",
     permission_search_empty="No matching permissions.",permission_builtin_readonly="Built-in role is read-only.",
+    role_batch_mode="Assign to multiple players",role_batch_list_show="Select players",role_batch_list_hide="Hide player list",
+    role_batch_selected="Selected: %d",role_batch_apply_count="Assign role (%d)",role_batch_empty="Select at least one eligible player.",
+    confirm_role_batch="Assign %s to %d eligible players?",
     permission_scope_off="Off",permission_scope_self="Self",permission_scope_any="Any",permission_scope_on="On",
     permission_category_players="Players",permission_category_players_help="Health and player control.",
     permission_category_movement="Movement",permission_category_movement_help="Teleport, flight and speed.",
@@ -125,6 +128,19 @@ local function world(registry)
     function api.wheel(x,y,w,h)
         api.lastWheel={x=x,y=y,w=w,h=h}
         local value=api.wheelValue;api.wheelValue=0;return value
+    end
+    function api.enableBatch(players,namespace,actorJoin)
+        api.batchPlayers=players;api.batchNamespace=namespace or string.rep('a',32);api.batchActorJoin=actorJoin or 1
+        api.players=function() return api.batchPlayers end
+        api.profileHost=function() return api.batchNamespace end
+        api.groupAssignment=function(role,targets)
+            return {host=api.batchNamespace,actorJoin=api.batchActorJoin,role=role,targets=copy(targets)}
+        end
+        api.checkbox=function(id,x,y,w,h,label,checked,disabled)
+            api.controls[id]={x=x,y=y,w=w,h=h,text=label,checked=checked==true,disabled=disabled==true}
+            if api.click==id then api.click=nil;return disabled~=true end
+            return false
+        end
     end
 
     return {env=env,UI=env.OSP.PermissionUI,P=env.OSP.Permissions,api=api,registry=registry,
@@ -659,6 +675,56 @@ do
     eq(w.UI.getState().draft.name,before.draft.name,"closeExpanded preserves draft")
     eq(w.UI.getState().groups.players,before.groups.players,"closeExpanded preserves group state")
     eq(w.UI.capturing(),false,"closeExpanded clears focus")
+end
+
+-- Batch role selection keeps identity across pages, honors eligibility, and stays outside the editor draft.
+local function batchRoster()
+    local roster={{id=1,name="Host",role="admin",host=true,profileReady=true,profileChallenge=1}}
+    for id=9,16 do roster[#roster+1]={id=id,name="Player "..id,role="guest",host=false,profileReady=true,profileChallenge=id-7} end
+    return roster
+end
+for _,width in ipairs({380,520,1000}) do
+    local w=world();local roles=builtinRoles(w);local api=w.api;api.enableBatch(batchRoster())
+    api.dropdownChoice="admin";api.beginDraw();w.UI.draw(api,roles,player,width)
+    local dropdown=api.dropdowns.permission_view_role_select;local toggle=api.controls.permission_view_batch_mode
+    check(dropdown and toggle,"compact view offers the role destination and multiple selection at width "..width)
+    check(toggle.y>=dropdown.y+dropdown.h,"compact batch selector does not overlap the role dropdown at width "..width)
+    w.UI.openExpanded();api.beginDraw();w.UI.drawExpanded(api,roles,player,width,600)
+    dropdown=api.dropdowns.permission_view_role_select;toggle=api.controls.permission_view_batch_mode
+    check(dropdown and toggle,"expanded view keeps multiple selection at width "..width)
+    check(toggle.y>=dropdown.y+dropdown.h,"expanded batch selector does not overlap the role dropdown at width "..width)
+    w.UI.closeExpanded()
+end
+do
+    local w=world();local roles=builtinRoles(w);local api=w.api;api.enableBatch(batchRoster())
+    api.dropdownChoice="admin";api.beginDraw();w.UI.draw(api,roles,player,520)
+    api.click="permission_view_batch_mode";api.beginDraw();w.UI.draw(api,roles,player,520)
+    check(w.UI.getState().batchMode,"multiple assignment mode is a checkbox toggle")
+    check(api.controls.permission_view_target_1.disabled,"host is never an assignment target")
+    api.click="permission_view_target_9";api.beginDraw();w.UI.draw(api,roles,player,520)
+    api.click="permission_view_batch_page_next";api.beginDraw();w.UI.draw(api,roles,player,520)
+    api.click="permission_view_target_14";api.beginDraw();w.UI.draw(api,roles,player,520)
+    api.click="permission_view_batch_page_prev";api.beginDraw();w.UI.draw(api,roles,player,520)
+    api.beginDraw();w.UI.draw(api,roles,player,520)
+    eq(w.UI.getState().batchSelected,2,"selection survives pagination")
+    check(api.controls.permission_view_target_9.checked,"selected checkbox remains checked on return to its page")
+    api.canHandler=function(action,target) return not (action=="role_assign" and target==14) end
+    api.click="permission_view_batch_apply";api.beginDraw();w.UI.draw(api,roles,player,520)
+    local ask=api.asks[#api.asks]
+    eq(ask.action,"roles_assign_many","batch apply asks for confirmation before sending")
+    eq(ask.arg.role,"admin","the Role dropdown is the assignment destination")
+    eq(#ask.arg.targets,1,"ineligible delegated target is omitted")
+    eq(ask.arg.targets[1].id,9,"only an eligible selected target is submitted")
+    check(ask.message:find("Admin",1,true) and ask.message:find("1",1,true),"confirmation names the destination and eligible count")
+    eq(#api.commands,0,"assignment waits for confirmation")
+    w.UI.openExpanded();api.beginDraw();w.UI.drawExpanded(api,roles,player,1000,700)
+    eq(w.UI.getState().batchSelected,2,"closing and reopening the editor preserves the batch selection")
+    w.UI.closeExpanded()
+    api.batchPlayers[2].profileChallenge=99;api.beginDraw();w.UI.draw(api,roles,player,520)
+    eq(w.UI.getState().batchSelected,1,"reused player ID does not inherit a stale selection")
+    api.batchNamespace=string.rep("b",32);api.beginDraw();w.UI.draw(api,roles,player,520)
+    eq(w.UI.getState().batchSelected,0,"changing host namespace clears batch targets")
+    eq(w.UI.getState().batchMode,false,"changing host namespace returns to individual assignment")
 end
 
 print("PASS permission UI categories, scopes, search, viewport and ACK state: "..assertions.." assertions")

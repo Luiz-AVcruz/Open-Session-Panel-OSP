@@ -56,6 +56,7 @@ O empacotador produz `OpenSessionPanelBeta-1.5.1.zip`, `OpenSessionPanelBeta-1.5
 Solicitações para próximos ciclos, sem ordem de prioridade definida. Planejar, implementar e validar um grupo coeso por vez.
 
 - [ ] Permitir escolher ferramentas específicas para cada Role.
+- [ ] Efeitos vinculados à atribuição de Role: conceder enquanto a Role estiver ativa e remover sua contribuição ao perdê-la, preservando outros estados válidos. Exemplo futuro: Espectador com invisibilidade e Noclip. Não confundir com ações aplicadas aos integrantes de uma Role.
 - [ ] Melhorar o editor da paleta personalizada e a organização e o compartilhamento de presets de cores.
 - [ ] Adicionar mais idiomas; os idiomas ainda serão escolhidos.
 - [ ] Melhorar a aba de regras da sessão e ampliar suas opções de personalização.
@@ -67,12 +68,29 @@ Pendências já levantadas:
 
 - [ ] Automatizar e padronizar verificação, empacotamento, instalação e promoção da Beta para a main, reaproveitando as ferramentas existentes.
 - [ ] Tratar a compatibilidade do bloqueio com ferramentas que se reabilitam continuamente, como o Air Strike.
+- [ ] Investigar a restauração de munição com ferramentas nativas e de mods; opção suspensa na Beta 1.5.1 a pedido do autor.
 
 ## Bundle 1.5.1 em desenvolvimento
 
 As mudanças da **1.5.1** são desenvolvidas, instaladas e avaliadas primeiro na branch e no mod **Beta**. A `main` permanece na versão estável **1.5.0**. Promover uma versão para a principal exige orientação explícita do autor; aprovação de um plano de interface não autoriza essa promoção.
 
 Gerenciar Roles / Manage roles aparece ao lado do rótulo Role, alinhado à direita do seletor. O cabeçalho não repete esse acesso. Rascunhos mantêm Continuar edição/Descartar. Criar Role / Create role abre um rascunho customizado baseado na Role selecionada; uma descrição curta explicita essa função. A janela, as permissões, os dados e os comandos existentes são preservados.
+
+### Ações coletivas e atribuição em lote
+
+Jogadores usa alcance individual, Todos, Role ou seleção manual por checkboxes. O ciclo coletivo abrange god, freeze, fly, noclip, strength, ammo, heal e bring; configurações numéricas continuam individuais. A seleção é transitória, com ID e marcador de entrada, e termina ao fechar o painel ou sair da aba. Role funciona como filtro, sem concessão/revogação de efeitos ao mudar a atribuição. Host é identidade separada e não entra no filtro por Role. Permissões permite marcar vários jogadores e atribuir a mesma Role com confirmação.
+
+`players_group` e `roles_assign_many` recebem namespace, marcador do autor e alvos com ID/marcador; o servidor valida cada alvo antes de executar, sem repetir comandos pela rede. Aplicam-se permissões e teto de autoridade existentes, proteção do host e pré-validação do lote inteiro antes de eventual autodemissão. Resultados informam afetados, ignorados e falhas parciais. O histórico conserva apenas ação/alcance/Role/valor validados, sem a lista de contextos.
+
+Settings da sessão oferece `collective_future`, somente ao host; ausência significa Somente presentes. Em Presentes e quem entrar depois, Todos/Role criam padrões separados em `savegame.mod.osp_beta.collective.defaults.*`. Perfis continuam guardando apenas escolhas explícitas. Padrão por Role prevalece sobre geral; nova ordem geral remove exceções por Role daquele efeito. Fly/Noclip atualizam também o padrão oposto para desligado. Escolhas individuais, restauração com optout e a política de efeitos desligados na entrada prevalecem sobre herança. Desativar `collective_future` limpa os padrões sem reverter jogadores atuais; religar não recupera regras antigas. Seleção manual e delegados atuam somente nos presentes. Renomear Role preserva seus padrões; excluir remove-os.
+
+Efeitos vinculados à própria Role permanecem no backlog. Não há sistema de concessões temporárias nem invisibilidade neste ciclo. A separação entre escolhas explícitas, padrões de entrada e permissões evita usar as políticas atuais como concessões futuras.
+
+Validação deste ciclo: gate completo `python3 tools/check.py` aprovado em Lua 5.1, incluindo 223 asserções de servidor para coletivos/defaults/Role em lote e 138 de integração cliente-servidor com UI simulada. A revisão independente encontrou e foi corrigido o uso da Role bruta inválida na herança; a Role efetiva de fallback é usada. Conferência visual e entrada de participantes no motor continuam pendentes.
+
+### Suspensão da restauração de munição
+
+Na Beta 1.5.1, a restauração ao desligar está suspensa por solicitação do autor após relatos de falhas. O controle sai do popup; o atalho permanece. O estado efetivo `ammoRestore` fica false, preferências antigas são ignoradas sem migração e o RPC legado retorna unavailable após conferir acesso/alvo. Um bloqueio interno no controlador impede restauração até se algum chamador antigo passar true. Desligamento, morte, respawn e restauração de jogador não escrevem uma quantidade antiga de munição. A munição infinita continua abastecendo até pelo menos 9.999; desligar interrompe a reposição e mantém o estoque atual. Esta suspensão não resolve a compatibilidade dos contadores privados dos mods. A descrição histórica da 1.5.0 abaixo registra o comportamento anterior.
 
 ## Bundle 1.5.0
 

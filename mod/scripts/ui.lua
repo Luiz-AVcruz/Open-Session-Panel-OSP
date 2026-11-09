@@ -11,6 +11,14 @@ function OSP.installClient()
     local tipKey,tipSince,tooltip=nil,nil,nil
     local function resetTooltip() tipKey=nil;tipSince=nil;tooltip=nil end
     local toolsPopup=nil
+    local collectivePopup=nil
+    local collectiveScope="player"
+    local collectiveRole="guest"
+    local collectiveExcludeSelf=false
+    local collectivePage=1
+    local collectiveSelection={}
+    local collectiveHostNamespace=nil
+    local collectiveActorJoin=nil
     local shortcuts=OSP.Shortcuts
     local shortcutRequest,shortcutNotice,shortcutUntil=nil,nil,0
     local search=OSP.ToolSearch
@@ -48,6 +56,8 @@ function OSP.installClient()
     local function state() return shared and shared.osp or nil end
     local function roster() local s=state();return s and s.players or {} end
     local function findPlayer(id) for _,p in ipairs(roster()) do if p.id==id then return p end end end
+    local collectiveRequestEligible
+    local roleBatchRequestEligible
     local function captureTargetContext(target)
         local s=state();local p=findPlayer(target);local namespace=s and s.profileHost;local challenge=p and p.profileChallenge
         if type(namespace)~="string" or #namespace~=32 or not namespace:match("^[0-9a-f]+$")
@@ -68,6 +78,9 @@ function OSP.installClient()
     end
     local function rolesAccess() return host() or OSP.Permissions.canManageRoles(ownPermissions()) end
     local function allowed(action,target,arg)
+        if action=="players_group" then return collectiveRequestEligible and collectiveRequestEligible(arg) or false end
+        if action=="roles_assign_many" then return roleBatchRequestEligible and roleBatchRequestEligible(arg) or false end
+        if action=="collective_future" then return host() and type(arg)=="boolean" end
         if host() then return true end
         local P=OSP.Permissions;local values=ownPermissions()
         if not P.allows(values,action,target,arg,me) then return false end
@@ -105,7 +118,19 @@ function OSP.installClient()
         return (not current or P.within(current,values)) and (not proposed or P.within(proposed,values))
     end
     local function permittedControl(id)
-        if id=="effects_on_load_on" or id=="effects_on_load_off" then return host() and not pending end
+        if id=="effects_on_load_on" or id=="effects_on_load_off" or id=="collective_future_on" or id=="collective_future_off" then return host() and not pending end
+        if id:match("^group_") then
+            if id=="group_popup_close" then return true end
+            if id=="group_popup_on" or id=="group_popup_off" then return true end
+            if id:match("^group_scope_option_") or id:match("^group_role_option_") then return true end
+            if id=="group_scope" or id=="group_role" or id=="group_exclude_self" or id=="group_mark_all" or id=="group_clear" then return true end
+            if id:match("^group_page_") then return true end
+            local playerId=tonumber(id:match("^group_manual_(%d+)$"))
+            if playerId then return collectiveScope=="manual" end
+            local action=id:match("^group_(%w+)$")
+            return action=="god" or action=="fly" or action=="noclip" or action=="freeze"
+                or action=="strength" or action=="ammo" or action=="heal" or action=="bring"
+        end
         if id:match("^permission_view_") or id:match("^permission_group_") then return rolesAccess() end
         if id=="tab_permissions" or id:match("^permission_") or id:match("^role_") then return rolesAccess() and (not pending or id=="tab_permissions") end
         local target=selected or me
@@ -119,10 +144,10 @@ function OSP.installClient()
         if id=="strength_settings" or id=="strength_force_value" or id=="strength_mass_value"
             or id=="strength_throw_on" or id=="strength_throw_off" or id=="strength_throw_speed_value"
             or id=="shortcut_strength" or id=="shortcut_clear_strength" then return allowed("strength",target) end
-        if id=="ammo_settings" or id:match("^ammo_restore_") or id=="shortcut_ammo" or id=="shortcut_clear_ammo" then return allowed("ammo",target) end
+        if id=="ammo_settings" or id=="shortcut_ammo" or id=="shortcut_clear_ammo" then return allowed("ammo",target) end
         if id=="player_role_manage" then return rolesAccess() end
         if id=="reset_player" then return allowed("reset_player",target) end
-        if id=="heal_all" or id=="bring_all" or id=="restart" or id=="reset_rules" then return allowed(id,0) end
+        if id=="restart" or id=="reset_rules" then return allowed(id,0) end
         local key=id:match("^rule_(%a+)_")
         if key then return allowed("rule",0,{key=key}) end
         if id=="regen_on" or id=="regen_off" then return allowed("rule",0,{key="regen"}) end
@@ -165,6 +190,12 @@ function OSP.installClient()
     end
     local function closeMovement() movementSettings=nil;OSP.NumberInput.cancel();shortcuts.cancel() end
     local function closeTools() toolsPopup=nil;search.blur() end
+    local function clearManualSelection() collectiveSelection={} end
+    local function resetCollective()
+        collectiveScope="player";collectiveRole="guest";collectiveExcludeSelf=false;collectivePage=1
+        clearManualSelection();collectivePopup=nil;closeDropdown()
+        if OSP.PermissionUI.clearBatchSelection then OSP.PermissionUI.clearBatchSelection() end
+    end
     local function selectPlayer(id)
         local p=findPlayer(id);local namespace=state() and state().profileHost
         local join=p and p.profileChallenge
@@ -190,6 +221,7 @@ function OSP.installClient()
         if tab~=t then
             closeDropdown();resetTooltip();closeMovement();closeTools();scroll=0;confirm=nil;typing=false;capturing=false
             shortcuts.cancel();OSP.PermissionUI.closeExpanded();OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel()
+            resetCollective()
             if not keepTarget and navigation.selectionMode()=="leave" then resetSelection() end
             tab=t
         end
@@ -204,6 +236,7 @@ function OSP.installClient()
         elseif not value then
             menu=false;closeDropdown();closeMovement();closeTools();confirm=nil;typing=false
             OSP.PermissionUI.closeExpanded();OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel()
+            resetCollective()
             if changed and navigation.selectionMode()~="keep" then resetSelection() end
         end
     end
@@ -213,10 +246,11 @@ function OSP.installClient()
         viewMode=current
         closeDropdown()
         resetTooltip();closeMovement();closeTools();confirm=nil;typing=false;capturing=false
+        collectivePopup=nil
         shortcuts.cancel();OSP.PermissionUI.closeExpanded();OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel()
         pages.players=1;pages.tools=1;scroll=0
         if menu then lmbPressed=false;clickConsumed=true;InputClear() end
-        if solo() then selectPlayer(me);toolMode="global" elseif not allowed("tool_policy",0) then toolMode="player" end
+        if solo() then resetCollective();selectPlayer(me);toolMode="global" elseif not allowed("tool_policy",0) then toolMode="player" end
         setTab(tab)
     end
     local function command(action,target,arg,expectedContext,frozenContext)
@@ -281,7 +315,7 @@ function OSP.installClient()
     end
     local function inside(x,y,w,h,mx,my) return mx>=x and my>=y and mx<x+w and my<y+h end
     local function button(id,x,y,w,h,value,kind,disabled,modal)
-        disabled=disabled or not permittedControl(id) or (dropdown~=nil and not dropdownDrawing and id~=dropdown.id) or ((confirm~=nil or movementSettings~=nil or toolsPopup~=nil or permissionExpanded()) and not modal)
+        disabled=disabled or not permittedControl(id) or (dropdown~=nil and not dropdownDrawing and id~=dropdown.id) or ((confirm~=nil or movementSettings~=nil or toolsPopup~=nil or collectivePopup~=nil or permissionExpanded()) and not modal)
         local controlDisabled=disabled
         local hitEnabled=not disabled
         local visible=true
@@ -337,7 +371,7 @@ function OSP.installClient()
             local d=dropdown
             d.items=items;d.current=current;d.onSelect=onSelect;d.seen=true
             d.field={x=drawOx+x,y=drawOy+y,w=w,h=h}
-            if disabled or confirm or not rolesAccess() then closeDropdown() end
+            if disabled or confirm or (tab=="permissions" and not rolesAccess()) then closeDropdown() end
         end
     end
     local function numberField(id,x,y,w,h,value,minimum,maximum,decimals,onCommit,disabled,caption,modal,extra)
@@ -391,9 +425,248 @@ function OSP.installClient()
         if verb=="kill" then ask("kill",p.id,nil,T("confirm_kill",utf8clip(p.name,24)))
         else command(verb,p.id,value) end
     end
+    local function checkboxButton(id,x,y,w,h,text,checked,disabled)
+        local clicked=button(id,x,y,w,h,"",checked and "active" or "outlined",disabled)
+        local box=16;local bx=x+9;local by=y+(h-box)/2
+        rect(bx,by,box,box,C.muted);rect(bx+1,by+1,box-2,box-2,C.side)
+        if checked then rect(bx+4,by+4,box-8,box-8,C.accent) end
+        label(x+33,y+(h-17)/2,text,15,disabled and C.disabled or C.text,math.max(0,w-40))
+        return clicked
+    end
+    local function collectiveIdentityKey(id,join,namespace)
+        return tostring(namespace)..":"..tostring(id)..":"..tostring(join)
+    end
+    local function validJoin(value) return OSP.finite(value) and value>=1 and value%1==0 end
+    local function validateCollectiveSelection()
+        local s=state();local namespace=s and s.profileHost
+        for key,entry in pairs(collectiveSelection) do
+            local p=findPlayer(entry.id)
+            if entry.host~=namespace or not p or p.profileChallenge~=entry.join then collectiveSelection[key]=nil end
+        end
+    end
+    local function groupMatches(p,scope,role,excludeSelf)
+        if scope=="manual" then
+            local namespace=state() and state().profileHost
+            return collectiveSelection[collectiveIdentityKey(p.id,p.profileChallenge,namespace)]~=nil
+        end
+        local C=OSP.Collective
+        if C and C.matches then return C.matches(p,scope,role,excludeSelf,me) end
+        if excludeSelf and p.id==me then return false end
+        if scope=="role" then return not p.host and (p.role or (p.admin and "admin" or "guest"))==role end
+        return scope=="all"
+    end
+    local function groupTargets(action,scope,role,excludeSelf,value,snapshot)
+        local result={};local ns=state() and state().profileHost
+        if not snapshot then validateCollectiveSelection() end
+        local candidates=snapshot or roster()
+        local hostActor=host()
+        local globalAction=action=="heal" and "heal_all" or action=="bring" and "bring_all" or nil
+        if globalAction and not allowed(globalAction,0) then return result end
+        for _,candidate in ipairs(candidates) do
+            local p
+            if snapshot then
+                local current=findPlayer(candidate.id)
+                if current and current.profileChallenge==candidate.join then p=current end
+            else p=candidate end
+            if p and validJoin(p.profileChallenge) and groupMatches(p,scope,role,excludeSelf) then
+                local eligible=true
+                if action=="bring" and (p.id==me or (p.health or 0)<=0) then eligible=false end
+                if action=="god" or action=="fly" or action=="noclip" or action=="freeze" or action=="strength" or action=="ammo" then
+                    if not hostActor and p.host then eligible=false end
+                    if hostActor and p.profileReady~=true then eligible=false end
+                    if not hostActor and p.id==me and value==false and p.profileReady~=true then eligible=false end
+                    if not allowed(action,p.id) then eligible=false end
+                elseif not hostActor and p.host then eligible=false end
+                if eligible then
+                    if snapshot then result[#result+1]={id=candidate.id,join=candidate.join}
+                    else result[#result+1]={id=p.id,join=p.profileChallenge,name=p.name,player=p} end
+                end
+            end
+        end
+        return result
+    end
+    local function currentRoleId(p) return p and (p.role or (p.admin and "admin" or "guest")) end
+    local function roleExists(id)
+        for _,role in ipairs(state() and state().templates or OSP.Permissions.list({})) do if role.id==id then return true end end
+        return false
+    end
+    collectiveRequestEligible=function(arg)
+        local C=OSP.Collective;local s=state();local own=findPlayer(me)
+        if type(arg)~="table" or not s or arg.host~=s.profileHost or not own or arg.actorJoin~=own.profileChallenge
+            or (arg.scope~="all" and arg.scope~="role" and arg.scope~="manual")
+            or type(arg.excludeSelf)~="boolean" or type(arg.targets)~="table" then return false end
+        if C and C.validRequest and not C.validRequest(arg) then return false end
+        if arg.scope=="role" and (type(arg.role)~="string" or not roleExists(arg.role)) then return false end
+        if arg.scope~="role" and arg.role~=nil then return false end
+        local action=arg.action
+        if type(action)~="string" then return false end
+        local effect=C and C.effects and C.effects[action]~=nil
+        if not effect and action~="heal" and action~="bring" then return false end
+        local targets=groupTargets(action,arg.scope,arg.role,arg.excludeSelf,arg.value,arg.targets)
+        if #targets>0 then return true end
+        local future=host() and s.collectiveFuture==true and (arg.scope=="all" or arg.scope=="role") and effect
+        return future==true and #arg.targets==0
+    end
+    roleBatchRequestEligible=function(arg)
+        local C=OSP.Collective;local s=state();local own=findPlayer(me)
+        if type(arg)~="table" or not s or arg.host~=s.profileHost or not own or arg.actorJoin~=own.profileChallenge
+            or type(arg.role)~="string" or not roleExists(arg.role) or type(arg.targets)~="table" then return false end
+        if C and C.validAssignment and not C.validAssignment(arg) then return false end
+        local seen,count={},0
+        for _,target in ipairs(arg.targets) do
+            if type(target)~="table" or type(target.id)~="number" or type(target.join)~="number" or seen[target.id] then return false end
+            seen[target.id]=true
+            local p=findPlayer(target.id)
+            if p and p.profileChallenge==target.join and not p.host and p.profileReady==true
+                and currentRoleId(p)~=arg.role and allowed("role_assign",p.id,{id=arg.role}) then count=count+1 end
+        end
+        return count>0
+    end
+    local function collectiveRequest(action,value,scope,role,excludeSelf,targets)
+        local s=state();local own=findPlayer(me)
+        if not s or type(s.profileHost)~="string" or not own or type(own.profileChallenge)~="number" then return nil end
+        local arg={host=s.profileHost,actorJoin=own.profileChallenge,action=action,scope=scope,
+            excludeSelf=excludeSelf==true,targets={}}
+        if scope=="role" then arg.role=role end
+        if OSP.Collective and OSP.Collective.effects[action] then arg.value=value==true end
+        for _,p in ipairs(targets or {}) do arg.targets[#arg.targets+1]={id=p.id,join=p.join} end
+        return arg
+    end
+    local function groupActionState(action,targets)
+        if #targets==0 then return "none" end
+        local enabled=0
+        for _,target in ipairs(targets) do
+            local p=target.player or findPlayer(target.id)
+            if p and ((action=="god" and p.god==true) or (action=="fly" and p.fly==true)
+                or (action=="noclip" and p.noclip==true) or (action=="freeze" and p.freeze==true)
+                or (action=="strength" and p.strength==true) or (action=="ammo" and p.ammo==true)) then enabled=enabled+1 end
+        end
+        if enabled==0 then return "off" end
+        if enabled==#targets then return "on" end
+        return "mixed"
+    end
+    local function openCollectivePopup(action,targets,scope,role,excludeSelf)
+        local frozen={};for _,p in ipairs(targets) do frozen[#frozen+1]={id=p.id,join=p.join,name=p.name} end
+        local base=collectiveRequest(action,nil,scope,role,excludeSelf,frozen)
+        if not base then setStatus(T("result_unavailable"));return end
+        collectivePopup={action=action,base=base,host=base.host,actorJoin=base.actorJoin,names={}}
+        for _,p in ipairs(frozen) do collectivePopup.names[#collectivePopup.names+1]=p.name end
+        closeDropdown();OSP.NumberControl.beforeAction();OSP.PermissionUI.cancelInput();InputClear()
+    end
+    local function sendCollective(base,value)
+        local arg=OSP.copy(base);arg.value=value
+        collectivePopup=nil
+        command("players_group",0,arg)
+    end
+    local function drawCollectivePlayers(w)
+        local scope=collectiveScope;local y=78
+        local excludeSelf=scope~="manual" and collectiveExcludeSelf or false
+        validateCollectiveSelection()
+        if scope=="all" then
+            if checkboxButton("group_exclude_self",0,y,math.min(w,340),34,T("group_exclude_self"),collectiveExcludeSelf,false) then
+                collectiveExcludeSelf=not collectiveExcludeSelf
+            end
+            y=y+45
+        elseif scope=="role" then
+            local roleItems={}
+            for _,role in ipairs(state() and state().templates or OSP.Permissions.list({})) do
+                roleItems[#roleItems+1]={id=role.id,label=OSP.Permissions.name(role)}
+            end
+            if not roleExists(collectiveRole) and #roleItems>0 then collectiveRole=roleItems[1].id end
+            local roleWidth=math.min(360,w)
+            dropdownField("group_role",0,y,roleWidth,36,roleItems,collectiveRole,#roleItems==0,function(id) collectiveRole=id end,false)
+            if #roleItems>0 and checkboxButton("group_exclude_self",roleWidth+10,y,math.min(270,w-roleWidth-10),36,
+                T("group_exclude_self"),collectiveExcludeSelf,false) then
+                collectiveExcludeSelf=not collectiveExcludeSelf
+            end
+            y=y+48
+        elseif scope=="manual" then
+            local selectedCount=0;for _ in pairs(collectiveSelection) do selectedCount=selectedCount+1 end
+            local gap=8;local buttonW=math.min(150,(w-2*gap)/3)
+            if button("group_mark_all",0,y,buttonW,34,T("group_mark_all"),"plain",#roster()==0) then
+                local ns=state() and state().profileHost
+                for _,p in ipairs(roster()) do
+                    if validJoin(p.profileChallenge) then
+                        collectiveSelection[collectiveIdentityKey(p.id,p.profileChallenge,ns)]={id=p.id,join=p.profileChallenge,host=ns}
+                    end
+                end
+            end
+            if button("group_clear",buttonW+gap,y,buttonW,34,T("group_clear"),"plain",selectedCount==0) then clearManualSelection() end
+            label(buttonW*2+gap*2,y+9,T("group_selected_count",selectedCount),14,C.muted,math.max(0,w-(buttonW*2+gap*2)))
+            y=y+42
+            local rows=math.max(2,math.min(5,math.floor((layout.contentH-220)/42)))
+            local last=math.max(1,math.ceil(#roster()/rows));collectivePage=math.max(1,math.min(last,collectivePage))
+            local first=(collectivePage-1)*rows+1
+            for i=first,math.min(#roster(),first+rows-1) do
+                local p=roster()[i];local key=collectiveIdentityKey(p.id,p.profileChallenge,state() and state().profileHost)
+                local checked=collectiveSelection[key]~=nil
+                local blocked=not validJoin(p.profileChallenge) or not host() and p.host
+                if checkboxButton("group_manual_"..p.id,0,y,math.min(w,510),34,utf8clip(p.name,24).."  ·  "..roleLabel(p),checked,blocked) then
+                    if checked then collectiveSelection[key]=nil
+                    else collectiveSelection[key]={id=p.id,join=p.profileChallenge,host=state() and state().profileHost} end
+                end
+                y=y+39
+            end
+            if #roster()>rows then
+                local pageLabel=T("page_count",collectivePage,last)
+                label(0,y+7,pageLabel,15,C.muted,140)
+                if button("group_page_prev",145,y,100,32,"< "..T("prev_short"),"plain",collectivePage<=1) then collectivePage=collectivePage-1 end
+                if button("group_page_next",253,y,100,32,T("next_short").." >","plain",collectivePage>=last) then collectivePage=collectivePage+1 end
+                y=y+38
+            end
+            y=y+5
+        end
+
+        local actions={"god","fly","noclip","freeze","strength","ammo","heal","bring"}
+        local cols=w>=520 and 2 or 1;local gap=8;local bw=(w-gap*(cols-1))/cols
+        local future=host() and state() and state().collectiveFuture==true and (scope=="all" or scope=="role")
+        local rowY=y
+        for i,action in ipairs(actions) do
+            local x=((i-1)%cols)*(bw+gap);local py=rowY+math.floor((i-1)/cols)*44
+            local candidates=groupTargets(action,scope,scope=="role" and collectiveRole or nil,excludeSelf,nil)
+            local stateKey=(action=="heal" or action=="bring") and nil or groupActionState(action,candidates)
+            local futureEmpty=future and stateKey=="none" and action~="heal" and action~="bring"
+            local caption
+            if action=="heal" then caption=T("group_heal_count",#candidates)
+            elseif action=="bring" then caption=T("group_bring_count",#candidates)
+            else caption=T(action=="god" and "god_short" or action).."  ·  "..T(stateKey=="on" and "group_state_on" or stateKey=="off" and "group_state_off" or stateKey=="mixed" and "group_state_mixed" or "group_state_none") end
+            local pendingNow=pending~=nil
+            if action=="heal" or action=="bring" then
+                local arg=collectiveRequest(action,nil,scope,collectiveRole,action=="bring" or excludeSelf,candidates)
+                local canRequest=not pendingNow and arg and allowed("players_group",0,arg)
+                if button("group_"..action,x,py,bw,38,caption,"plain",not canRequest) then command("players_group",0,arg) end
+            else
+                local desired=stateKey~="on"
+                local arg=collectiveRequest(action,desired,scope,collectiveRole,excludeSelf,candidates)
+                local canRequest=not pendingNow and arg and allowed("players_group",0,arg)
+                if button("group_"..action,x,py,bw,38,caption,stateKey=="on" and "active" or "plain",pendingNow or not canRequest and not futureEmpty) then
+                    if stateKey=="mixed" or futureEmpty then openCollectivePopup(action,candidates,scope,collectiveRole,excludeSelf)
+                    else sendCollective(arg,desired) end
+                end
+            end
+        end
+        local groupRows=math.ceil(#actions/cols)
+        local yBottom=rowY+groupRows*44
+        local totalEligible=0
+        for _,action in ipairs(actions) do totalEligible=math.max(totalEligible,#groupTargets(action,scope,scope=="role" and collectiveRole or nil,excludeSelf,nil)) end
+        local emptyFuture=future and totalEligible==0
+        if emptyFuture then label(0,yBottom+5,T("group_future_empty"),14,C.accent,w)
+        elseif totalEligible==0 then label(0,yBottom+5,T("group_no_targets"),14,C.muted,w) end
+        if scope=="manual" and next(collectiveSelection)==nil then label(0,yBottom+5,T("group_no_selection"),14,C.muted,w) end
+        return yBottom+44
+    end
     local function drawPlayers()
         local w=layout.contentW;local list=roster();local p=selectedPlayer()
         title(T(solo() and "player_solo_title" or "players_title"),not solo() and T("player_count",#list) or nil)
+        if not solo() then
+            local items={{id="player",label=T("group_scope_player")},{id="all",label=T("group_scope_all")},
+                {id="role",label=T("group_scope_role")},{id="manual",label=T("group_scope_manual")}}
+            local width=math.min(232,math.max(190,w*.42))
+            dropdownField("group_scope",w-width,13,width,36,items,collectiveScope,false,function(id)
+                collectiveScope=id;collectivePage=1
+            end,false)
+            if collectiveScope~="player" then return drawCollectivePlayers(w) end
+        end
         if not p then label(0,88,T("no_players"),18,C.muted,w);return 130 end
         local two=not solo() and w>=650;local listW=two and math.min(250,math.floor(w*.31)) or w
         local ax=two and listW+24 or 0;local aw=two and w-ax or w
@@ -497,15 +770,11 @@ function OSP.installClient()
             y=y+49
         end
         if solo() then return y+10 end
-        if button("heal_all",ax,y,bw,37,T("heal_all"),"plain",false) then command("heal_all",0) end
-        if cols==2 then
-            if button("bring_all",ax+bw+gap,y,bw,37,T("bring_all"),"plain",false) then command("bring_all",0) end
-        else y=y+43;if button("bring_all",ax,y,bw,37,T("bring_all"),"plain",false) then command("bring_all",0) end end
-        return math.max(listBottom,y+46)
+        return math.max(listBottom,y+10)
     end
     local function drawPlayerTooltip()
         tooltip=nil
-        if tab~="players" or confirm or movementSettings or toolsPopup or typing or capturing
+        if tab~="players" or confirm or movementSettings or toolsPopup or collectivePopup or typing or capturing
             or search.focused or shortcuts.capture or OSP.NumberInput.active() or OSP.PermissionUI.capturing()
             or clickConsumed or InputDown("lmb") then resetTooltip();return end
         local p=findPlayer(selected)
@@ -584,6 +853,7 @@ function OSP.installClient()
             button=function(id,x,y,w,h,value,kind,disabled)
                 return button(id,x,y,w,h,value,kind,disabled or (expanded and confirm~=nil),expanded)
             end,
+            checkbox=checkboxButton,
             viewport=function(x,y,w,h,offset,draw)
                 if expanded then permissionViewport={x=drawOx+x,y=drawOy+y,w=w,h=h} end
                 local oldX,oldY,oldOx,oldOy,oldClip=mouseX,mouseY,drawOx,drawOy,clip
@@ -606,6 +876,15 @@ function OSP.installClient()
             pending=function() return pending~=nil end,
             ask=ask,command=command,resetScroll=function() scroll=0 end,
             playerCaption=function() return p and utf8clip(p.name,24) or "?" end,
+            players=function() return list end,
+            profileHost=function() return state() and state().profileHost end,
+            groupAssignment=function(role,targets)
+                local s=state();local own=findPlayer(me)
+                if not s or not own then return nil end
+                local captured={}
+                for _,target in ipairs(targets or {}) do captured[#captured+1]={id=target.id,join=target.join} end
+                return {host=s.profileHost,actorJoin=own.profileChallenge,role=role,targets=captured}
+            end,
             playerIndex=playerIndex,playerCount=function() return #list end,
             playerStep=function(d) local q=list[playerIndex()+d];if q then selectPlayer(q.id) end end,
         }
@@ -750,11 +1029,25 @@ function OSP.installClient()
             if e then
                 local actor=math.min(140,w*.21);local result=math.min(105,w*.16);local target=math.min(125,w*.18)
                 local actionW=math.max(100,w-actor-result-target-24)
-                local key=({heal="heal",kill="kill",respawn="respawn",["goto"]="go_to",bring="bring",eject="eject",god="god_mode",fly="fly",fly_speed="fly_normal_action",fly_boost="fly_shift_action",noclip_speed="noclip_normal_action",noclip_boost="noclip_shift_action",noclip="noclip",freeze="freeze",strength="strength",ammo="ammo",ammo_restore="ammo_restore",strength_force="strength_force_label",strength_mass="strength_mass_label",strength_throw="strength_throw",strength_throw_speed="strength_throw_speed_label",speed="speed",effects_off_on_load="effects_on_load",admin="admin_access",role_assign="permissions",role_save="permissions",role_delete="permissions",role_reset="permissions",reset_player="reset_player",heal_all="heal_all",bring_all="bring_all",rule="session_rules",reset_rules="reset_rules",restart="restart",announce="announcement",tool="tools",tool_all="tools",tools="tools",tools_all="tools",tool_policy="global_rules",tool_policy_bulk="global_rules",tool_policy_selection="global_rules",tools_selection="tools",tools_selection_all="tools",tools_filtered="tools",tools_filtered_all="tools"})[e.action] or "status"
+                local key=({heal="heal",kill="kill",respawn="respawn",["goto"]="go_to",bring="bring",eject="eject",god="god_mode",fly="fly",fly_speed="fly_normal_action",fly_boost="fly_shift_action",noclip_speed="noclip_normal_action",noclip_boost="noclip_shift_action",noclip="noclip",freeze="freeze",strength="strength",ammo="ammo",ammo_restore="ammo_restore",strength_force="strength_force_label",strength_mass="strength_mass_label",strength_throw="strength_throw",strength_throw_speed="strength_throw_speed_label",speed="speed",effects_off_on_load="effects_on_load",collective_future="collective_actions",players_group="collective_actions",roles_assign_many="role_assignment_title",admin="admin_access",role_assign="permissions",role_save="permissions",role_delete="permissions",role_reset="permissions",reset_player="reset_player",heal_all="heal_all",bring_all="bring_all",rule="session_rules",reset_rules="reset_rules",restart="restart",announce="announcement",tool="tools",tool_all="tools",tools="tools",tools_all="tools",tool_policy="global_rules",tool_policy_bulk="global_rules",tool_policy_selection="global_rules",tools_selection="tools",tools_selection_all="tools",tools_filtered="tools",tools_filtered_all="tools"})[e.action] or "status"
                 local detail=T(key)
                 if type(e.argument)=="table" then
                     local a=e.argument
-                    if a.key then
+                    if e.action=="players_group" then
+                        local action=T(a.action=="god" and "god_short" or a.action or "collective_actions")
+                        local scope=T("group_scope_"..tostring(a.scope or "all"))
+                        detail=T("group_activity",action).." · "..scope
+                        if a.role then
+                            local name=a.role
+                            for _,role in ipairs(s.templates or {}) do if role.id==a.role then name=OSP.Permissions.name(role);break end end
+                            detail=detail.." · "..name
+                        end
+                        if type(a.enabled)=="boolean" then detail=detail.." · "..T(a.enabled and "group_state_on" or "group_state_off") end
+                    elseif e.action=="roles_assign_many" then
+                        local name=a.role or "?"
+                        for _,role in ipairs(s.templates or {}) do if role.id==a.role then name=OSP.Permissions.name(role);break end end
+                        detail=T("role_batch_activity",name)
+                    elseif a.key then
                         local ruleNames={time="time_scale",rain="rain",fog="fog",regen="regeneration"}
                         detail=T(ruleNames[a.key] or "session_rules")
                         local value=a.value
@@ -782,7 +1075,8 @@ function OSP.installClient()
                 label(0,y+7,e.actor or "?",16,C.text,actor)
                 label(actor+8,y+7,detail,16,C.text,actionW)
                 label(actor+actionW+16,y+7,e.target~="" and e.target or "—",15,C.muted,target)
-                label(w-result,y+7,e.result=="ok" and T("done") or T("error_short"),15,e.result=="ok" and C.success or C.danger,result)
+                local resultKey=e.result=="ok" and "done" or e.result=="partial" and "result_partial" or "error_short"
+                label(w-result,y+7,T(resultKey),15,e.result=="ok" and C.success or e.result=="partial" and C.accent or C.danger,result)
                 label(0,y+28,T("counts_short",e.affected or 0,e.skipped or 0),13,C.muted,w)
                 rect(0,y+46,w,1,C.line);y=y+48
             end
@@ -840,6 +1134,31 @@ function OSP.installClient()
             label(0,y+78,T("effects_on_load_keeps"),13,C.muted,w)
             y=y+106
         end
+        if host() and not solo() then
+            local expanded=GetString(ROOT.."settings.collapsed.collective")=="0"
+            if button("settings_section_collective",0,y,w,58,"","outlined",false) then
+                expanded=not expanded;SetString(ROOT.."settings.collapsed.collective",expanded and "0" or "1")
+            end
+            label(10,y+9,T("collective_actions"),17,C.text,w-48)
+            UiPush();UiTranslate(w-28,y+21);rgb(C.muted)
+            UiImage(expanded and "MOD/ui/section-down.png" or "MOD/ui/section-right.png");UiPop()
+            label(10,y+33,T("collective_settings_help"),13,C.muted,w-48)
+            y=y+68
+            if expanded then
+                local value=state() and state().collectiveFuture
+                local known=type(value)=="boolean"
+                label(0,y+7,T("collective_future_label"),16,C.text,w)
+                local choiceW=math.min(300,math.floor((w-8)/2))
+                if button("collective_future_off",0,y+34,choiceW,38,T("collective_future_present"),value==false and "active" or "plain",not known or pending) and value~=false then
+                    command("collective_future",0,false)
+                end
+                if button("collective_future_on",choiceW+8,y+34,choiceW,38,T("collective_future_all"),value==true and "active" or "plain",not known or pending) and value~=true then
+                    command("collective_future",0,true)
+                end
+                label(0,y+80,T("collective_future_help"),13,C.muted,w)
+                y=y+112
+            end
+        end
         return y
     end
     local function drawAppearance()
@@ -879,7 +1198,7 @@ function OSP.installClient()
             closeMovement();return
         end
         local personal=p.id==me;local god=current.mode=="god";local strength=current.mode=="strength";local ammo=current.mode=="ammo"
-        local popupHeight=god and 210 or ammo and (personal and 326 or 282) or strength and (personal and 360 or 314) or personal and 396 or 340
+        local popupHeight=god and 210 or ammo and (personal and 286 or 242) or strength and (personal and 360 or 314) or personal and 396 or 340
         local w=math.min(layout.w-32,540);local h=math.min(layout.h-24,popupHeight)
         local x,y=(layout.w-w)/2,(layout.h-h)/2
         if not clickConsumed and lmbPressed and not inside(x,y,w,h,mouseX,mouseY) then
@@ -923,15 +1242,7 @@ function OSP.installClient()
                         else setStatus(T("result_unavailable")) end
                     end,false,nil,true)
             end
-        elseif ammo then
-            label(x+20,y+88,T("ammo_restore"),15,C.text,w-190)
-            if button("ammo_restore_on",x+w-160,y+80,70,34,T("on_short"),p.ammoRestore~=false and "active" or "plain",pending~=nil,true) then
-                command("ammo_restore",current.player,true)
-            end
-            if button("ammo_restore_off",x+w-82,y+80,70,34,T("off_short"),p.ammoRestore==false and "active" or "plain",pending~=nil,true) then
-                command("ammo_restore",current.player,false)
-            end
-        elseif not god then
+        elseif not god and not ammo then
             for i,field in ipairs({{current.mode.."_speed_value","fly_speed_label",current.mode.."_speed",p[current.mode.."Speed"] or OSP.flight.normal},
                 {current.mode.."_boost_value","fly_boost_label",current.mode.."_boost",p[current.mode.."Boost"] or OSP.flight.shift}}) do
                 local row=y+86+(i-1)*44
@@ -944,7 +1255,7 @@ function OSP.installClient()
                     end,false,nil,true)
             end
         end
-        local py=y+(god and 86 or ammo and 126 or strength and (p.strengthThrow and 254 or 210) or 180)
+        local py=y+(god and 86 or ammo and 86 or strength and (p.strengthThrow and 254 or 210) or 180)
         if personal then
             shortcuts.drawBinding({
                 label=function(px,py,value,size,width) label(px,py,value,size,C.text,width) end,
@@ -1023,6 +1334,33 @@ function OSP.installClient()
         end
         label(x+18,y+h-34,T("movement_popup_help"),13,C.accent,w-36)
     end
+    local function drawCollectivePopup()
+        local current=collectivePopup
+        if not current then return end
+        local s=state();local own=findPlayer(me)
+        if tab~="players" or not s or s.profileHost~=current.host or not own or own.profileChallenge~=current.actorJoin then
+            collectivePopup=nil;return
+        end
+        local w=math.min(layout.w-32,420);local h=190;local x=(layout.w-w)/2;local y=(layout.h-h)/2
+        if not clickConsumed and lmbPressed and not inside(x,y,w,h,mouseX,mouseY) then
+            clickConsumed=true;collectivePopup=nil;return
+        end
+        rect(0,0,layout.w,layout.h,{0,0,0,.65});rect(x,y,w,h,C.side);rect(x,y,w,3,C.accent)
+        label(x+20,y+16,T("group_popup_title",T(current.action=="god" and "god_short" or current.action)),19,C.text,w-92,true)
+        if #current.base.targets>0 then
+            label(x+20,y+50,T("group_popup_targets",#current.base.targets),14,C.muted,w-40)
+        else
+            label(x+20,y+50,T("group_future_empty"),14,C.muted,w-40)
+        end
+        if button("group_popup_close",x+w-54,y+11,36,34,"X","outlined",false,true) then collectivePopup=nil;return end
+        local canOn,canOff=false,false
+        local onArg=OSP.copy(current.base);onArg.value=true
+        local offArg=OSP.copy(current.base);offArg.value=false
+        if not pending then canOn=allowed("players_group",0,onArg);canOff=allowed("players_group",0,offArg) end
+        local half=(w-52)/2
+        if button("group_popup_on",x+20,y+h-58,half,38,T("group_popup_on"),"active",not canOn,true) then sendCollective(current.base,true) end
+        if button("group_popup_off",x+32+half,y+h-58,half,38,T("group_popup_off"),"plain",not canOff,true) then sendCollective(current.base,false) end
+    end
     local function drawModal()
         if not confirm then return end
         local w=math.min(layout.w-32,540);local h=math.min(layout.h-32,232);local x=(layout.w-w)/2;local y=(layout.h-h)/2
@@ -1054,7 +1392,7 @@ function OSP.installClient()
         mouseX,mouseY=UiGetMousePos();drawOx,drawOy=ox,oy
         rect(0,0,W,H,C.back);rect(0,0,W,header,C.side);rect(0,header-1,W,1,C.line)
         rect(18,headerCenter-12,4,24,C.accent);label(31,headerCenter-21/2,T("app_title"),21,C.text,W-215,true)
-        if not solo() and (tab=="players" or (tab=="tools" and toolMode=="player")) then
+        if not solo() and ((tab=="players" and collectiveScope=="player") or (tab=="tools" and toolMode=="player")) then
             local target=findPlayer(selected) or roster()[1]
             local x=math.max(260,W-490)
             if target and W-145-x>=90 then label(x,headerCenter-14/2,T("selected_short")..": "..target.name,14,C.muted,W-145-x) end
@@ -1095,7 +1433,7 @@ function OSP.installClient()
         end
         if OSP.NumberInput.active() and not movementSettings then label(cx,H-17,T("number_help"),13,C.accent,cw)
         elseif status and GetTime()<statusUntil then label(cx,H-17,status,13,C.accent,cw) end
-        drawPlayerTooltip();drawMovementPopup();drawToolsPopup();if not permissionExpanded() then drawModal() end
+        drawPlayerTooltip();drawMovementPopup();drawToolsPopup();drawCollectivePopup();if not permissionExpanded() then drawModal() end
         OSP.NumberControl.endFrame(clickConsumed);UiPop()
     end
     local function drawPermissionModal()
@@ -1131,8 +1469,9 @@ function OSP.installClient()
     local function drawDropdown()
         local d=dropdown
         if not d then return end
-        if not menu or tab~="permissions" or not rolesAccess() or not d.seen or confirm
-            or permissionExpanded()~=d.expanded or #d.items==0 then closeDropdown();return end
+        local permissionDropdown=d.id:match("^permission_view_")~=nil
+        if not menu or not d.seen or confirm or (permissionDropdown and (tab~="permissions" or not rolesAccess()))
+            or (not permissionDropdown and tab~="players") or permissionExpanded()~=d.expanded or #d.items==0 then closeDropdown();return end
         local bounds=d.expanded and layout.permissionModalBounds or {x=layout.ox,y=layout.oy,w=layout.w,h=layout.h}
         if not bounds then closeDropdown();return end
         local f=d.field;local below=bounds.y+bounds.h-12-(f.y+f.h+4)
@@ -1190,9 +1529,14 @@ function OSP.installClient()
     end
     function client.ospResult(ok,code,details,id)
         if not pending or id~=pending then return end
-        local names={ok="result_ok",denied="result_denied",invalid="result_invalid",protected="result_protected",unavailable="result_unavailable",error="result_error",rate_limited="result_rate_limited",state_changed="shortcut_state_changed",conflict="role_conflict",template_limit="role_limit"}
+        local names={ok="result_ok",partial="result_partial",denied="result_denied",invalid="result_invalid",protected="result_protected",unavailable="result_unavailable",error="result_error",rate_limited="result_rate_limited",state_changed="shortcut_state_changed",conflict="role_conflict",template_limit="role_limit"}
         local msg=T(names[code] or "result_error")
+        local defaultSaved=ok and lastAction=="players_group" and details and details.defaultsSaved==true
+        if defaultSaved then
+            if code=="partial" then msg=msg.."  "..T("group_default_saved") else msg=T("group_default_saved") end
+        end
         if details and details.skipped and details.skipped>0 then msg=msg.."  "..T("skipped",details.skipped) end
+        if details and details.failed and details.failed>0 then msg=msg.."  "..T("failed_count",details.failed) end
         if ok and lastAction=="rule" then msg=T("rules_saved") elseif ok and lastAction=="reset_rules" then msg=T("rules_reset") end
         if ok and lastAction=="effects_off_on_load" then msg=T("effects_on_load_saved") end
         if ok and (lastAction=="role_save" or lastAction=="role_reset") and details then OSP.PermissionUI.saved(details.template) end
@@ -1221,10 +1565,41 @@ function OSP.installClient()
     end
     function client.init()
         me=GetLocalPlayer()
+        collectiveHostNamespace=state() and state().profileHost
+        local own=findPlayer(me);collectiveActorJoin=own and own.profileChallenge
         if LoadLanguageTable and GetInt then LoadLanguageTable(GetInt("options.language")) end
         if GetString(ROOT.."language")=="" then SetString(ROOT.."language","en") end
         if not OSP.validKey(GetString(ROOT.."menu_key")) then SetString(ROOT.."menu_key","p") end
     end
+    local function updateCollectiveContext(s,own)
+        local namespace=s and s.profileHost
+        local function invalidate()
+            local active=collectiveScope~="player" or next(collectiveSelection)~=nil or collectivePopup~=nil
+                or OSP.PermissionUI.hasBatchSelection and OSP.PermissionUI.hasBatchSelection()
+            resetCollective();OSP.PermissionUI.clearBatchSelection()
+            if active then lmbPressed=false;clickConsumed=true;InputClear() end
+        end
+        if collectiveHostNamespace~=nil and namespace~=collectiveHostNamespace then
+            invalidate()
+        end
+        collectiveHostNamespace=namespace
+        local join=own and own.profileChallenge
+        if collectiveActorJoin~=nil and join~=collectiveActorJoin then
+            invalidate()
+        end
+        collectiveActorJoin=join
+        validateCollectiveSelection()
+        if collectivePopup and (not s or s.profileHost~=collectivePopup.host or not own or own.profileChallenge~=collectivePopup.actorJoin) then
+            collectivePopup=nil;lmbPressed=false;clickConsumed=true;InputClear()
+        end
+    end
+    local function escapeCollectivePopup()
+        if collectivePopup and InputPressed("esc") then
+            collectivePopup=nil;lmbPressed=false;InputClear();return true
+        end
+        return false
+    end
+    local function collectivePopupOpen() return collectivePopup~=nil end
     function client.tick(dt)
         sentInInputFrame=false
         numericFrame=OSP.NumberInput.sample()
@@ -1240,6 +1615,7 @@ function OSP.installClient()
         if me==0 then me=GetLocalPlayer() end
         local s=state()
         local p=findPlayer(me)
+        updateCollectiveContext(s,p)
         if s and s.profileHost and p and p.profileChallenge and not host() and IsPlayerValid(me)
             and (identityHost~=s.profileHost or identityJoin~=p.profileChallenge) and GetTime()>=identityRetry then
             identityRetry=GetTime()+1
@@ -1270,6 +1646,7 @@ function OSP.installClient()
         elseif menu and toolsPopup and InputPressed("esc") then closeTools();lmbPressed=false;InputClear()
         elseif menu and movementSettings and InputPressed("esc") then
             closeMovement();lmbPressed=false;InputClear()
+        elseif menu and escapeCollectivePopup() then
         elseif menu and search.focused then
             if search.key() then pages.tools=1;scroll=0 end
         elseif menu and tab=="permissions" and OSP.PermissionUI.capturing() then
@@ -1285,14 +1662,14 @@ function OSP.installClient()
             if InputPressed(keybind()) then setMenu(not menu) end
             if menu and InputPressed("esc") then if confirm then confirm=nil else setMenu(false) end end
         end
-        if menu and bodyHovered and not confirm and not movementSettings and not toolsPopup and not dropdown and not permissionExpanded() and not OSP.NumberControl.dragging() then
+        if menu and bodyHovered and not confirm and not movementSettings and not toolsPopup and not collectivePopupOpen() and not dropdown and not permissionExpanded() and not OSP.NumberControl.dragging() then
             local delta=InputValue("mousewheel")
             if delta~=0 then scroll=math.max(0,math.min(maxScroll,scroll-delta*48)) end
         end
         if PauseMenuButton(T("pause_button"),"bottom_bar",false) then setMenu(true);confirm=nil end
         if not admin() and tab~="settings" and tab~="appearance" and tab~="about" then setTab("settings") end
         if not wasMenu and not menu and not shortcuts.capture and not typing and not capturing
-            and not confirm and not movementSettings and not toolsPopup and not search.focused
+            and not confirm and not movementSettings and not toolsPopup and not collectivePopupOpen() and not search.focused
             and not OSP.NumberInput.active() and not permissionExpanded() and not OSP.PermissionUI.capturing()
             and not InputPressed(keybind()) and not shortcuts.modified() then
             local action,count=nil,0
@@ -1385,6 +1762,6 @@ function OSP.installClient()
             UiFont("regular.ttf",18);UiAlign("left top");UiTextDisableWildcards(true);rgb(C.text);UiText(notice);UiPop()
         end
     end
-    OSP.UI={getState=function() return {open=menu,tab=tab,selected=selected,confirm=confirm,movementPopup=OSP.copy(movementSettings),permissionExpanded=permissionExpanded(),permissionViewport=OSP.copy(permissionViewport),roleDropdown=dropdown and {id=dropdown.id,first=dropdown.first,bounds=OSP.copy(dropdown.bounds)} or nil,toolsPopup=OSP.copy(toolsPopup),searchQuery=search.query,searchFocused=search.focused,keyCapture=shortcuts.capture~=nil,shortcutNotice=shortcutNotice,typing=typing,language=lang(),menuKey=keybind(),requestPending=pending~=nil,pendingId=pending,status=status,layout=OSP.copy(layout),controls=OSP.copy(controls),tooltip=OSP.copy(tooltip),scroll=scroll,maxScroll=maxScroll,filter=filter,toolMode=toolMode,viewMode=viewMode} end,
+    OSP.UI={getState=function() return {open=menu,tab=tab,selected=selected,confirm=confirm,movementPopup=OSP.copy(movementSettings),collectivePopup=OSP.copy(collectivePopup),collectiveScope=collectiveScope,collectiveSelection=OSP.copy(collectiveSelection),permissionExpanded=permissionExpanded(),permissionViewport=OSP.copy(permissionViewport),roleDropdown=dropdown and {id=dropdown.id,first=dropdown.first,bounds=OSP.copy(dropdown.bounds)} or nil,toolsPopup=OSP.copy(toolsPopup),searchQuery=search.query,searchFocused=search.focused,keyCapture=shortcuts.capture~=nil,shortcutNotice=shortcutNotice,typing=typing,language=lang(),menuKey=keybind(),requestPending=pending~=nil,pendingId=pending,status=status,layout=OSP.copy(layout),controls=OSP.copy(controls),tooltip=OSP.copy(tooltip),scroll=scroll,maxScroll=maxScroll,filter=filter,toolMode=toolMode,viewMode=viewMode} end,
         open=function(v) setMenu(v==true) end,selectTab=setTab}
 end

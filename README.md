@@ -28,6 +28,12 @@ Buttons use their full visible rectangle and react on press. Holding or releasin
 
 Numeric fields combine a slider and editable number. Click the number to position the cursor and select/edit text, or drag the bar to adjust. Enter or clicking outside applies valid text; Escape cancels. Slider changes apply when you release the mouse. Values stay within each setting's range. Ctrl+A selects all; clipboard shortcuts are unavailable. The same controls are available in Mod Manager Options. Closing the panel, changing tabs or selecting another player cancels an unfinished numeric edit.
 
+## Group actions
+
+In **Players**, choose one player, everyone, a Role or a manual checkbox selection. Group controls cover invincibility, freeze, Fly, Noclip, Super strength, infinite ammo, healing and bringing players. Mixed effects offer explicit enable/disable choices. Other actions and numeric settings stay in individual mode. Role selection filters its current members; assigning another Role does not automatically change effects.
+
+The host can choose **Present players only** or **Present and future players** in Settings. Future defaults apply to everyone or a Role without replacing saved individual choices. Manual selections and delegated actions affect present players only. Switching back to present players removes future defaults and keeps effects already applied. Closing the panel or leaving the tab clears the group selection.
+
 ## Super strength
 
 **Player → Super strength** enables carrying heavier loose objects with the normal Grab button. Its **...** popup sets force (1–20×), maximum mass (1–100,000 in the game's mass scale) and optional throwing. Throwing starts off; when enabled, Use tool throws once at the configured speed (1–100 m/s). Force defaults to 1×, mass to 5,000 and throw speed to 20 m/s. Configuring these values does not enable the ability.
@@ -36,9 +42,9 @@ Your shortcut has no default key. Set it in your own Super strength popup or in 
 
 ## Infinite ammo
 
-**Players → Infinite ammo** supplies the equipped, enabled tool and primes enabled empty tools using the game's standard ammo counter. It starts off. Open **...** to choose **Restore ammo when disabling** (on by default) and an optional personal shortcut. Host choices persist per player. Explicitly disabling your own ability is saved; delegated activation and configuration remain temporary. Commands follow the Infinite ammo role permission.
+**Players → Infinite ammo** supplies the equipped, enabled tool and primes enabled empty tools using the game's standard ammo counter. It starts off. Open **...** to configure an optional personal shortcut. Host choices persist per player; delegated activation remains temporary. Commands follow the Infinite ammo role permission.
 
-Restoration returns each affected tool to the amount captured before its first refill, with a minimum of 1 if it was empty. Empty tools are supplied even before selection; newly enabled or registered tools are included while the ability is active. Turning restoration off leaves the supplied stock when the ability ends. Death or an OSP respawn ends the current stock snapshot; the ability stays granted and starts a new snapshot after respawning. Original amounts above 9,999 are preserved. Tools with private ammo systems may be unaffected. The mod does not enable blocked tools, change campaign unlocks or modify other mods. Snapshot data is temporary; stopping the mod abruptly cannot guarantee restoration.
+Ammo restoration is temporarily suspended. Disabling the ability stops replenishment and leaves the current stock, which may be 9,999. Saved restoration preferences are ignored and the old command is unavailable. Empty tools are supplied before selection, and tools with private ammo systems may be unaffected. Blocked tools and campaign unlocks are unchanged.
 
 ## Panel roles and permissions
 
@@ -46,7 +52,7 @@ The **Permissions** tab assigns a role to each player. It is available to the ho
 
 The compact view selects a player and assigns a role through a dropdown. **Manage roles**, beside the Role selector, opens the permission preview and role editor, with search and collapsible categories. Closing with X or clicking outside keeps an unfinished draft; **Continue editing** and **Discard** remain available in the compact view. Saving or a confirmed reset returns to assignment. On wide screens, role management sits beside the permission list; smaller screens use scrolling.
 
-**Create role** starts a custom role using the selected role as a base. Every role can be edited under its existing ID. Up to **16 custom roles** are supported, with ASCII names of up to 40 characters. Targeted actions allow **Blocked / Self only / Any player**; bulk actions and session rules have separate on/off permissions. **Reset role** restores OSP defaults for supplied roles, or the name and permissions saved when a custom role was created. For older custom roles, the first state loaded by this update becomes that baseline. Supplied roles cannot be deleted.
+**Create role** starts a custom role using the selected role as a base. Use the player checkboxes in **Permissions** to assign the same Role to multiple players with one confirmation. Host access and delegated authority limits still apply. Every role can be edited under its existing ID. Up to **16 custom roles** are supported, with ASCII names of up to 40 characters. Targeted actions allow **Blocked / Self only / Any player**; bulk actions and session rules have separate on/off permissions. **Reset role** restores OSP defaults for supplied roles, or the name and permissions saved when a custom role was created. For older custom roles, the first state loaded by this update becomes that baseline. Supplied roles cannot be deleted.
 
 Assignments and role changes are saved on the host across missions and restarts. Editing or resetting a role updates everyone assigned to it, including offline players when they reconnect. Deleting a custom role returns its linked players to Guest. Guests retain personal settings and appearance. Existing full-admin grants remain Administrator assignments.
 
@@ -130,6 +136,8 @@ Teardown's documented `ServerCall` API does not expose an authenticated sender i
 Original code is **AGPL-3.0-or-later**, with a narrow additional permission for the Teardown runtime/API. Read [LICENSE](LICENSE) and [ADDITIONAL-PERMISSION](ADDITIONAL-PERMISSION). The exception gives no rights to redistribute Teardown code or assets.
 
 ## Português
+
+Em **Jogadores**, escolha uma pessoa, Todos, uma Role ou uma seleção manual por checkboxes. O alcance coletivo cobre efeitos, cura e trazer jogadores; demais ações e ajustes numéricos continuam individuais. O host pode definir se os comandos em Todos/Role também fornecem padrões para futuras entradas, respeitando escolhas individuais. Em **Permissões**, checkboxes permitem atribuir uma Role a vários jogadores de uma vez. Trocar de Role não concede nem remove efeitos automaticamente nesta versão.
 
 Painel de administração por **Luiz-AVcruz**, com inglês padrão e opção de português brasileiro. Abra com **P** ou pelo menu de pausa. Configurações e Sobre são áreas separadas. O mod usa o HUD nativo do jogo.
 

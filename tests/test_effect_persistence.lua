@@ -66,7 +66,7 @@ do
     eq(state(n,23).noclip,false,'Fly still suspends Noclip for this map')
     eq(n.api.GetBool(path(n,23,'noclip')),true,'incidental Noclip disable does not overwrite host state')
     local again=make({identities=w.identities});eq(state(again,23).noclip,true);eq(state(again,23).fly,false)
-    eq(again.command(23,'ammo_restore',23,false),true)
+    eq(again.command(23,'ammo_restore',23,false),false,'restoration is suspended')
     eq(again.api.HasKey(path(again,23,'ammo_restore')),false)
     eq(again.command(11,'strength_throw',23,true),true)
     eq(again.command(23,'strength_throw',23,false),true)
@@ -102,7 +102,7 @@ do
         eq(w.command(11,'fly_speed',p,12),true);eq(w.command(11,'fly_boost',p,24),true)
         eq(w.command(11,'noclip_speed',p,11),true);eq(w.command(11,'noclip_boost',p,23),true)
         eq(w.command(11,'strength_force',p,3),true);eq(w.command(11,'strength_mass',p,8000),true)
-        eq(w.command(11,'strength_throw',p,true),true);eq(w.command(11,'ammo_restore',p,false),true)
+        eq(w.command(11,'strength_throw',p,true),true);eq(w.command(11,'ammo_restore',p,false),false)
     end
     w.command(11,'tool_policy',0,{id='gun',mode='disabled'})
     w.command(11,'tool',23,{id='sledge',enabled=false})

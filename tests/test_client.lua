@@ -11,8 +11,8 @@ local function world(width,height,previousRegistry)
         tools={{id='gun',name='gun',nameKey='TOOL_NAME_GUN',origin='vanilla',policy='default'},
                {id='sledge',name='Sledge',origin='vanilla',policy='enabled'},
                {id='mytool',name=string.rep('X',90),origin='mod',policy='disabled'}},
-        players={{id=11,name='Host',health=1,host=true,admin=true,god=false,fly=false,freeze=false,speed=1,ammo=false,ammoRestore=true,strength=false,strengthForce=1,strengthMass=5000,strengthThrow=false,strengthThrowSpeed=20,vehicle=false,profileChallenge=1},
-                 {id=23,name=string.rep('Long name ',20),health=1,host=false,admin=false,god=false,fly=false,freeze=false,speed=1,ammo=false,ammoRestore=true,strength=false,strengthForce=1,strengthMass=5000,strengthThrow=false,strengthThrowSpeed=20,vehicle=true,profileChallenge=2}}}}},{__index=_G})
+        players={{id=11,name='Host',health=1,host=true,admin=true,god=false,fly=false,freeze=false,speed=1,ammo=false,ammoRestore=false,strength=false,strengthForce=1,strengthMass=5000,strengthThrow=false,strengthThrowSpeed=20,vehicle=false,profileChallenge=1},
+                 {id=23,name=string.rep('Long name ',20),health=1,host=false,admin=false,god=false,fly=false,freeze=false,speed=1,ammo=false,ammoRestore=false,strength=false,strengthForce=1,strengthMass=5000,strengthThrow=false,strengthThrowSpeed=20,vehicle=true,profileChallenge=2}}}}},{__index=_G})
     -- Older scenarios explicitly exercise expanded Settings; use an empty
     -- supplied registry below to test the actual first-run defaults.
     if not previousRegistry then
@@ -549,7 +549,10 @@ do
     eq(w:scrollTo('player_action_kill').disabled,false,'Self role exposes suicide')
     w:clickControl('player_action_kill');check(w:draw().confirm~=nil,'suicide requires confirmation')
     w:clickControl('confirm_accept');eq(w.sent[#w.sent].args[2],'kill');eq(w.sent[#w.sent].args[3],23);w:ack()
-    eq(w:scrollTo('heal_all').disabled,true)
+    local st=w:draw();check(not st.controls.heal_all and not st.controls.bring_all,'legacy collective buttons are removed')
+    w:clickControl('group_scope');w:clickControl('group_scope_option_all')
+    eq(w:scrollTo('group_heal').disabled,true,'collective healing still requires the global permission')
+    w:clickControl('group_scope');w:clickControl('group_scope_option_player')
     w:clickControl('player_11')
     eq(w:scrollTo('player_action_heal').disabled,true,'self permission cannot edit another player')
     check(w:scrollTo('player_action_kill').disabled,'Self cannot kill another player')
@@ -1324,11 +1327,12 @@ do
     w:tick("p");w:clickControl("tab_settings");local st=w:draw()
     for _,id in ipairs(e.OSP.SettingsSections.ids) do check(not e.OSP.SettingsSections.expanded(id),"first-run collapsed") end
     check(not st.controls.language_en and not st.controls.palette_classic,"first-run bodies hidden")
-    eq(#w.images,6,"one graphical icon per Settings heading")
+    eq(#w.images,7,"one graphical icon per visible Settings heading")
     for _,id in ipairs({"language","shortcut","view_mode","behavior","navigation","effects_on_load"}) do
         local found=false;for _,value in ipairs(w.texts) do if value==e.OSP.L("settings_help_"..id) then found=true end end
         check(found,"description visible while collapsed: "..id)
     end
+    check(table.concat(w.texts,"|"):find(e.OSP.L("collective_settings_help"),1,true)~=nil,"collective policy description is visible while collapsed")
     for _,path in ipairs(w.images) do eq(path,"MOD/ui/section-right.png","closed icon") end
     w:clickControl("settings_section_language");w:draw()
     eq(w.images[1],"MOD/ui/section-down.png","expanded icon")
@@ -1810,22 +1814,23 @@ do
     eq(target.permissions.heal,1,'assigned permissions match the saved draft')
     eq(backend.api.GetString('savegame.mod.osp_beta.players.'..backend.identities[47]..'.role'),created,'UI assignment is persisted')
 end
--- Ammo has a separate restoration preference and personal shortcut.
+-- Ammo restoration is unavailable; the personal shortcut and compatibility note remain.
 for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
  for _,language in ipairs({'en','pt'}) do
     local w=world(unpack(size));local e=w.api;w.reg['savegame.mod.osp_beta.language']=language
     w:tick('p');w:clickControl('ammo_settings');local st=w:draw()
     eq(st.movementPopup.mode,'ammo');eq(#w.sent,0,'opening ammo settings does not enable the ability')
-    for _,id in ipairs({'ammo_restore_on','ammo_restore_off','shortcut_ammo','shortcut_clear_ammo'}) do
+    eq(st.controls.ammo_restore_on,nil,'restore-on control is absent')
+    eq(st.controls.ammo_restore_off,nil,'restore-off control is absent')
+    for _,id in ipairs({'shortcut_ammo','shortcut_clear_ammo'}) do
         local r=st.controls[id];check(r~=nil,'ammo popup control exists: '..id)
         check(r.x>=st.layout.ox and r.x+r.w<=st.layout.ox+st.layout.w and r.y>=st.layout.oy and r.y+r.h<=st.layout.oy+st.layout.h,'ammo control fits canvas: '..id)
     end
-    w:clickControl('ammo_restore_off');local a=w.sent[#w.sent].args
-    eq(a[2],'ammo_restore');eq(a[3],11);eq(a[4],false);eq(a[6].targetJoin,1)
-    check(w:draw().controls.ammo_restore_on.disabled,'pending ammo preference cannot be sent twice')
-    w:ack();e.shared.osp.players[1].ammoRestore=false
+    check(table.concat(w.texts,'|'):find(e.OSP.L('ammo_restore_help'),1,true)~=nil,'popup states restoration is temporarily unavailable')
+    eq(e.OSP.L('tip_ammo_settings'),language=='en' and 'Choose a personal shortcut.' or 'Escolha um atalho pessoal.',
+        'ammo settings tooltip is limited to the shortcut')
     w:clickControl('shortcut_ammo');w:tick('f12')
-    eq(e.OSP.Shortcuts.binding('ammo'),'f12');eq(#w.sent,1,'binding does not activate ammo')
+    eq(e.OSP.Shortcuts.binding('ammo'),'f12');eq(#w.sent,0,'binding does not activate ammo')
     w:clickControl('movement_popup_close');w:clickControl('player_action_ammo');a=w.sent[#w.sent].args
     eq(a[2],'ammo');eq(a[4].expected,false);eq(a[4].value,true);w:ack()
     e.shared.osp.players[1].ammo=true;e.shared.osp.players[1].profileReady=true
@@ -1895,26 +1900,26 @@ do
     eq(speed(),3,'slider final value reaches the server and respects bounds')
     check(replies[#replies][1],'server accepts the slider value')
 
-    -- The actual ammo payload and ACK cross the same UI/server boundary.
+    -- Infinite ammo still uses the game's counter; disabling no longer restores stock.
     backend.players[23].ammo.gun=37
     w:clickControl('player_action_ammo')
     check(replies[#replies][1],'server accepts UI ammo toggle')
     backend.tick();eq(backend.players[23].ammo.gun,9999,'server refills after UI activation')
-    w:clickControl('ammo_settings');w:clickControl('ammo_restore_off')
-    check(replies[#replies][1],'server accepts UI restoration preference')
+    w:clickControl('ammo_settings');st=w:draw()
+    eq(st.controls.ammo_restore_on,nil,'restore-on control is absent in server integration')
+    eq(st.controls.ammo_restore_off,nil,'restore-off control is absent in server integration')
     w:clickControl('movement_popup_close');w:clickControl('player_action_ammo')
-    eq(backend.players[23].ammo.gun,9999,'UI preference leaves supplied stock after disabling')
-    w:clickControl('ammo_settings');w:clickControl('ammo_restore_on');w:clickControl('movement_popup_close')
+    backend.tick();eq(backend.players[23].ammo.gun,9999,'disabling infinite ammo keeps supplied stock')
     backend.players[23].ammo.gun=41
     w:clickControl('player_action_ammo');backend.tick()
     eq(backend.players[23].ammo.gun,9999)
-    w:clickControl('player_action_ammo');eq(backend.players[23].ammo.gun,41,'UI disable restores captured stock')
+    w:clickControl('player_action_ammo');backend.tick();eq(backend.players[23].ammo.gun,9999,'disabling does not restore captured stock')
 
     backend.players[23].ammo.gun=0
     w:clickControl('player_action_ammo')
     eq(backend.players[23].ammo.gun,9999,'UI immediately primes an empty gun')
-    w:clickControl('player_action_ammo')
-    eq(backend.players[23].ammo.gun,1,'UI restore keeps an originally empty gun selectable')
+    w:clickControl('player_action_ammo');backend.tick()
+    eq(backend.players[23].ammo.gun,9999,'empty gun keeps supplied stock after disabling')
 
     w:clickControl('tab_permissions');w:chooseRole('self');w:clickControl('role_edit_custom')
     w:clickControl('permission_group_players');w:clickControl('role_scope_heal_2')
@@ -1939,5 +1944,58 @@ do
     w:holdAt(r.x+r.w-2,r.y+r.h/2);w:releaseAt(r.x+r.w-2,r.y+r.h/2)
     eq(#w.sent,before,'target leaving cancels the drag without affecting a replacement selection')
     eq(e.OSP.NumberInput.active(),false,'obsolete numeric interaction is gone')
+end
+-- The manual group selection is local, paged and bound to each entry context.
+for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
+ for _,language in ipairs({'en','pt'}) do
+    local w=world(size[1],size[2],{});local e=w.api;w.reg['savegame.mod.osp_beta.language']=language;e.OSP.UI.open(true)
+    for id=30,38 do e.shared.osp.players[#e.shared.osp.players+1]={id=id,name='Manual '..id,health=1,host=false,admin=false,
+        god=false,fly=false,freeze=false,speed=1,ammo=false,strength=false,vehicle=false,profileChallenge=id-27,profileReady=true} end
+    w:clickControl('group_scope');w:clickControl('group_scope_option_manual')
+    check(w:draw().controls.group_manual_23~=nil,'manual row has a checkbox at '..size[1]..'x'..size[2]..' '..language)
+    w:clickControl('group_manual_23')
+    local function selectedCount()
+        local count=0;for _ in pairs(e.OSP.UI.getState().collectiveSelection) do count=count+1 end;return count
+    end
+    eq(selectedCount(),1,'manual checkbox selects one identity')
+    w:clickControl('group_page_next');w:draw();eq(selectedCount(),1,'manual selection persists across pages')
+    e.shared.osp.players[2].profileChallenge=99;w:tick();eq(selectedCount(),0,'reused session ID does not inherit a manual selection')
+    w:clickControl('group_page_prev');w:draw()
+    w:clickControl('group_manual_23');eq(selectedCount(),1,'replacement entry can be selected explicitly')
+    e.shared.osp.profileHost=string.rep('b',32);w:tick()
+    eq(e.OSP.UI.getState().collectiveScope,'player','host change returns to individual scope')
+    eq(selectedCount(),0,'host change clears manual selection')
+    w:clickControl('group_scope');w:clickControl('group_scope_option_manual');w:clickControl('group_manual_23')
+    w:clickControl('tab_session')
+    eq(e.OSP.UI.getState().collectiveScope,'player','leaving Players forces individual scope')
+    eq(selectedCount(),0,'leaving Players clears manual selection')
+    w:clickControl('tab_players');w:clickControl('group_scope');w:clickControl('group_scope_option_manual');w:clickControl('group_manual_23')
+    e.shared.osp.players[1].profileChallenge=77;w:tick()
+    eq(e.OSP.UI.getState().collectiveScope,'player','local entry change returns to individual scope')
+    eq(selectedCount(),0,'local entry change clears manual selection')
+    w:clickControl('group_scope');w:clickControl('group_scope_option_manual');w:clickControl('group_manual_23')
+    w:clickControl('close')
+    eq(e.OSP.UI.getState().collectiveScope,'player','closing the panel forces individual scope')
+    eq(selectedCount(),0,'closing the panel clears manual selection')
+ end
+end
+-- Host-only future-entry setting is acknowledged, and solo presentation hides it.
+for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
+ for _,language in ipairs({'en','pt'}) do
+    local w=world(size[1],size[2],{});local e=w.api;w.reg['savegame.mod.osp_beta.language']=language
+    e.shared.osp.collectiveFuture=false;e.OSP.UI.open(true);w:clickControl('tab_settings')
+    check(w:scrollTo('settings_section_collective')~=nil,'host sees the collective policy in Settings')
+    w:clickControl('settings_section_collective')
+    local futureOn=w:scrollTo('collective_future_on');local futureOff=w:scrollTo('collective_future_off')
+    check(futureOn and futureOff,'host can choose the future-entry policy')
+    check(table.concat(w.texts,'|'):find(e.OSP.L('collective_future_help'),1,true)~=nil,'Settings explain the choices of new entrants')
+    w:clickControl('collective_future_on');eq(w.sent[#w.sent].args[2],'collective_future');eq(w.sent[#w.sent].args[4],true)
+    check(w:draw().controls.collective_future_off.disabled,'future policy waits for the prior request')
+    w:ack();e.shared.osp.collectiveFuture=true
+    st=w:draw();check(not st.controls.collective_future_off.disabled,'host can change the setting after ACK')
+    e.IsMultiplayer=function() return false end;w:tick();e.OSP.UI.selectTab('settings');st=w:draw()
+    eq(st.viewMode,'single');check(st.controls.settings_section_collective==nil,'singleplayer Settings stay unchanged')
+    eq(#w.sent,1,'the setting uses one host command')
+ end
 end
 print('PASS client interaction, viewport and translation contracts: '..assertions..' assertions (mock UI)')

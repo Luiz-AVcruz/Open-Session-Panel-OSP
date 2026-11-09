@@ -1125,86 +1125,63 @@ local function ammoState(who,wld)
 end
 local ammoRoot='savegame.mod.osp_beta.players.'..ammoIds[23]..'.'
 eq(ammoState(23).ammo,false,'ammo is off by default')
-eq(ammoState(23).ammoRestore,true,'restoration defaults to true')
+eq(ammoState(23).ammoRestore,false,'restoration is suspended')
 eq(ammoMap.command(11,'ammo',23,true),true)
 eq(registry[ammoRoot..'ammo'],true,'host saves ammo by profile')
 eq(ammoMap.players[23].ammo.gun,9999,'activation supplies ammo before its ACK')
-ammoMap.tick();eq(ammoMap.players[23].ammo.gun,9999,'enabled equipped gun refills on server tick')
-ammoMap.players[23].ammo.gun=4;ammoMap.tick();eq(ammoMap.players[23].ammo.gun,9999,'depletion replenishes to reserve')
+ammoMap.players[23].ammo.gun=4;ammoMap.tick();eq(ammoMap.players[23].ammo.gun,9999,'depletion still replenishes')
 local ammoWriteCount=#ammoMap.ammoWrites
-eq(ammoMap.command(11,'ammo_restore',23,false),true)
-eq(registry[ammoRoot..'ammo_restore'],false,'host saves restoration preference by profile')
-eq(#ammoMap.ammoWrites,ammoWriteCount,'changing restoration preference does not write ammo')
+local restoreOk,restoreCode=ammoMap.command(11,'ammo_restore',23,true)
+eq(restoreOk,false);eq(restoreCode,'unavailable','old clients cannot re-enable restoration')
+eq(#ammoMap.ammoWrites,ammoWriteCount,'rejected restore command writes no ammo')
+eq(registry[ammoRoot..'ammo_restore'],nil,'rejected restore command saves no preference')
+ammoMap.players[23].ammo.gun=7
 eq(ammoMap.command(11,'ammo',23,false),true)
-eq(ammoMap.players[23].ammo.gun,9999,'restore false conserves current ammo on disable')
+eq(ammoMap.players[23].ammo.gun,7,'disable neither restores nor grants another reserve')
+eq(#ammoMap.ammoWrites,ammoWriteCount,'disable does not call the ammo setter')
+
+-- Old preferences remain on disk but cannot activate the suspended behavior.
+registry[ammoRoot..'ammo_restore']=true
 local ammoRemembered=world({identities=ammoIds,gunAmmo=33})
-eq(ammoState(23,ammoRemembered).ammo,false,'disabled ammo choice loads in a later mission')
-eq(ammoState(23,ammoRemembered).ammoRestore,false,'false restoration preference loads')
-ammoRemembered.tick();eq(ammoRemembered.players[23].ammo.gun,33,'disabled saved ability stays off in later mission')
-
--- The preference is consulted when an effect ends. Turning it back on during
--- the effect restores the original stock, while turning it off does not.
-eq(ammoMap.command(11,'ammo_restore',23,true),true)
-ammoMap.players[23].ammo.gun=80
-eq(ammoMap.command(11,'ammo',23,true),true)
-ammoMap.tick()
-eq(ammoMap.players[23].ammo.gun,9999)
-ammoMap.players[23].ammo.gun=6;ammoMap.tick()
-ammoWriteCount=#ammoMap.ammoWrites
-eq(ammoMap.command(11,'ammo_restore',23,false),true)
-eq(#ammoMap.ammoWrites,ammoWriteCount,'active restore toggle does not immediately alter ammo')
-eq(ammoMap.command(11,'ammo_restore',23,true),true)
-eq(#ammoMap.ammoWrites,ammoWriteCount,'restoring preference while active stays passive')
-eq(ammoMap.command(11,'ammo',23,false),true)
-eq(ammoMap.players[23].ammo.gun,80,'latest true preference restores captured stock')
-eq(ammoMap.command(11,'ammo',23,true),true)
+eq(ammoState(23,ammoRemembered).ammo,false,'disabled ability loads in another mission')
+eq(ammoState(23,ammoRemembered).ammoRestore,false,'legacy true preference is ignored')
+eq(registry[ammoRoot..'ammo_restore'],true,'loading does not erase an old preference')
+ammoRemembered.tick();eq(ammoRemembered.players[23].ammo.gun,33,'inactive ability does not supply ammunition')
+eq(ammoRemembered.command(11,'ammo',23,true),true)
 local trueAmmoRemembered=world({identities=ammoIds,gunAmmo=33})
-eq(ammoState(23,trueAmmoRemembered).ammoRestore,true,'true restoration preference loads from profile')
-eq(ammoState(23,trueAmmoRemembered).ammo,true,'enabled ammo choice loads in a later mission')
-trueAmmoRemembered.tick();eq(trueAmmoRemembered.players[23].ammo.gun,9999,'saved ammo ability reapplies in later mission')
+eq(ammoState(23,trueAmmoRemembered).ammo,true,'enabled ability still persists')
+eq(ammoState(23,trueAmmoRemembered).ammoRestore,false)
+trueAmmoRemembered.tick();eq(trueAmmoRemembered.players[23].ammo.gun,9999)
 
--- Death, OSP respawns and reset all end transient control without revoking the
--- ability; explicit respawns restore before the engine respawns the player.
-eq(ammoMap.command(11,'ammo',23,false),true)
-ammoMap.players[23].ammo.gun=51
+-- Death, OSP respawn, heal and reset also avoid every restoration write.
 eq(ammoMap.command(11,'ammo',23,true),true)
-ammoMap.tick();eq(ammoMap.players[23].ammo.gun,9999)
-ammoMap.players[23].ammo.gun=3;ammoMap.tick()
-ammoMap.players[23].health=0;ammoMap.api.server.tick()
-eq(ammoMap.players[23].ammo.gun,51,'observed death restores the current baseline')
-check(ammoState(23).ammo,'death leaves ability enabled')
+ammoMap.players[23].ammo.gun=5;ammoMap.players[23].health=0
+ammoMap.api.server.tick()
+eq(ammoMap.players[23].ammo.gun,5,'death leaves current stock unchanged')
+check(ammoState(23).ammo,'death keeps the ability grant')
 ammoMap.players[23].health=1;ammoMap.players[23].ammo.gun=25;ammoMap.tick()
-eq(ammoMap.players[23].ammo.gun,9999,'alive player starts a fresh baseline after death')
-ammoMap.players[23].ammo.gun=5
+eq(ammoMap.players[23].ammo.gun,9999,'live respawn resumes supplying ammo')
+ammoMap.players[23].ammo.gun=4
 eq(ammoMap.command(11,'respawn',23),true)
-eq(ammoMap.players[23].respawnAmmo.gun,25,'explicit respawn restores before RespawnPlayer')
-check(ammoState(23).ammo,'respawn leaves ability enabled')
-ammoMap.tick();eq(ammoMap.players[23].ammo.gun,9999,'ability resumes on the next live tick')
-
-eq(ammoMap.command(11,'ammo',23,false),true)
-ammoMap.players[23].ammo.gun=37;eq(ammoMap.command(11,'ammo',23,true),true);ammoMap.tick()
-ammoMap.players[23].ammo.gun=1;ammoMap.players[23].health=0
+eq(ammoMap.players[23].respawnAmmo.gun,4,'respawn does not receive restored stock')
+check(ammoState(23).ammo,'respawn keeps the ability')
+ammoMap.tick();eq(ammoMap.players[23].ammo.gun,9999)
+ammoMap.players[23].ammo.gun=2;ammoMap.players[23].health=0
 eq(ammoMap.command(11,'heal',23),true)
-eq(ammoMap.players[23].respawnAmmo.gun,37,'heal of a dead player restores before RespawnPlayer')
-check(ammoState(23).ammo,'dead-player heal leaves ability enabled')
-ammoMap.tick();eq(ammoMap.players[23].ammo.gun,9999,'heal reapplies the ability after respawn')
-
--- Reset ends the effect using the current preference, then returns to false/true
--- defaults. Identity, host namespace and global data remain intact.
-eq(ammoMap.command(11,'ammo_restore',23,false),true)
-ammoMap.players[23].ammo.gun=2;ammoMap.tick()
+eq(ammoMap.players[23].respawnAmmo.gun,2,'dead-player heal performs no restoration')
+ammoMap.tick();eq(ammoMap.players[23].ammo.gun,9999)
+ammoMap.players[23].ammo.gun=6
 eq(ammoMap.command(11,'rule',0,{key='rain',value=.4}),true)
 eq(ammoMap.command(11,'reset_player',23),true)
-eq(ammoMap.players[23].ammo.gun,9999,'reset with restore false conserves current stock')
-eq(ammoState(23).ammo,false);eq(ammoState(23).ammoRestore,true)
+eq(ammoMap.players[23].ammo.gun,6,'reset leaves current stock unchanged')
+eq(ammoState(23).ammo,false);eq(ammoState(23).ammoRestore,false)
 eq(registry[ammoRoot..'exists'],true,'reset keeps profile identity')
 eq(registry['savegame.mod.osp_beta.hostid'],ammoApi.shared.osp.profileHost,'reset keeps host namespace')
-eq(registry['savegame.mod.osp_beta.rules.rain'],.4,'player reset keeps global session rules')
+eq(registry['savegame.mod.osp_beta.rules.rain'],.4,'player reset keeps global rules')
 local resetAmmoMap=world({identities=ammoIds})
-eq(ammoState(23,resetAmmoMap).ammo,false);eq(ammoState(23,resetAmmoMap).ammoRestore,true)
+eq(ammoState(23,resetAmmoMap).ammo,false);eq(ammoState(23,resetAmmoMap).ammoRestore,false)
 
--- Delegates receive only self scope for ammo and its restore alias. Old roles
--- lacking the new capability stay at zero; the host can persist both fields.
+-- Permission scopes remain enforced even for the suspended legacy command.
 local P=ammoApi.OSP.Permissions
 eq(P.resolve('guest').permissions.ammo,0)
 eq(P.resolve('self').permissions.ammo,1)
@@ -1222,9 +1199,9 @@ local delegatedAmmo=world();local _,_,ammoRole=delegatedAmmo.command(11,'role_sa
 eq(delegatedAmmo.command(11,'role_assign',23,{id=ammoRole.template.id}),true)
 local delegatedRoot='savegame.mod.osp_beta.players.'..delegatedAmmo.identities[23]..'.'
 eq(delegatedAmmo.command(23,'ammo',23,{expected=false,value=true}),true,'self role may use conditional ammo toggle')
-eq(delegatedAmmo.command(23,'ammo_restore',23,false),true,'ammo_restore alias follows ammo permission')
+eq(delegatedAmmo.command(23,'ammo_restore',23,false),false,'legacy restore command is suspended')
 eq(registry[delegatedRoot..'ammo'],nil,'delegated ammo change is temporary')
-eq(registry[delegatedRoot..'ammo_restore'],nil,'delegated restore change is temporary')
+eq(registry[delegatedRoot..'ammo_restore'],nil,'suspended restore command saves no preference')
 local delegatedOk,delegatedCode=delegatedAmmo.command(23,'ammo',47,true)
 eq(delegatedOk,false);eq(delegatedCode,'denied','self ammo grant cannot target another player')
 delegatedOk,delegatedCode=delegatedAmmo.command(23,'ammo_restore',47,false)
@@ -1247,8 +1224,8 @@ do
     eq(p.ammo.osp_empty_mod,9999,'tool enable supplies empty unselected tool before ACK')
     eq(p.tool,'none','priming does not force a selection')
     eq(t.command(11,'ammo',23,false),true)
-    eq(p.ammo.osp_empty_mod,1,'originally empty mod tool remains selectable after restore')
-    eq(t.command(11,'ammo_restore',23,false),true)
+    eq(p.ammo.osp_empty_mod,9999,'originally empty tool keeps supplied stock while restoration is suspended')
+    eq(t.command(11,'ammo_restore',23,false),false)
     p.ammo.osp_empty_mod=0;eq(t.command(11,'ammo',23,true),true)
     eq(t.command(11,'ammo',23,false),true)
     eq(p.ammo.osp_empty_mod,9999,'restoration disabled keeps supplied stock for an empty tool')
