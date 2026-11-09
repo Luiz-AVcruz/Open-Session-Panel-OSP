@@ -11,6 +11,8 @@ function OSP.installServer()
     local toolSave = "savegame.mod.osp_beta.tools"
     local profileSave = "savegame.mod.osp_beta.players."
     local profileHost
+    local effectsOffOnLoad,resetEffectsOnEntry=false,false
+    local effectsOnLoadKey="savegame.mod.osp_beta.effects_off_on_load"
     local flightInputClock=0
     local strengthController=OSP.Strength.new()
     local ammoController=OSP.Ammo.new()
@@ -27,6 +29,24 @@ function OSP.installServer()
     local function isAdmin(p) return isHost(p) or P.hasAccess(playerRole(p).permissions) end
     local function encoded(id)
         return id:gsub(".",function(c) return string.format("%02x",c:byte()) end)
+    end
+    local effectKeys={god="god",fly="flight",noclip="noclip",strength="strength",ammo="ammo",freeze="freeze"}
+    local function selfDisableKey(actor,target,action,value)
+        -- Match the explicit command, not incidental changes inside its handler
+        -- (for example, enabling Fly temporarily suspends Noclip).
+        if actor~=target then return end
+        if value==false then return effectKeys[action] end
+        if action=="speed" and value==1 then return "speed" end
+    end
+    local function storeDisabledEffect(e,key)
+        local path=profileSave..e.profile.."."
+        if key=="speed" then SetFloat(path..key,1)
+        else SetBool(path..key,false) end
+        if key=="noclip" then SetBool(path.."fly",false) end
+    end
+    local function clearEntryEffects(e)
+        for field in pairs(effectKeys) do e[field]=false end
+        e.speed=1;e.anchor=nil
     end
     local function loadProfile(p,e,id)
         e.profile=id
@@ -73,6 +93,11 @@ function OSP.installServer()
                 if value==1 then e.toolRules[tool]=true elseif value==2 then e.toolRules[tool]=false end
             end
         end
+        if resetEffectsOnEntry then
+            clearEntryEffects(e)
+            for _,key in pairs(effectKeys) do storeDisabledEffect(e,key) end
+            storeDisabledEffect(e,"speed")
+        end
     end
     local function saveField(actor,p,key,value)
         local e=players[p]
@@ -97,6 +122,7 @@ function OSP.installServer()
             baseRegen=GetPlayerParam("healthRegeneration", p),
             toolRules={}, toolBase={}, alive=GetPlayerHealth(p)>0,challenge=join,
         }
+        if resetEffectsOnEntry then clearEntryEffects(e) end
         if isHost(p) then loadProfile(p,e,"host") end
         return e
     end
@@ -107,7 +133,8 @@ function OSP.installServer()
     end
     local function publish()
         local view={version=OSP.version,ready=true,players={},tools=OSP.copy(tools),
-            rules=OSP.copy(rules),log=OSP.copy(logs),toolPolicies=OSP.copy(policies),profileHost=profileHost,templates=P.list(templates)}
+            rules=OSP.copy(rules),log=OSP.copy(logs),toolPolicies=OSP.copy(policies),profileHost=profileHost,templates=P.list(templates),
+            effectsOffOnLoad=effectsOffOnLoad}
         for _, p in ipairs(roster()) do
             local e=players[p]
             if e then
@@ -632,6 +659,9 @@ function OSP.installServer()
     end)
     add("restart",nil,function() Restart() end)
     add("announce",cleanText,function(c,_,v) ClientCall(0,"client.ospAnnouncement",GetPlayerName(c),v) end)
+    add("effects_off_on_load",boolean,function(_,_,value)
+        effectsOffOnLoad=value;SetBool(effectsOnLoadKey,value)
+    end,{host=true})
 
     function server.init()
         players,rules,logs,lastRequest,removalSeen={},{},{},{},{}
@@ -639,6 +669,10 @@ function OSP.installServer()
         flightInputClock=GetTime()
         strengthController=OSP.Strength.new()
         ammoController=OSP.Ammo.new()
+        effectsOffOnLoad=GetBool(effectsOnLoadKey)
+        -- Keep one policy for this map, including players who join later.
+        -- Changing the preference only affects the next map load.
+        resetEffectsOnEntry=effectsOffOnLoad
         profileHost=GetString("savegame.mod.osp_beta.hostid")
         if not profileHost:match("^[0-9a-f]+$") or #profileHost~=32 then
             profileHost=""
@@ -749,11 +783,17 @@ function OSP.installServer()
             else current=e.fly==true end
             if current~=expected then deny("state_changed");return end
         end
+        local disabledKey=not isHost(actor) and selfDisableKey(actor,target,action,arg)
+        if disabledKey and not players[target].profile then deny("unavailable");return end
         -- Throttle accepted requests, not permission revocations (which must win immediately).
         local now=GetTime()
         if action~="admin" and action~="role_assign" and action~="role_save" and action~="role_reset" and action~="role_delete" and lastRequest[actor] and now-lastRequest[actor]<0.05 then deny("rate_limited"); return end
         lastRequest[actor]=now
-        local ok,details=pcall(def.run,actor,target,arg)
+        local ok,details=pcall(function()
+            local result=def.run(actor,target,arg)
+            if disabledKey then storeDisabledEffect(players[target],disabledKey) end
+            return result
+        end)
         local code=ok and "ok" or "error"
         if not ok then DebugPrint("[Open Session Panel] "..action..": "..tostring(details)); details={} end
         details=details or {affected=1,skipped=0}

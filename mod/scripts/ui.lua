@@ -104,6 +104,7 @@ function OSP.installClient()
         return (not current or P.within(current,values)) and (not proposed or P.within(proposed,values))
     end
     local function permittedControl(id)
+        if id=="effects_on_load_on" or id=="effects_on_load_off" then return host() and not pending end
         if id:match("^permission_view_") or id:match("^permission_group_") then return rolesAccess() end
         if id=="tab_permissions" or id:match("^permission_") or id:match("^role_") then return rolesAccess() and (not pending or id=="tab_permissions") end
         local target=selected or me
@@ -372,8 +373,8 @@ function OSP.installClient()
         label(ax,top,p.name,22,C.text,aw,true)
         local life=math.floor((p.health or 0)*100+0.5)
         label(ax,top+31,T("health",life)..(solo() and "" or "  ·  "..roleLabel(p)),15,C.muted,aw)
-        label(ax,top+53,T(host() and "player_options_saved" or "tip_temporary"),12,C.muted,aw)
-        local blocked=p.host and not host();local waiting=host() and p.profileReady==false;local gap=8
+        label(ax,top+53,T(host() and "player_options_saved" or p.id==me and "player_self_off_saved" or "tip_temporary"),12,C.muted,aw)
+        local blocked=p.host and not host();local waiting=(host() or p.id==me) and p.profileReady==false;local gap=8
         local cols=aw>=400 and 2 or 1;local bw=(aw-gap*(cols-1))/cols
         local buttons={
             {"heal","heal"},{"go_to","goto"},{"respawn","respawn"},{"bring","bring"},
@@ -480,7 +481,7 @@ function OSP.installClient()
                     if r.disabled then
                         if (action=="goto" or action=="bring") and p.id==me and permittedControl(id) then text=T("tip_select_another_player")
                         elseif p.host and not host() and action~="goto" then text=T("protects_host")
-                        elseif host() and p.profileReady==false and (persistent[action] or id=="player_role_manage" or id=="reset_player") then text=T("profile_waiting")
+                        elseif (host() or p.id==me) and p.profileReady==false and (persistent[action] or id=="player_role_manage" or id=="reset_player") then text=T("profile_waiting")
                         elseif not permittedControl(id) then text=T("result_denied")
                         elseif action=="eject" and not p.vehicle then text=T("tip_no_vehicle") end
                     end
@@ -717,7 +718,7 @@ function OSP.installClient()
             if e then
                 local actor=math.min(140,w*.21);local result=math.min(105,w*.16);local target=math.min(125,w*.18)
                 local actionW=math.max(100,w-actor-result-target-24)
-                local key=({heal="heal",kill="kill",respawn="respawn",["goto"]="go_to",bring="bring",eject="eject",god="god_mode",fly="fly",fly_speed="fly_normal_action",fly_boost="fly_shift_action",noclip_speed="noclip_normal_action",noclip_boost="noclip_shift_action",noclip="noclip",freeze="freeze",strength="strength",ammo="ammo",ammo_restore="ammo_restore",strength_force="strength_force_label",strength_mass="strength_mass_label",strength_throw="strength_throw",strength_throw_speed="strength_throw_speed_label",speed="speed",admin="admin_access",role_assign="permissions",role_save="permissions",role_delete="permissions",role_reset="permissions",reset_player="reset_player",heal_all="heal_all",bring_all="bring_all",rule="session_rules",reset_rules="reset_rules",restart="restart",announce="announcement",tool="tools",tool_all="tools",tools="tools",tools_all="tools",tool_policy="global_rules",tool_policy_bulk="global_rules",tool_policy_selection="global_rules",tools_selection="tools",tools_selection_all="tools",tools_filtered="tools",tools_filtered_all="tools"})[e.action] or "status"
+                local key=({heal="heal",kill="kill",respawn="respawn",["goto"]="go_to",bring="bring",eject="eject",god="god_mode",fly="fly",fly_speed="fly_normal_action",fly_boost="fly_shift_action",noclip_speed="noclip_normal_action",noclip_boost="noclip_shift_action",noclip="noclip",freeze="freeze",strength="strength",ammo="ammo",ammo_restore="ammo_restore",strength_force="strength_force_label",strength_mass="strength_mass_label",strength_throw="strength_throw",strength_throw_speed="strength_throw_speed_label",speed="speed",effects_off_on_load="effects_on_load",admin="admin_access",role_assign="permissions",role_save="permissions",role_delete="permissions",role_reset="permissions",reset_player="reset_player",heal_all="heal_all",bring_all="bring_all",rule="session_rules",reset_rules="reset_rules",restart="restart",announce="announcement",tool="tools",tool_all="tools",tools="tools",tools_all="tools",tool_policy="global_rules",tool_policy_bulk="global_rules",tool_policy_selection="global_rules",tools_selection="tools",tools_selection_all="tools",tools_filtered="tools",tools_filtered_all="tools"})[e.action] or "status"
                 local detail=T(key)
                 if type(e.argument)=="table" then
                     local a=e.argument
@@ -793,6 +794,19 @@ function OSP.installClient()
         end
         if section("view_mode","view_mode") then y=y+OSP.ViewMode.draw(api,0,y,w,true)+12 end
         if section("navigation","navigation_title") then y=y+navigation.draw(api,0,y,w,true)+12 end
+        if host() and section("effects_on_load","effects_on_load") then
+            label(0,y+7,T("effects_on_load_toggle"),16,C.text,w)
+            local value=state() and state().effectsOffOnLoad
+            local known=type(value)=="boolean"
+            if button("effects_on_load_on",0,y+34,84,36,T("effects_on_load_on"),value==true and "active" or "plain",not known) and value~=true then
+                command("effects_off_on_load",0,true)
+            end
+            if button("effects_on_load_off",92,y+34,84,36,T("effects_on_load_off"),value==false and "active" or "plain",not known) and value~=false then
+                command("effects_off_on_load",0,false)
+            end
+            label(0,y+78,T("effects_on_load_keeps"),13,C.muted,w)
+            y=y+106
+        end
         return y
     end
     local function drawAppearance()
@@ -1147,6 +1161,7 @@ function OSP.installClient()
         local msg=T(names[code] or "result_error")
         if details and details.skipped and details.skipped>0 then msg=msg.."  "..T("skipped",details.skipped) end
         if ok and lastAction=="rule" then msg=T("rules_saved") elseif ok and lastAction=="reset_rules" then msg=T("rules_reset") end
+        if ok and lastAction=="effects_off_on_load" then msg=T("effects_on_load_saved") end
         if ok and (lastAction=="role_save" or lastAction=="role_reset") and details then OSP.PermissionUI.saved(details.template) end
         if ok and lastAction=="role_delete" and details then OSP.PermissionUI.deleted(details.deleted) end
         if shortcutRequest then

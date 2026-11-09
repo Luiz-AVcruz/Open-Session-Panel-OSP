@@ -18,7 +18,7 @@ local function world(width, height)
     end
     env.SetString=write;env.SetBool=write
     env.ClearKey=function(k)
-        check(k==root..'rules' or k==root..'tools' or k==root..'players','unbounded reset')
+        check(k==root..'rules' or k==root..'tools' or k==root..'players' or k==root..'effects_off_on_load','unbounded reset')
         for key in pairs(w.registry) do if key==k or key:sub(1,#k+1)==k..'.' then w.registry[key]=nil end end
     end
     env.ListKeys=function(k)
@@ -102,14 +102,17 @@ for _,size in ipairs({{840,760},{1280,720},{1024,768},{1920,1080}}) do
     w.registry[r..'templates.c1.permissions.heal']=1;w.registry[r..'templates_next']=1
     w.registry[r..'players.p3.tools.67756e']=2
     w.registry[r..'tools.67756e']=2;w.registry[r..'rules.rain']=1
+    w.registry[r..'effects_off_on_load']=true
     w.registry['savegame.tool.gun.enabled']=true
     w.click(30,315)
     check(w.registry[r..'menu_key']=='p' and w.registry[r..'language']=='en' and w.registry[r..'health_hud']==true,'personal defaults leave unused legacy key untouched')
     check(w.registry[r..'rules.rain']==1 and w.registry[r..'players.p3.admin']==true,'personal reset preserves host rules')
+    check(w.registry[r..'effects_off_on_load']==true,'personal reset preserves map-load policy')
     w.click(30,376);check(w.registry[r..'rules.rain']==1,'opening reset cannot erase anything')
     w.click(55,418);check(w.registry[r..'rules.rain']==1,'cancel preserves rules')
     w.click(30,376);w.click(399,418)
     check(w.registry[r..'rules.rain']==nil and w.registry[r..'tools.67756e']==nil,'host reset clears policies')
+    check(w.registry[r..'effects_off_on_load']==nil,'host recovery restores the default-off map-load policy')
     check(w.registry[r..'players.p3.admin']==nil and w.registry[r..'players.p3.tools.67756e']==nil,'host reset clears player choices')
     check(w.registry[r..'players.p3.role']==nil,'host recovery removes granular assignments')
     check(w.registry[r..'templates.c1.name']=='Helper' and w.registry[r..'templates.c1.version']==1 and w.registry[r..'templates.c1.permissions.heal']==1 and w.registry[r..'templates_next']==1,'host recovery keeps the custom template library and allocator')

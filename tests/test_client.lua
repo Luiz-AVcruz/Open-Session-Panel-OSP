@@ -7,7 +7,7 @@ local function eq(a,b,msg) check(a==b,(msg or 'equality')..': '..tostring(a)..' 
 local function world(width,height,previousRegistry)
     local w={reg=previousRegistry or {},sent={},identitySent={},flightReports={},strengthReports={},texts={},now=0,input='',wheel=0,mouse={x=0,y=0},click=false,held=false,released=false,armed={},
         width=width,height=height,t={x=0,y=0,s=1},stack={},drawn=false,hp=1,vehicle=0,screen=0}
-    local env=setmetatable({client={},shared={osp={ready=true,version='1.5.0',profileHost=string.rep('a',32),rules={},log={},
+    local env=setmetatable({client={},shared={osp={ready=true,version='1.5.0',profileHost=string.rep('a',32),effectsOffOnLoad=false,rules={},log={},
         tools={{id='gun',name='gun',nameKey='TOOL_NAME_GUN',origin='vanilla',policy='default'},
                {id='sledge',name='Sledge',origin='vanilla',policy='enabled'},
                {id='mytool',name=string.rep('X',90),origin='mod',policy='disabled'}},
@@ -16,7 +16,7 @@ local function world(width,height,previousRegistry)
     -- Older scenarios explicitly exercise expanded Settings; use an empty
     -- supplied registry below to test the actual first-run defaults.
     if not previousRegistry then
-        for _,id in ipairs({"language","shortcut","view_mode","navigation","palette","background"}) do w.reg["savegame.mod.osp_beta.settings.collapsed."..id]="0" end
+        for _,id in ipairs({"language","shortcut","view_mode","navigation","effects_on_load","palette","background"}) do w.reg["savegame.mod.osp_beta.settings.collapsed."..id]="0" end
     end
     env.GetString=function(k) return w.reg[k] or '' end
     env.SetString=function(k,v) w.reg[k]=v end
@@ -987,8 +987,9 @@ do
         local r=w:scrollTo(id);w.mouse={x=r.x+r.w/2,y=r.y+r.h/2};w:draw();w.now=w.now+.61;return w:draw().tooltip
     end
     eq(hint('player_action_god'),nil,'persistence alone does not create a tooltip')
-    check(table.concat(w.texts,'|'):find(e.OSP.L('tip_temporary'),1,true)~=nil,'delegate sees temporary note in page')
+    check(table.concat(w.texts,'|'):find(e.OSP.L('player_self_off_saved'),1,true)~=nil,'delegate sees own-disable persistence in page')
     w:clickControl('player_23');eq(hint('player_action_god').text,e.OSP.L('protects_host'))
+    check(table.concat(w.texts,'|'):find(e.OSP.L('tip_temporary'),1,true)~=nil,'other-player changes keep temporary note')
     w:clickControl('player_11');me.permissions=e.OSP.Permissions.normalize({})
     eq(hint('player_action_god').text,e.OSP.L('result_denied'))
 end
@@ -1287,12 +1288,12 @@ for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
     w:clickControl("rebind");check(e.OSP.Shortcuts.capture=="menu","capture starts")
     w:clickControl("settings_section_shortcut");check(not e.OSP.Shortcuts.capture,"collapse cancels capture")
     eq(w.reg["savegame.mod.osp_beta.menu_key"],"p","collapse does not change binding")
-    for _,id in ipairs({"view_mode","navigation"}) do w:clickControl("settings_section_"..id) end
+    for _,id in ipairs({"view_mode","navigation","effects_on_load"}) do w:clickControl("settings_section_"..id) end
     w:clickControl("tab_appearance")
     for _,id in ipairs({"palette","background"}) do w:clickControl("settings_section_"..id) end
     for _,id in ipairs(sections.ids) do check(not sections.expanded(id),"all sections collapsed") end
     st=w:draw()
-    for _,id in ipairs({"rebind","view_mode_auto","navigation_restore","palette_classic"}) do check(not st.controls[id],"collapsed body omitted: "..id) end
+    for _,id in ipairs({"rebind","view_mode_auto","navigation_restore","effects_on_load_on","palette_classic"}) do check(not st.controls[id],"collapsed body omitted: "..id) end
     check(st.scroll<=st.maxScroll,"scroll remains bounded after collapse at bottom")
     w:tick("p");w:tick("p");w:clickControl("tab_settings")
     check(not sections.expanded("palette"),"reopening panel retains state")
@@ -1322,8 +1323,8 @@ do
     w:tick("p");w:clickControl("tab_settings");local st=w:draw()
     for _,id in ipairs(e.OSP.SettingsSections.ids) do check(not e.OSP.SettingsSections.expanded(id),"first-run collapsed") end
     check(not st.controls.language_en and not st.controls.palette_classic,"first-run bodies hidden")
-    eq(#w.images,4,"one graphical icon per Settings heading")
-    for _,id in ipairs({"language","shortcut","view_mode","navigation"}) do
+    eq(#w.images,5,"one graphical icon per Settings heading")
+    for _,id in ipairs({"language","shortcut","view_mode","navigation","effects_on_load"}) do
         local found=false;for _,value in ipairs(w.texts) do if value==e.OSP.L("settings_help_"..id) then found=true end end
         check(found,"description visible while collapsed: "..id)
     end
@@ -1332,6 +1333,113 @@ do
     eq(w.images[1],"MOD/ui/section-down.png","expanded icon")
     eq(w.reg["savegame.mod.osp_beta.settings.collapsed.language"],"0","explicit expanded state stored")
     local again=world(1920,1080,w.reg);check(again.api.OSP.SettingsSections.expanded("language"),"expanded choice survives restart")
+end
+-- A personal disable waits for profile identification instead of silently
+-- issuing an unsaved change; ordinary one-time actions remain available.
+do
+    local w=world(1024,768);local e=w.api;e.IsPlayerHost=function() return false end
+    local own=e.shared.osp.players[1];own.host=false;own.admin=true;own.profileReady=false
+    own.permissions=e.OSP.Permissions.resolve('admin').permissions
+    w:tick('p')
+    for _,id in ipairs({'player_action_god','player_action_fly','player_action_noclip','player_action_strength','player_action_ammo','player_action_freeze','player_speed_value'}) do
+        check(w:scrollTo(id).disabled,'personal persistent control waits for profile: '..id)
+    end
+    check(not w:scrollTo('player_action_heal').disabled,'one-time healing does not wait for a saved profile')
+    own.profileReady=true;w:tick()
+    check(not w:scrollTo('player_action_god').disabled,'personal control becomes available after identification')
+    eq(#w.sent,0,'waiting for a profile sends no gameplay commands')
+end
+-- The host-only map-load preference uses confirmed shared state and a single RPC.
+for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
+ for _,language in ipairs({'en','pt'}) do
+    for _,change in ipairs({{before=false,after=true,id='effects_on_load_on'}, {before=true,after=false,id='effects_on_load_off'}}) do
+        local w=world(size[1],size[2],{});local e=w.api
+        w.reg['savegame.mod.osp_beta.language']=language;e.shared.osp.effectsOffOnLoad=change.before
+        w:tick('p');w:clickControl('tab_settings')
+        local section=w:scrollTo('settings_section_effects_on_load');local st=w:draw()
+        check(section and not section.disabled,'host can see the map-load section at '..size[1]..'x'..size[2])
+        check(not e.OSP.SettingsSections.expanded('effects_on_load'),'map-load section starts collapsed')
+        check(table.concat(w.texts,'|'):find(e.OSP.L('settings_help_effects_on_load'),1,true)~=nil,
+            'localized timing and re-enable help is visible when collapsed')
+        w:clickControl('settings_section_effects_on_load')
+        local control=w:scrollTo(change.id);local sc=w:draw()
+        check(control.x>=sc.layout.ox and control.x+control.w<=sc.layout.ox+sc.layout.w,
+            'map-load toggle stays inside the panel')
+        check(control.y>=sc.layout.oy+sc.layout.contentY and control.y+control.h<=sc.layout.oy+sc.layout.contentY+sc.layout.contentH,
+            'map-load toggle is reachable inside the clipped viewport')
+        eq(control.disabled,false,'host map-load choice is available without a request')
+        local before=#w.sent;w:clickControl(change.id)
+        eq(#w.sent,before+1,'ON/OFF press sends exactly one request')
+        local request=w.sent[#w.sent]
+        eq(request.fn,'server.ospCommand');eq(request.args[2],'effects_off_on_load')
+        eq(request.args[3],0,'host configuration has no player target');eq(request.args[4],change.after,'button sends the chosen boolean')
+        eq(e.shared.osp.effectsOffOnLoad,change.before,'pending request does not change the published setting')
+        st=w:draw()
+        check(st.controls.effects_on_load_on.disabled and st.controls.effects_on_load_off.disabled,
+            'both choices are blocked while the request is pending')
+        local count=#w.sent;local button=w:scrollTo(change.id);w:pressAt(button.x+button.w/2,button.y+button.h/2)
+        eq(#w.sent,count,'pending map-load choice sends no second request');w:releaseAt(button.x+button.w/2,button.y+button.h/2)
+        w:ack(false,'denied')
+        eq(e.shared.osp.effectsOffOnLoad,change.before,'rejection does not assume a shared-state update')
+        eq(w:draw().controls[change.id].disabled,false,'rejection unlocks the original shared choice')
+        before=#w.sent;w:clickControl(change.id)
+        eq(#w.sent,before+1,'retry after rejection sends the same requested boolean')
+        eq(w.sent[#w.sent].args[4],change.after)
+        eq(e.shared.osp.effectsOffOnLoad,change.before,'retry also waits for shared confirmation')
+        w:ack(true)
+        eq(e.shared.osp.effectsOffOnLoad,change.before,'ACK alone does not fabricate a shared-state update')
+        e.shared.osp.effectsOffOnLoad=change.after
+        local active=e.shared.osp.effectsOffOnLoad and 'effects_on_load_on' or 'effects_on_load_off'
+        check(w:draw().controls[active]~=nil,'confirmed shared value continues to render in the viewport')
+    end
+ end
+end
+-- Guests and delegated admins do not see the host policy control.
+for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
+ for _,language in ipairs({'en','pt'}) do
+    for _,delegatedAdmin in ipairs({false,true}) do
+        local w=world(size[1],size[2],{});local e=w.api;w.reg['savegame.mod.osp_beta.language']=language
+        e.IsPlayerHost=function() return false end
+        local own=e.shared.osp.players[1];own.host=false;own.admin=delegatedAdmin
+        own.permissions=delegatedAdmin and e.OSP.Permissions.resolve('admin').permissions or e.OSP.Permissions.resolve('guest').permissions
+        w:tick('p');w:clickControl('tab_settings');local st=w:draw()
+        check(st.controls.settings_section_effects_on_load==nil,'guest/admin has no host section header')
+        check(st.controls.effects_on_load_on==nil and st.controls.effects_on_load_off==nil,
+            'guest/admin has no ON/OFF controls at '..size[1]..'x'..size[2])
+        check(table.concat(w.texts,'|'):find(e.OSP.L('effects_on_load'),1,true)==nil,
+            'guest/admin does not see host setting text')
+        eq(#w.sent,0,'guest/admin cannot send the host setting RPC')
+    end
+ end
+end
+-- The real UI RPC stores the choice; a new server instance latches it for map entry.
+do
+    local factory=assert(loadfile('tests/test_server.lua'))
+    setfenv(factory,setmetatable({arg={arg[1],'fixture'}},{__index=_G}))
+    local createBackend=factory();local backend=createBackend()
+    local w=world(1024,768,{});local e=w.api;e.shared=backend.api.shared
+    e.IsPlayerHost=backend.api.IsPlayerHost;e.client.init()
+    local recordReply=backend.api.ClientCall
+    backend.api.ClientCall=function(actor,fn,...)
+        recordReply(actor,fn,...)
+        if actor==11 and fn=='client.ospResult' then e.client.ospResult(...) end
+    end
+    e.ServerCall=function(fn,...)
+        if fn=='server.ospCommand' then
+            backend.now=backend.now+.1
+            backend.api.server.ospCommand(...)
+        end
+    end
+    w:tick('p');w:clickControl('tab_players');w:clickControl('player_action_god')
+    check(e.shared.osp.players[1].god,'real server keeps an effect enabled in the current map')
+    backend.command(11,'speed',11,2)
+    w:clickControl('tab_settings');w:clickControl('settings_section_effects_on_load');w:clickControl('effects_on_load_on')
+    eq(e.shared.osp.effectsOffOnLoad,true,'real server publishes the accepted setting')
+    check(e.shared.osp.players[1].god,'enabling the preference does not disable current effects')
+    local reloaded=createBackend({baseGod=true,baseFly=true})
+    eq(reloaded.api.shared.osp.effectsOffOnLoad,true,'the preference survives a new map/server instance')
+    eq(reloaded.api.shared.osp.players[1].god,false,'effect is disabled after loading with the saved preference')
+    eq(reloaded.api.shared.osp.players[1].speed,1,'speed returns to 1 after loading with the saved preference')
 end
 -- Appearance controls are personal, persistent and accessible to guests.
 for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do

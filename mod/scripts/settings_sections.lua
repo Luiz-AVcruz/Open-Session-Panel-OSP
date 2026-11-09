@@ -1,7 +1,7 @@
 -- Copyright (C) 2026 Luiz-AVcruz
 -- AGPL-3.0-or-later; see LICENSE and ADDITIONAL-PERMISSION.
 -- Local presentation only. Missing or malformed preferences mean collapsed.
-OSP.SettingsSections={ids={"language","shortcut","view_mode","navigation","palette","background"}}
+OSP.SettingsSections={ids={"language","shortcut","view_mode","navigation","effects_on_load","palette","background"}}
 local S=OSP.SettingsSections
 local root="savegame.mod.osp_beta.settings.collapsed."
 local function known(id)

@@ -211,7 +211,7 @@ function draw()
         if button(366, 216, 350, text("confirm"), false, true) then
             -- Never clear the whole mod namespace: identity references must survive.
             local profiles = ListKeys(root .. "players")
-            for _,key in ipairs({"rules", "tools", "players"}) do ClearKey(root .. key) end
+            for _,key in ipairs({"rules", "tools", "players", "effects_off_on_load"}) do ClearKey(root .. key) end
             for _,id in ipairs(profiles) do
                 if id:match("^p%d+$") then SetBool(root .. "players." .. id .. ".exists", true) end
             end
