@@ -266,8 +266,8 @@ function OSP.installServer()
                 probe.writtenAt=GetTime();e.toolProbes[id]=probe
             end
         end
-        -- An external writer may keep the inventory entry visible. Preserve
-        -- the usage restriction without fighting its enabled flag every frame.
+        -- Best-effort deselection only: another script can process a queued
+        -- firing call before this tick. This is not a reliable use restriction.
         if not on then deselectTool(p,id) end
         return not on and e.toolConflicts[id]==true
     end
