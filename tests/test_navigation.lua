@@ -8,6 +8,11 @@ env.SetString=function(key,value) check(key:match('^savegame%.mod%.osp%.navigati
 local chunk=assert(loadfile(arg[1]));setfenv(chunk,env);chunk()
 local n=env.OSP.Navigation
 check(#n.list()==8,'default tabs visible')
+check(not n.visible('debug'),'Debug starts hidden')
+check(n.setVisible('debug',true) and n.visible('debug') and #n.list()==9,'Debug requires explicit opt-in')
+n.reset();check(not n.visible('debug') and #n.list()==8,'restoring defaults hides Debug')
+registry['savegame.mod.osp.navigation.hidden.debug']='invalid'
+check(not n.visible('debug'),'malformed Debug setting stays off')
 check(n.tabs[6]=='appearance' and n.tabs[7]=='settings','Appearance is a main tab before Settings')
 check(not n.setVisible('settings',false),'settings cannot be hidden')
 check(not n.setVisible('unknown',false),'unknown tabs rejected')

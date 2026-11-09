@@ -268,4 +268,19 @@ do
     for _,id in ipairs(e.OSP.SettingsSections.ids) do check(not e.OSP.SettingsSections.expanded(id),"personal reset collapses section") end
     check(w.registry[r.."players.test.tools.abc"]=="2","reset preserves player profile")
 end
+-- Debug is opt-in through the same tab preferences before loading a map.
+for _,language in ipairs({'en','pt'}) do
+    local w,r,e=world(840,760);w.registry[r..'language']=language
+    check(not e.OSP.Navigation.visible('debug'),'Options keeps Debug off by default')
+    w.registry[r..'identity.host']='keep';w.registry[r..'tools.abc']=2
+    w.click(30,570)
+    w.clickText(e.OSP.L('debug')..' · '..e.OSP.L('navigation_hidden'))
+    check(e.OSP.Navigation.visible('debug'),'Options can opt into Debug')
+    w.clickText(e.OSP.L('navigation_restore'))
+    check(not e.OSP.Navigation.visible('debug'),'tab defaults turn Debug off')
+    e.OSP.Navigation.setVisible('debug',true)
+    w.click(30,660);w.click(30,315)
+    check(not e.OSP.Navigation.visible('debug'),'personal reset turns Debug off')
+    check(w.registry[r..'identity.host']=='keep' and w.registry[r..'tools.abc']==2,'reset preserves identity and tools')
+end
 print('PASS main-menu options without a map: '..assertions..' assertions')

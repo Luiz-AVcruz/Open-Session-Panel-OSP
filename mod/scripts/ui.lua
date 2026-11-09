@@ -50,6 +50,7 @@ function OSP.installClient()
     local viewMode=OSP.ViewMode.resolve()
     local function solo() return viewMode=="single" end
     local function eligible(id) return OSP.ViewMode.eligible(id,viewMode) end
+    local function personalTab(id) return id=="settings" or id=="appearance" or id=="about" or id=="debug" end
     local function lang() return GetString(ROOT.."language")=="pt" and "pt" or "en" end
     OSP.getLanguage=lang
     local function T(k,...) return OSP.L(k,...) end
@@ -217,7 +218,7 @@ function OSP.installClient()
         end
     end
     local function setTab(t,keepTarget)
-        t=navigation.choose(t,function(id) return id=="settings" or id=="appearance" or id=="about" or admin() and (id~="permissions" or rolesAccess()) end,eligible)
+        t=navigation.choose(t,function(id) return personalTab(id) or admin() and (id~="permissions" or rolesAccess()) end,eligible)
         if tab~=t then
             closeDropdown();resetTooltip();closeMovement();closeTools();scroll=0;confirm=nil;typing=false;capturing=false
             shortcuts.cancel();OSP.PermissionUI.closeExpanded();OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel()
@@ -957,6 +958,37 @@ function OSP.installClient()
         end
         return result,counts
     end
+    -- Manually documented causes; detection alone does not identify a writer.
+    local compatibilityNotes={airstrike="compatibility_airstrike"}
+    local function compatibilityText(id,fallback) return T(compatibilityNotes[id] or fallback) end
+    local function toolConflict(p,id)
+        return p and p.toolConflicts and p.toolConflicts[id]==true
+    end
+    local function toolConflictCount(id)
+        local n=0
+        for _,p in ipairs(roster()) do if toolConflict(p,id) then n=n+1 end end
+        return n
+    end
+    local function toolChoice(p,tool)
+        if tool.policy=="disabled" then return false end
+        if p.toolRules and p.toolRules[tool.id]~=nil then return p.toolRules[tool.id] end
+        if tool.policy=="enabled" then return true end
+        return IsToolEnabled(tool.id,p.id)
+    end
+    local function checkCompatibilityNotice()
+        if not menu or tab~="tools" or confirm or pending or toolsPopup or dropdown or search.focused then return end
+        local p=selectedPlayer()
+        for _,tool in ipairs(state() and state().tools or {}) do
+            local conflict=toolMode=="global" and toolConflictCount(tool.id)>0 or toolMode=="player" and toolConflict(p,tool.id)
+            local key=ROOT.."compatibility.seen."..tool.id:gsub(".",function(c) return string.format("%02x",c:byte()) end)
+            if conflict and GetString(key)~="1" then
+                SetString(key,"1")
+                confirm={info=true,target=0,toolName=toolName(tool),message=compatibilityText(tool.id,"compatibility_notice")}
+                typing=false;capturing=false;OSP.NumberInput.cancel();OSP.PermissionUI.cancelInput();InputClear()
+                return
+            end
+        end
+    end
     local function drawTools()
         local w=layout.contentW;local items,counts=filteredTools();local p=selectedPlayer()
         if solo() then toolMode="global" elseif not allowed("tool_policy",0) then toolMode="player" end
@@ -1006,11 +1038,21 @@ function OSP.installClient()
             if tool then
                 local ry=y+(row-1)*45;local policy=tool.policy or "default"
                 local locked=policy=="disabled" and toolMode=="player"
-                local enabled=p and IsToolEnabled(tool.id,p.id) or false
+                local enabled=false
+                if p then
+                    if toolConflict(p,tool.id) then enabled=toolChoice(p,tool)
+                    else enabled=IsToolEnabled(tool.id,p.id) end
+                end
                 local active=enabled
                 if toolMode=="global" and not solo() then active=policy=="default" and IsToolEnabled(tool.id,me) or policy=="enabled" end
                 local meta=locked and T("blocked_by_host") or toolMode=="global" and T("policy_"..policy) or T(enabled and "tool_enabled" or "tool_disabled")
                 if solo() then meta=T(enabled and "tool_enabled" or "tool_disabled") end
+                local conflicts=toolConflictCount(tool.id)
+                if toolMode=="global" and conflicts>0 then
+                    meta=T(policy=="disabled" and "tool_use_block_count" or "tool_inventory_conflict",conflicts)
+                elseif toolMode=="player" and toolConflict(p,tool.id) then
+                    meta=T(enabled and "tool_inventory_conflict" or "tool_use_block")
+                end
                 label(0,ry+3,toolName(tool),17,C.text,w-204)
                 label(0,ry+24,meta,13,C.muted,w-204)
                 if button("tool_"..tool.id,w-194,ry+3,144,34,T(active and "deactivate" or "activate"),active and "active" or "plain",not p or (toolMode=="global" and not allowed("tool_policy",0)) or (toolMode=="player" and (blocked or locked and not enabled))) then
@@ -1020,7 +1062,7 @@ function OSP.installClient()
                         else command("tool_policy",0,{id=tool.id,mode=mode}) end
                     else command("tool",p.id,{id=tool.id,enabled=not enabled}) end
                 end
-                if button("tool_more_"..tool.id,w-40,ry+3,40,34,"...","plain",toolMode=="global" and (not allowed("tool_policy",0) or not solo() and policy=="default")) then openActions(tool) end
+                if button("tool_more_"..tool.id,w-40,ry+3,40,34,"...","plain",toolMode=="global" and (not allowed("tool_policy",0) or not solo() and policy=="default" and conflicts==0)) then openActions(tool) end
                 rect(0,ry+44,w,1,C.line)
             end
         end
@@ -1085,7 +1127,9 @@ function OSP.installClient()
                 label(actor+actionW+16,y+7,e.target~="" and e.target or "—",15,C.muted,target)
                 local resultKey=e.result=="ok" and "done" or e.result=="partial" and "result_partial" or "error_short"
                 label(w-result,y+7,T(resultKey),15,e.result=="ok" and C.success or e.result=="partial" and C.accent or C.danger,result)
-                label(0,y+28,T("counts_short",e.affected or 0,e.skipped or 0),13,C.muted,w)
+                local counts=T("counts_short",e.affected or 0,e.skipped or 0)
+                if (e.inventoryConflicts or 0)>0 then counts=counts.." · "..T("tool_inventory_count",e.inventoryConflicts) end
+                label(0,y+28,counts,13,C.muted,w)
                 rect(0,y+46,w,1,C.line);y=y+48
             end
         end
@@ -1184,15 +1228,60 @@ function OSP.installClient()
                 consume=function() clickConsumed=true;OSP.NumberInput.cancel() end,
             },0,85,w)
     end
+    local function drawDebug()
+        local w=layout.contentW;title(T("debug"),T("debug_subtitle"))
+        local y=85
+        local function paragraph(text,color)
+            UiPush();UiTranslate(0,y);UiAlign("left top");UiFont("regular.ttf",15)
+            UiTextDisableWildcards(true);UiWordWrap(w);rgb(color or C.muted)
+            local _,height=UiText(text);UiPop();y=y+height+14
+        end
+        local bw=math.min(w,320)
+        if button("debug_reset_first_entry",0,y,bw,36,T("debug_reset_first_entry"),"outlined",false) then
+            ClearKey(ROOT.."compatibility.seen")
+            setStatus(T("debug_first_entry_reset"))
+        end
+        y=y+46;paragraph(T("debug_reset_help"))
+        if button("debug_preview_notice",0,y,bw,36,T("debug_preview_notice"),"outlined",pending~=nil) then
+            confirm={info=true,target=0,toolName=T("debug_sample_tool"),message=T("compatibility_notice")}
+        end
+        y=y+46;paragraph(T("debug_preview_help"))
+        rect(0,y,w,1,C.line);y=y+18
+        label(0,y,T("debug_state"),20,C.text,w,true);y=y+34
+        local s=state();local own=findPlayer(me);local conflicts=0
+        for _,tool in ipairs(s and s.tools or {}) do if toolConflictCount(tool.id)>0 then conflicts=conflicts+1 end end
+        paragraph(T("version",OSP.version),C.text)
+        paragraph(T("debug_panel_mode",T("view_"..(solo() and "single" or "multi")),T("view_"..OSP.ViewMode.get())),C.text)
+        paragraph(T("debug_server",T(s and s.ready and "debug_ready" or "debug_waiting")),C.text)
+        paragraph(T("debug_profile",T(own and own.profileReady and "debug_ready" or "debug_waiting")),C.text)
+        paragraph(T("debug_roster",#roster(),T(host() and "debug_yes" or "debug_no")),C.text)
+        paragraph(T("debug_tools",s and #(s.tools or {}) or 0,conflicts),C.text)
+        paragraph(T("debug_pending",T(pending and "debug_yes" or "debug_no")),C.text)
+        if status then paragraph(T("debug_last_status",status),C.text) end
+        y=y+6
+        if button("debug_hide",0,y,bw,36,T("debug_hide"),"outlined",false) then
+            navigation.setVisible("debug",false);setTab("settings")
+        end
+        return y+52
+    end
     local function drawAbout()
         local w=layout.contentW;title(T("about_title"),T("about_subtitle"))
         local entries={{T("version",OSP.version),C.accent},{"Luiz-AVcruz",C.text},{T("about_summary"),C.text},
             {T("license"),C.text},{T("license_permission"),C.muted},{T("source_included"),C.text},
             {T("source_location"),C.muted},{T("source_offer"),C.muted},{T("limits"),C.muted}}
+        local hasConflicts=false
+        for _,tool in ipairs(state() and state().tools or {}) do
+            local n=toolConflictCount(tool.id)
+            if n>0 then
+                if not hasConflicts then entries[#entries+1]={T("compatibility_title"),C.accent};hasConflicts=true end
+                entries[#entries+1]={T("compatibility_detected",toolName(tool),n),C.text}
+                entries[#entries+1]={compatibilityText(tool.id,"compatibility_detected_help"),C.muted}
+            end
+        end
         local y=86
         for _,e in ipairs(entries) do
             UiPush();UiTranslate(0,y);UiAlign("left top");UiFont("regular.ttf",17);UiTextDisableWildcards(true)
-            UiWordWrap(w);rgb(e[2]);local _,h=UiGetTextSize(e[1]);UiText(e[1]);UiPop()
+            UiWordWrap(w);rgb(e[2]);local _,h=UiText(e[1]);UiPop()
             y=y+math.max(30,h+12)
         end
         return y+20
@@ -1340,7 +1429,10 @@ function OSP.installClient()
                 action("tools_disable_results_everyone","tools_disable_results","right","tools_selection_all",{target=0,scope=T(host() and "tools_present" or "tools_present_except_host"),value={category=v.category,ids=v.resultIds,enabled=false}},true,not allowed("tools_all",0) or #v.resultIds==0,v.query)
             end
         end
-        label(x+18,y+h-34,T("movement_popup_help"),13,C.accent,w-36)
+        local incompatible=false
+        for _,id in ipairs(v.ids) do if toolConflictCount(id)>0 then incompatible=true;break end end
+        UiPush();UiTranslate(x+18,y+h-40);UiAlign("left top");UiFont("regular.ttf",13);UiWordWrap(w-36);UiTextDisableWildcards(true);rgb(C.accent)
+        UiText(incompatible and compatibilityText(v.tool and v.tool.id,"tool_conflict_help") or T("movement_popup_help"));UiPop()
     end
     local function drawCollectivePopup()
         local current=collectivePopup
@@ -1371,6 +1463,23 @@ function OSP.installClient()
     end
     local function drawModal()
         if not confirm then return end
+        if confirm.info then
+            local w=math.min(layout.w-32,480);local lines={};local line=""
+            UiPush();UiFont("regular.ttf",16)
+            for word in confirm.message:gmatch("%S+") do
+                local nextLine=line=="" and word or line.." "..word
+                if line~="" and UiGetTextSize(nextLine)>w-40 then lines[#lines+1]=line;line=word else line=nextLine end
+            end
+            if line~="" then lines[#lines+1]=line end
+            UiPop()
+            local h=154+#lines*22;local x,y=(layout.w-w)/2,(layout.h-h)/2
+            rect(0,0,layout.w,layout.h,{0,0,0,.65});rect(x,y,w,h,C.side);rect(x,y,w,3,C.accent)
+            label(x+20,y+18,T("compatibility_notice_title"),20,C.text,w-40,true)
+            label(x+20,y+52,confirm.toolName,18,C.accent,w-40,true)
+            for i,value in ipairs(lines) do label(x+20,y+82+(i-1)*22,value,16,C.text,w-40) end
+            if button("compatibility_notice_close",x+w-148,y+h-54,128,36,T("understood"),"outlined",not confirm.ready,true) then confirm=nil;return end
+            confirm.ready=true;return
+        end
         local w=math.min(layout.w-32,540);local h=math.min(layout.h-32,232);local x=(layout.w-w)/2;local y=(layout.h-h)/2
         rect(0,0,layout.w,layout.h,{0,0,0,.65});rect(x,y,w,h,C.side);rect(x,y,w,3,C.accent)
         label(x+20,y+18,T("confirmation"),20,C.text,w-40,true)
@@ -1387,6 +1496,7 @@ function OSP.installClient()
     local function render()
         setTab(tab)
         checkConfirmationTarget()
+        checkCompatibilityNotice()
         refreshViewMode()
         OSP.NumberControl.beginFrame(numericFrame)
         local tabs=navigation.list(eligible);local navCols=math.min(4,#tabs)
@@ -1411,7 +1521,7 @@ function OSP.installClient()
             local x,y,w,h
             if narrow then w=(W-36-(navCols-1)*4)/navCols;h=32;x=18+((i-1)%navCols)*(w+4);y=header+7+math.floor((i-1)/navCols)*36
             else x=12;y=header+19+(i-1)*43;w=side-24;h=37 end
-            if button("tab_"..t,x,y,w,h,T(solo() and t=="players" and "player_solo" or t),tab==t and "active" or "outlined",not admin() and t~="settings" and t~="appearance" and t~="about") then setTab(t) end
+            if button("tab_"..t,x,y,w,h,T(solo() and t=="players" and "player_solo" or t),tab==t and "active" or "outlined",not admin() and not personalTab(t)) then setTab(t) end
         end
         if not narrow then label(22,H-32,T("version",OSP.version),13,C.muted,side-44) end
         clip={x=cx,y=cy,w=cw,h=ch};bodyHovered=inside(cx,cy,cw,ch,mouseX,mouseY)
@@ -1421,8 +1531,9 @@ function OSP.installClient()
         clip={x=0,y=scroll,w=cw,h=ch}
         local contentHeight=0
         local s=state()
-        if not s or not s.ready then title(T("connecting"));contentHeight=90
-        elseif not admin() and tab~="settings" and tab~="appearance" and tab~="about" then setTab("settings");contentHeight=drawSettings()
+        if tab=="debug" then contentHeight=drawDebug()
+        elseif not s or not s.ready then title(T("connecting"));contentHeight=90
+        elseif not admin() and not personalTab(tab) then setTab("settings");contentHeight=drawSettings()
         elseif tab=="players" then contentHeight=drawPlayers()
         elseif tab=="session" then contentHeight=drawSession()
         elseif tab=="tools" then contentHeight=drawTools()
@@ -1541,6 +1652,9 @@ function OSP.installClient()
         local defaultSaved=ok and lastAction=="players_group" and details and details.defaultsSaved==true
         if defaultSaved then
             if code=="partial" then msg=msg.."  "..T("group_default_saved") else msg=T("group_default_saved") end
+        end
+        if details and details.inventoryConflicts and details.inventoryConflicts>0 then
+            msg=msg.."  "..T("tool_inventory_count",details.inventoryConflicts)
         end
         if details and details.skipped and details.skipped>0 then msg=msg.."  "..T("skipped",details.skipped) end
         if details and details.failed and details.failed>0 then msg=msg.."  "..T("failed_count",details.failed) end
@@ -1674,7 +1788,7 @@ function OSP.installClient()
             if delta~=0 then scroll=math.max(0,math.min(maxScroll,scroll-delta*48)) end
         end
         if PauseMenuButton(T("pause_button"),"bottom_bar",false) then setMenu(true);confirm=nil end
-        if not admin() and tab~="settings" and tab~="appearance" and tab~="about" then setTab("settings") end
+        if not admin() and not personalTab(tab) then setTab("settings") end
         if not wasMenu and not menu and not shortcuts.capture and not typing and not capturing
             and not confirm and not movementSettings and not toolsPopup and not collectivePopupOpen() and not search.focused
             and not OSP.NumberInput.active() and not permissionExpanded() and not OSP.PermissionUI.capturing()
