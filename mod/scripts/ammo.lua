@@ -2,6 +2,8 @@
 -- AGPL-3.0-or-later; see LICENSE and ADDITIONAL-PERMISSION.
 -- Infinite-ammo state is transient and belongs to one player entry and tool.
 OSP.Ammo = {}
+-- Suspended until restoration is verified against native and modded tools.
+local RESTORE_ENABLED=false
 
 local function finite(value)
     return type(value)=="number" and value==value and value>-math.huge and value<math.huge
@@ -33,7 +35,7 @@ function OSP.Ammo.new()
     end
 
     local function restore(p,entry,shouldRestore)
-        if shouldRestore and type(GetToolAmmo)=="function" and type(SetToolAmmo)=="function" then
+        if RESTORE_ENABLED and shouldRestore and type(GetToolAmmo)=="function" and type(SetToolAmmo)=="function" then
             for tool,snapshot in pairs(entry.tools) do
                 if snapshot.touched and registered(tool) then
                     local current=GetToolAmmo(tool,p)

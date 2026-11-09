@@ -13,6 +13,10 @@ function OSP.installServer()
     local profileHost
     local effectsOffOnLoad,resetEffectsOnEntry=false,false
     local effectsOnLoadKey="savegame.mod.osp.effects_off_on_load"
+    local collectiveRoot="savegame.mod.osp.collective."
+    local collectiveFuture=false
+    local collectiveDefaults={all={},roles={}}
+    local C=OSP.Collective
     local flightInputClock=0
     local strengthController=OSP.Strength.new()
     local ammoController=OSP.Ammo.new()
@@ -30,7 +34,7 @@ function OSP.installServer()
     local function encoded(id)
         return id:gsub(".",function(c) return string.format("%02x",c:byte()) end)
     end
-    local effectKeys={god="god",fly="flight",noclip="noclip",strength="strength",ammo="ammo",freeze="freeze"}
+    local effectKeys=C.effects
     local function selfDisableKey(actor,target,action,value)
         -- Match the explicit command, not incidental changes inside its handler
         -- (for example, enabling Fly temporarily suspends Noclip).
@@ -61,8 +65,8 @@ function OSP.installServer()
         e.fly=GetBool(root.."flight")
         e.strength=GetBool(root.."strength")
         e.ammo=GetBool(root.."ammo")
-        if HasKey(root.."ammo_restore") then e.ammoRestore=GetBool(root.."ammo_restore")
-        else e.ammoRestore=true end
+        -- Old saved preferences remain untouched while restoration is suspended.
+        e.ammoRestore=false
         e.strengthThrow=GetBool(root.."strength_throw")
         for _,spec in ipairs({{"strength_force","strengthForce",OSP.strength.minForce,OSP.strength.maxForce},
             {"strength_mass","strengthMass",OSP.strength.minMass,OSP.strength.maxMass},
@@ -84,6 +88,9 @@ function OSP.installServer()
         if HasKey(root.."speed") then
             local value=GetFloat(root.."speed")
             if OSP.finite(value) and value>=.5 and value<=3 then e.speed=value end
+        end
+        if collectiveFuture and not resetEffectsOnEntry and not GetBool(root.."collective_optout") then
+            C.inherit(collectiveDefaults,e,isHost(p),function(key) return HasKey(root..key) end,P.resolve(e.role,templates).id)
         end
         if e.freeze then e.anchor=GetPlayerTransform(p) end
         for _,key in ipairs(ListKeys(root.."tools")) do
@@ -115,7 +122,7 @@ function OSP.installServer()
             noclipSpeed=OSP.flight.normal,noclipBoost=OSP.flight.shift,
             strength=false,strengthForce=OSP.strength.force,strengthMass=OSP.strength.mass,
             strengthThrow=false,strengthThrowSpeed=OSP.strength.throwSpeed,
-            ammo=false,ammoRestore=true,
+            ammo=false,ammoRestore=false,
             baseSpeed=GetPlayerWalkingSpeed(p),
             baseGod=GetPlayerParam("godMode", p),
             baseFly=GetPlayerParam("flyMode", p),
@@ -134,7 +141,7 @@ function OSP.installServer()
     local function publish()
         local view={version=OSP.version,ready=true,players={},tools=OSP.copy(tools),
             rules=OSP.copy(rules),log=OSP.copy(logs),toolPolicies=OSP.copy(policies),profileHost=profileHost,templates=P.list(templates),
-            effectsOffOnLoad=effectsOffOnLoad}
+            effectsOffOnLoad=effectsOffOnLoad,collectiveFuture=collectiveFuture}
         for _, p in ipairs(roster()) do
             local e=players[p]
             if e then
@@ -163,10 +170,13 @@ function OSP.installServer()
             arg={category=arg.category,tools=#arg.ids,enabled=arg.enabled}
         elseif action=="tool_policy_selection" then
             arg={category=arg.category,tools=#arg.ids,mode=arg.mode}
+        elseif action=="players_group" then
+            arg={action=arg.action,scope=arg.scope,role=arg.role,enabled=arg.value}
+        elseif action=="roles_assign_many" then arg={role=arg.role}
         elseif type(arg)=="table" then arg=nil end
         logs[#logs+1]={seq=sequence,actor=IsPlayerValid(actor) and GetPlayerName(actor) or "?",
             action=action,target=type(target)=="number" and IsPlayerValid(target) and GetPlayerName(target) or "",
-            result=result,affected=details and details.affected or 0,skipped=details and details.skipped or 0,
+            result=result,affected=details and details.affected or 0,skipped=details and details.skipped or 0,failed=details and details.failed or 0,
             argument=OSP.copy(arg)}
         if #logs>100 then table.remove(logs,1) end
     end
@@ -370,10 +380,8 @@ function OSP.installServer()
         if v then ammoController:tick(p,e,true) else ammoController:stop(p,e.ammoRestore==true) end
         saveField(c,p,"ammo",v)
     end,{target=true,persistent=true})
-    add("ammo_restore",boolean,function(c,p,v)
-        players[p].ammoRestore=v
-        saveField(c,p,"ammo_restore",v)
-    end,{target=true,persistent=true})
+    add("ammo_restore",boolean,function() end,
+        {target=true,guard=function() return "unavailable" end})
     add("freeze",boolean,function(c,p,v)
         players[p].freeze=v
         stopFlight(players[p])
@@ -499,6 +507,7 @@ function OSP.installServer()
     add("role_delete",function(v) return roleVersionArg(v) and not P.isPreset(v.id) end,
         function(_,_,v)
             templates[v.id]=nil;ClearKey(templateSave.."."..v.id)
+            collectiveDefaults.roles[v.id]=nil;C.write(collectiveRoot.."defaults.",collectiveDefaults)
             for _,e in pairs(players) do if e.role==v.id then e.role="guest";e.admin=false end end
             for _,id in ipairs(ListKeys(profileSave:sub(1,-2))) do
                 local path=profileSave..id.."."
@@ -514,12 +523,14 @@ function OSP.installServer()
         ClearKey(profileSave..e.profile)
         -- Keep the assigned identity, so reconnecting does not allocate a new one.
         SetBool(profileSave..e.profile..".exists",true)
+        -- Restoring is an explicit choice; future defaults must not undo it.
+        SetBool(profileSave..e.profile..".collective_optout",true)
         e.admin=false;e.role="guest";e.god=nil;e.fly=false;e.noclip=nil;stopFlight(e);e.freeze=false;e.anchor=nil;e.speed=1;e.toolRules={}
         e.flySpeed=OSP.flight.normal;e.flyBoost=OSP.flight.shift
         e.noclipSpeed=OSP.flight.normal;e.noclipBoost=OSP.flight.shift
         e.strength=false;e.strengthForce=OSP.strength.force;e.strengthMass=OSP.strength.mass
         e.strengthThrow=false;e.strengthThrowSpeed=OSP.strength.throwSpeed
-        e.ammo=false;e.ammoRestore=true
+        e.ammo=false;e.ammoRestore=false
         e.strengthInput=nil;e.strengthInputAt=nil
         SetPlayerParam("godMode",e.baseGod,p);SetPlayerParam("flyMode",e.baseFly,p)
         for id,on in pairs(e.toolBase) do if known[id] then applyTool(p,id,on) end end
@@ -662,6 +673,13 @@ function OSP.installServer()
     add("effects_off_on_load",boolean,function(_,_,value)
         effectsOffOnLoad=value;SetBool(effectsOnLoadKey,value)
     end,{host=true})
+    add("collective_future",boolean,function(_,_,value)
+        collectiveFuture=value;SetBool(collectiveRoot.."future",value)
+        if not value then
+            collectiveDefaults={all={},roles={}}
+            ClearKey(collectiveRoot.."defaults")
+        end
+    end,{host=true})
 
     function server.init()
         players,rules,logs,lastRequest,removalSeen={},{},{},{},{}
@@ -680,7 +698,10 @@ function OSP.installServer()
             SetString("savegame.mod.osp.hostid",profileHost)
         end
         original={rain=GetEnvironmentProperty("rain"),fog={GetEnvironmentProperty("fogparams")}}
-        loadTemplates(); loadPolicies(); syncPlayers(); refreshTools()
+        loadTemplates(); loadPolicies()
+        collectiveFuture=GetBool(collectiveRoot.."future")
+        collectiveDefaults=collectiveFuture and C.load(collectiveRoot.."defaults.",P.list(templates)) or {all={},roles={}}
+        syncPlayers(); refreshTools()
         for _,p in ipairs(roster()) do enforceTools(p) end
         for _,key in ipairs({"time","rain","fog","regen"}) do
             if HasKey(save..key) then
@@ -721,6 +742,72 @@ function OSP.installServer()
         end
         if current and not P.within(current,ceiling) or proposed and not P.within(proposed,ceiling) then return "denied" end
     end
+    local function prepareCollective(actor,arg,assignment)
+        if arg.host~=profileHost or arg.actorJoin~=players[actor].challenge then return nil,"unavailable" end
+        if (assignment or arg.scope=="role") and not storedRole(arg.role) then return nil,"unavailable" end
+        local action=assignment and "role_assign" or arg.action
+        local value=assignment and {id=arg.role} or arg.value
+        local def=actions[action]
+        local global=action=="heal" and "heal_all" or action=="bring" and "bring_all" or nil
+        if def.aliveCaller and GetPlayerHealth(actor)<=0 then return nil,"unavailable" end
+        if not isHost(actor) then
+            local permission=assignment and "role_assign" or global or action
+            if global or assignment then
+                if not P.allows(playerRole(actor).permissions,permission,0,value,actor) then return nil,"denied" end
+            elseif not P.allows(playerRole(actor).permissions,permission,actor,value,actor) then return nil,"denied" end
+            if assignment and not P.within(P.resolve(arg.role,templates).permissions,playerRole(actor).permissions) then return nil,"denied" end
+        end
+        local batch={targets={},details={affected=0,skipped=0,failed=0},
+            future=not assignment and isHost(actor) and collectiveFuture and C.effects[action]~=nil and arg.scope~="manual"}
+        local denied=false
+        for _,target in ipairs(arg.targets) do
+            local p=target.id;local e=players[p]
+            local skip=not IsPlayerValid(p) or not e or e.challenge~=target.join
+            if not skip and not assignment then
+                skip=not C.matches({id=p,host=isHost(p),role=playerRole(p).id},arg.scope,arg.role,arg.excludeSelf,actor)
+            end
+            if not skip then
+                skip=(isHost(p) and (assignment or not isHost(actor)))
+                    or def.noSelf and p==actor or def.aliveTarget and GetPlayerHealth(p)<=0
+                    or (def.profileRequired or def.persistent and isHost(actor)) and not e.profile
+            end
+            local disabledKey=not assignment and not isHost(actor) and selfDisableKey(actor,p,action,value)
+            if not skip and disabledKey and not e.profile then skip=true end
+            if not skip and not isHost(actor) then
+                if not global and not P.allows(playerRole(actor).permissions,action,p,value,actor)
+                    or administrationGuard(actor,action,p,value) then skip=true;denied=true end
+            end
+            if not skip and assignment and playerRole(p).id==arg.role then skip=true end
+            if skip then batch.details.skipped=batch.details.skipped+1
+            else batch.targets[#batch.targets+1]={id=p,disabledKey=disabledKey} end
+        end
+        if #batch.targets==0 and denied and not batch.future then return nil,"denied" end
+        return batch
+    end
+    local function runCollective(actor,_,arg,batch)
+        local assignment=arg.action==nil
+        local action=assignment and "role_assign" or arg.action
+        local value=assignment and {id=arg.role} or arg.value
+        for _,target in ipairs(batch.targets) do
+            local ok,err=pcall(function()
+                actions[action].run(actor,target.id,value)
+                if target.disabledKey then storeDisabledEffect(players[target.id],target.disabledKey) end
+            end)
+            if ok then batch.details.affected=batch.details.affected+1
+            else
+                batch.details.failed=batch.details.failed+1
+                DebugPrint("[Open Session Panel] collective "..action..": "..tostring(err))
+            end
+        end
+        if batch.future then
+            C.setDefault(collectiveDefaults,arg.scope,arg.role,arg.action,arg.value,arg.excludeSelf)
+            C.write(collectiveRoot.."defaults.",collectiveDefaults)
+            batch.details.defaultsSaved=true
+        end
+        return batch.details
+    end
+    add("players_group",C.validRequest,runCollective,{prepare=function(actor,arg) return prepareCollective(actor,arg,false) end})
+    add("roles_assign_many",C.validAssignment,runCollective,{prepare=function(actor,arg) return prepareCollective(actor,arg,true) end})
     function server.ospCommand(actor,action,target,arg,requestId,targetContext)
         if not OSP.finite(actor) or not IsPlayerValid(actor) then return end
         syncPlayers()
@@ -734,6 +821,7 @@ function OSP.installServer()
         end
         if not isAdmin(actor) then deny("denied"); return end
         if not def then deny("invalid"); return end
+        if def.prepare and target~=0 then deny("invalid");return end
         if def.host and not isHost(actor) then deny("denied"); return end
         if administrative[action] and not isHost(actor) and not P.allows(playerRole(actor).permissions,action,target,arg,actor) then
             deny("denied");return
@@ -768,7 +856,12 @@ function OSP.installServer()
             local valid,validationCode=def.validate(arg)
             if not valid then deny(validationCode or "invalid"); return end
         end
-        if not isHost(actor) and not P.allows(playerRole(actor).permissions,action,target,arg,actor) then deny("denied");return end
+        local prepared
+        if def.prepare then
+            local code
+            prepared,code=def.prepare(actor,arg)
+            if not prepared then deny(code);return end
+        elseif not isHost(actor) and not P.allows(playerRole(actor).permissions,action,target,arg,actor) then deny("denied");return end
         local administrationCode=administrationGuard(actor,action,target,arg)
         if administrationCode then deny(administrationCode);return end
         if def.noSelf and actor==target then deny("invalid");return end
@@ -787,16 +880,20 @@ function OSP.installServer()
         if disabledKey and not players[target].profile then deny("unavailable");return end
         -- Throttle accepted requests, not permission revocations (which must win immediately).
         local now=GetTime()
-        if action~="admin" and action~="role_assign" and action~="role_save" and action~="role_reset" and action~="role_delete" and lastRequest[actor] and now-lastRequest[actor]<0.05 then deny("rate_limited"); return end
+        if action~="admin" and action~="role_assign" and action~="roles_assign_many" and action~="role_save" and action~="role_reset" and action~="role_delete" and lastRequest[actor] and now-lastRequest[actor]<0.05 then deny("rate_limited"); return end
         lastRequest[actor]=now
         local ok,details=pcall(function()
-            local result=def.run(actor,target,arg)
+            local result=def.run(actor,target,arg,prepared)
             if disabledKey then storeDisabledEffect(players[target],disabledKey) end
             return result
         end)
         local code=ok and "ok" or "error"
         if not ok then DebugPrint("[Open Session Panel] "..action..": "..tostring(details)); details={} end
         details=details or {affected=1,skipped=0}
+        if ok and details.failed and details.failed>0 then
+            code=(details.affected>0 or details.defaultsSaved) and "partial" or "error"
+            ok=code=="partial"
+        end
         if ok and (action=="tool" or action=="tools" or action=="tool_all" or action=="tools_all"
             or action=="tools_filtered" or action=="tools_filtered_all" or action=="tools_selection" or action=="tools_selection_all"
             or action=="tool_policy" or action=="tool_policy_bulk" or action=="tool_policy_selection") then

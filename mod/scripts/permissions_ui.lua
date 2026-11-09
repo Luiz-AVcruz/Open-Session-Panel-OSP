@@ -16,6 +16,11 @@ local deleted = {}
 local lastAPI = nil
 local search = OSP.SearchInput.new()
 local groupExpanded = {}
+local batchPage = 1
+local batchSelection = {}
+local batchHost = nil
+local assignmentFocus = nil
+local batchFocusId = nil
 local groupRoot="savegame.mod.osp.permissions.expanded."
 for _,category in ipairs(P.categories or {}) do
     groupExpanded[category.id]=type(GetString)=="function" and GetString(groupRoot..category.id)=="1" or false
@@ -86,7 +91,7 @@ function UI.openExpanded()
     resetScroll(lastAPI)
 end
 
-function UI.focusPlayerRole(id)
+function UI.focusPlayerRole(id,player,namespace)
     if view~="assign" or type(id)~="string" or id=="" then return end
     selected=id
     draft=nil
@@ -94,6 +99,9 @@ function UI.focusPlayerRole(id)
     search.blur()
     expandedContentHeight=0
     expandedScroll=0
+    if player and not player.host then
+        assignmentFocus={id=player.id,join=player.profileChallenge,host=namespace}
+    end
     resetScroll(lastAPI)
 end
 
@@ -102,11 +110,68 @@ function UI.closeExpanded()
     UI.cancelInput()
 end
 
+function UI.clearBatchSelection()
+    batchPage=1;batchSelection={};batchHost=nil;assignmentFocus=nil;batchFocusId=nil
+end
+
+function UI.hasBatchSelection()
+    return assignmentFocus~=nil or next(batchSelection)~=nil
+end
+
+local function batchKey(player,namespace)
+    return tostring(namespace)..":"..tostring(player.id)..":"..tostring(player.profileChallenge)
+end
+local function validPlayerJoin(value)
+    return type(value)=="number" and value>=1 and value%1==0
+end
+
+local function prepareBatchSelection(api,players)
+    if not api or type(api.players)~="function" then return nil end
+    local namespace=type(api.profileHost)=="function" and api.profileHost() or nil
+    if batchHost~=nil and namespace~=batchHost then UI.clearBatchSelection() end
+    batchHost=namespace
+    local current={}
+    for _,player in ipairs(players or {}) do if not player.host then current[tostring(player.id)..":"..tostring(player.profileChallenge)]=true end end
+    for key,entry in pairs(batchSelection) do
+        if entry.host~=namespace or not current[tostring(entry.id)..":"..tostring(entry.join)] then batchSelection[key]=nil end
+    end
+    if assignmentFocus then
+        for _,player in ipairs(players or {}) do
+            if player.id==assignmentFocus.id and player.profileChallenge==assignmentFocus.join
+                and namespace==assignmentFocus.host and not player.host and player.profileReady==true
+                and validPlayerJoin(player.profileChallenge) and can(api,"role_assign",player.id,{id=selected}) then
+                batchSelection={}
+                batchSelection[batchKey(player,namespace)]={id=player.id,join=player.profileChallenge,host=namespace}
+                batchFocusId=player.id
+            end
+        end
+        assignmentFocus=nil
+    end
+    return namespace
+end
+
+local function eligibleBatchTargets(api,players,role,namespace)
+    local targets={}
+    if not role then return targets end
+    prepareBatchSelection(api,players)
+    for _,player in ipairs(players or {}) do
+        local selectedPlayer=batchSelection[batchKey(player,namespace)]~=nil
+        local alreadyAssigned=player.role==role.id or (player.role==nil and player.admin==true and role.id=="admin")
+        if selectedPlayer and not player.host and player.profileReady==true and validPlayerJoin(player.profileChallenge) and not alreadyAssigned
+            and can(api,"role_assign",player.id,{id=role.id}) then
+            targets[#targets+1]={id=player.id,join=player.profileChallenge,name=player.name}
+        end
+    end
+    return targets
+end
+
 function UI.getState()
+    local batchSelectedCount=0;for _ in pairs(batchSelection) do batchSelectedCount=batchSelectedCount+1 end
     return {
         query=search.query,view=view,draft=OSP.copy(draft),selected=selected,
         expanded=expanded,groups=OSP.copy(groupExpanded),searchFocused=search.focused,
         nameFocused=capturingName,scroll=expandedScroll,
+        batchPage=batchPage,batchSelected=batchSelectedCount,batchSelection=OSP.copy(batchSelection),
     }
 end
 
@@ -352,24 +417,13 @@ local function createRole(api,T,roles,role)
     resetScroll(api)
 end
 
-local function drawPlayerSelector(api,T,player,width,y)
-    local targetName=player and player.name or "—"
-    api.label(0,y,T("role_player_target")..": "..targetName,16,width-120)
-    if api.button("role_target_prev",width-108,y-4,48,32,"<","plain",not player or api.playerIndex()<=1) then api.playerStep(-1) end
-    if api.button("role_target_next",width-54,y-4,48,32,">","plain",not player or api.playerIndex()>=api.playerCount()) then api.playerStep(1) end
-    return y+38
-end
-
-local function drawRoleDropdown(api,T,roles,width,y)
+local function drawRoleDropdown(api,T,roles,width,y,x)
+    x=x or 0
     local items={}
-    for _,candidate in ipairs(roles) do
-        items[#items+1]={id=candidate.id,label=P.name(candidate)}
-    end
-    api.label(0,y,T("role_select_label"),15,width)
-    api.dropdown("permission_view_role_select",0,y+20,width,36,items,selected,false,function(id)
-        selectRole(roles,id,api)
-    end)
-    return y+62
+    for _,candidate in ipairs(roles) do items[#items+1]={id=candidate.id,label=P.name(candidate)} end
+    api.label(x,y,T("role_target_label"),17,width,false,true)
+    api.dropdown("permission_view_role_select",x,y+28,width,36,items,selected,false,function(id) selectRole(roles,id,api) end)
+    return lookup(roles,selected) or roles[1]
 end
 
 local function drawRoleActions(api,T,roles,role,width,y)
@@ -381,7 +435,7 @@ local function drawRoleActions(api,T,roles,role,width,y)
     local deleteDisabled=role.builtin or isPending(api) or not can(api,"role_delete",0,{id=role.id,version=role.version})
     local half=(width-4)/2
     local function drawCreate(x,w,buttonY)
-        if api.button("role_create_custom",x,buttonY,w,36,T("role_copy_short"),"plain",createDisabled) then createRole(api,T,roles,role) end
+        if api.button("role_create_custom",x,buttonY,w,36,T("role_create_short"),"plain",createDisabled) then createRole(api,T,roles,role) end
     end
     local function drawEdit(x,w,buttonY)
         if api.button("role_edit_custom",x,buttonY,w,36,T("role_edit_short"),"plain",editDisabled) then enterExistingEdit(role,api) end
@@ -402,48 +456,112 @@ local function drawRoleActions(api,T,roles,role,width,y)
     drawEdit(half+4,half,y)
     drawReset(0,half,y+40)
     drawDelete(half+4,half,y+40)
-    return y+80
+    local helpHeight=api.paragraph(0,y+84,T("role_create_help",P.name(role)),13,width)
+    return y+84+(helpHeight or 18)+8
 end
 
-local function currentRole(roles,player)
-    if not player then return nil end
-    return lookup(roles,player.role or (player.admin and "admin" or "guest"))
+local function selectionCount()
+    local count=0;for _ in pairs(batchSelection) do count=count+1 end
+    return count
 end
 
-local function drawPlayerCurrent(api,T,roles,player,width,y)
-    local current=currentRole(roles,player)
-    api.label(0,y,T("role_current",player and player.host and T("host") or P.name(current or roles[1])),15,width)
-    return current,y+30
-end
-
-local function drawRoleAssignment(api,T,player,current,role,width,y,x)
-    if api.button("role_apply",x or 0,y,width,36,T("role_apply"),"active",
-        isPending(api) or not player or player.host or player.profileReady==false or (current and current.id==role.id)
-            or not can(api,"role_assign",player and player.id,{id=role.id})) then
+local function drawAssignmentApply(api,T,role,targets,arg,x,y,width)
+    local ready=not isPending(api) and #targets>0 and arg and can(api,"roles_assign_many",0,arg)
+    if api.button("permission_view_batch_apply",x,y,math.min(180,width),36,T("role_apply"),ready and "active" or "outlined",not ready) then
         search.blur();capturingName=false
-        api.ask("role_assign",player.id,{id=role.id},T("confirm_role_assign",P.name(role),api.playerCaption()))
+        api.ask("roles_assign_many",0,OSP.copy(arg),T("confirm_role_batch",P.name(role),#targets))
     end
-    return y+42
 end
 
-local function drawAssignmentSelection(api,T,roles,player,width,y)
-    y=drawPlayerSelector(api,T,player,width,y)
-    local current
-    current,y=drawPlayerCurrent(api,T,roles,player,width,y)
-    y=drawRoleDropdown(api,T,roles,width,y)
-    local role=lookup(roles,selected) or roles[1]
-    return role,y,current
+local function drawUnifiedAssignment(api,T,roles,player,width,y,options)
+    options=options or {}
+    local includeApply=options.apply~=false
+    local includeManage=options.manage==true
+    local all=type(api.players)=="function" and api.players() or player and {player} or {}
+    local players={}
+    for _,p in ipairs(all) do if not p.host then players[#players+1]=p end end
+    local namespace=prepareBatchSelection(api,all)
+    local rows=math.max(1,math.min(6,options.rows or 6))
+    local pages=math.max(1,math.ceil(#players/rows))
+    if batchFocusId then
+        for i,p in ipairs(players) do if p.id==batchFocusId then batchPage=math.ceil(i/rows) end end
+        batchFocusId=nil
+    end
+    batchPage=math.max(1,math.min(pages,batchPage))
+    local wide=width>=720
+    local listWidth=wide and width-344 or width
+    local listHeight=#players==0 and 128 or 88+math.min(rows,#players)*46+(pages>1 and 38 or 0)+16
+    local roleWidth=wide and 320 or width
+    local roleX=wide and listWidth+24 or 0
+    local roleY=wide and y or y+listHeight+18
+    local roleHeight=includeApply and (includeManage and 216 or 172) or 116
+    if api.panel then
+        api.panel(0,y,listWidth,listHeight)
+        api.panel(roleX,roleY,roleWidth,roleHeight)
+    end
+    -- Draw the destination first so a changed Role is used by selection guards
+    -- and the final confirmation in this same frame.
+    local role=drawRoleDropdown(api,T,roles,roleWidth-32,roleY+16,roleX+16)
+    local waiting=isPending(api)
+    local function eligible(p)
+        return p.profileReady==true and validPlayerJoin(p.profileChallenge)
+            and can(api,"role_assign",p.id,{id=role.id})
+    end
+    api.label(16,y+14,T("role_targets_title"),17,listWidth-(#players>0 and 178 or 32),false,true)
+    if #players==0 then
+        api.paragraph(16,y+49,T("role_targets_none"),14,listWidth-32)
+    else
+        api.label(listWidth-146,y+17,T("role_batch_selected",selectionCount()),13,130,true)
+        local eligibleCount=0
+        for _,p in ipairs(players) do if eligible(p) then eligibleCount=eligibleCount+1 end end
+        if api.button("permission_view_mark_all",16,y+42,140,32,T("role_targets_mark_all"),"outlined",waiting or eligibleCount==0) then
+            for _,p in ipairs(players) do
+                if eligible(p) then batchSelection[batchKey(p,namespace)]={id=p.id,join=p.profileChallenge,host=namespace} end
+            end
+        end
+        if api.button("permission_view_clear",164,y+42,90,32,T("role_targets_clear"),"plain",waiting or selectionCount()==0) then batchSelection={} end
+        local first=(batchPage-1)*rows+1
+        for i=first,math.min(#players,first+rows-1) do
+            local p=players[i];local key=batchKey(p,namespace);local checked=batchSelection[key]~=nil
+            local rowY=y+88+(i-first)*46
+            local disabled=waiting or not checked and not eligible(p)
+            local roleId=p.role or (p.admin and "admin" or "guest")
+            local roleName=P.name(lookup(roles,roleId) or roles[1])
+            local clicked
+            if api.selectionRow then
+                clicked=api.selectionRow("permission_view_target_"..p.id,8,rowY,listWidth-16,44,p.name or tostring(p.id),roleName,checked,disabled)
+            else
+                clicked=api.button("permission_view_target_"..p.id,8,rowY,listWidth-16,44,p.name or tostring(p.id),"plain",disabled)
+            end
+            if clicked then
+                if checked then batchSelection[key]=nil
+                else batchSelection[key]={id=p.id,join=p.profileChallenge,host=namespace} end
+            end
+        end
+        if pages>1 then
+            local footer=y+listHeight-48
+            api.label(16,footer+8,T("page_count",batchPage,pages),13,listWidth-220,true)
+            if api.button("permission_view_batch_page_prev",listWidth-208,footer,92,32,"< "..T("prev_short"),"plain",waiting or batchPage<=1) then batchPage=batchPage-1 end
+            if api.button("permission_view_batch_page_next",listWidth-108,footer,92,32,T("next_short").." >","plain",waiting or batchPage>=pages) then batchPage=batchPage+1 end
+        end
+    end
+    local targets=eligibleBatchTargets(api,all,role,namespace)
+    local rpcTargets={}
+    for _,p in ipairs(targets) do rpcTargets[#rpcTargets+1]={id=p.id,join=p.join} end
+    local arg=type(api.groupAssignment)=="function" and api.groupAssignment(role.id,rpcTargets) or nil
+    local hint=#targets>0 and T("role_targets_eligible",#targets)
+        or selectionCount()>0 and T("role_targets_unchanged") or T("role_targets_hint")
+    api.label(roleX+16,roleY+92,hint,13,roleWidth-32,true)
+    if includeApply then drawAssignmentApply(api,T,role,targets,arg,roleX+16,roleY+124,roleWidth-32) end
+    if includeManage and api.button("permission_view_expand",roleX+16,roleY+168,math.min(180,roleWidth-32),36,T("permission_view_expand"),"outlined",false) then UI.openExpanded() end
+    return role,math.max(y+listHeight,roleY+roleHeight)+12,targets,arg
 end
 
-local function drawAssignmentManagement(api,T,roles,player,width,y,includeApply)
-    local current
-    local role
-    role,y,current=drawAssignmentSelection(api,T,roles,player,width,y)
-    if includeApply then y=drawRoleAssignment(api,T,player,current,role,width,y) end
-    api.label(0,y,T("role_custom_section"),18,width)
-    y=y+29
-    y=drawRoleActions(api,T,roles,role,width,y)
-    return role,y
+local function drawAssignmentManagement(api,T,roles,player,width,y,includeApply,rows)
+    local role,bottom,targets,arg=drawUnifiedAssignment(api,T,roles,player,width,y,{apply=includeApply,rows=rows or 4})
+    api.label(0,bottom+6,T("role_custom_section"),18,width)
+    bottom=drawRoleActions(api,T,roles,role,width,bottom+35)
+    return role,bottom,targets,arg
 end
 
 local function discardDraft(api)
@@ -502,17 +620,13 @@ local function drawCompact(api,T,roles,player,width,role)
         if api.button("role_editor_discard",half+8,y+58,half,36,T("role_editor_discard"),"plain",isPending(api)) then discardDraft(api) end
         return y+108
     end
-    y=drawPlayerSelector(api,T,player,width,y)
-    local current
-    current,y=drawPlayerCurrent(api,T,roles,player,width,y)
-    if width>=440 then
-        drawRoleDropdown(api,T,roles,width-156,y)
-        role=lookup(roles,selected) or roles[1]
-        return drawRoleAssignment(api,T,player,current,role,148,y+20,width-148)+8
+    local rows=6
+    if api.height then
+        if width>=720 then rows=math.max(1,math.min(6,math.floor((api.height()-y-142)/46)))
+        else rows=math.max(2,math.min(6,math.floor((api.height()-350)/46))) end
     end
-    y=drawRoleDropdown(api,T,roles,width,y)
-    role=lookup(roles,selected) or roles[1]
-    return drawRoleAssignment(api,T,player,current,role,width,y)+8
+    local _,bottom=drawUnifiedAssignment(api,T,roles,player,width,y,{manage=true,rows=rows})
+    return bottom
 end
 
 local function drawExpandedEditorIdentity(api,T,role,width,y)
@@ -575,7 +689,7 @@ local function drawExpandedWide(api,T,roles,player,role,width,height,top)
         return
     end
     role=lookup(roles,selected) or role
-    drawAssignmentManagement(api,T,roles,player,managerWidth,top,true)
+    drawAssignmentManagement(api,T,roles,player,managerWidth,top,true,math.max(1,math.min(6,math.floor((height-top-500)/46))))
     role=lookup(roles,selected) or role
     drawExpandedPermissionList(api,T,role,listX,top,listWidth,height,false)
 end
@@ -591,22 +705,24 @@ local function drawExpandedNarrow(api,T,roles,player,role,width,height,top)
     role=lookup(roles,selected) or role
     local footerHeight=42
     local applyY=height-footerHeight+3
+    local selectedTargets,selectedArg
     local function drawManagementAndPermissions()
-        local selectedRole,y=drawAssignmentManagement(api,T,roles,player,width,0,false)
+        local selectedRole,y,targets,arg=drawAssignmentManagement(api,T,roles,player,width,0,false,3)
+        selectedTargets,selectedArg=targets,arg
         api.label(0,y,T("role_preview_title",P.name(selectedRole)),17,width)
         y=y+25
         return y+drawPermissionGroups(api,T,selectedRole,width,false,isPending(api),y)
     end
     drawExpandedViewport(api,0,top,width,math.max(top,applyY),drawManagementAndPermissions)
     role=lookup(roles,selected) or role
-    drawRoleAssignment(api,T,player,currentRole(roles,player),role,width,applyY)
+    drawAssignmentApply(api,T,role,selectedTargets or {},selectedArg,width-math.min(180,width),applyY,width)
 end
 
 local function drawExpanded(api,T,roles,player,role,width,height)
     local waiting=isPending(api)
     if waiting and capturingName then capturingName=false end
     local top=drawSearch(api,T,0,0,width,60)+4
-    if width>=760 then drawExpandedWide(api,T,roles,player,role,width,height,top)
+    if width>=760 and (view=="edit" or height>=620) then drawExpandedWide(api,T,roles,player,role,width,height,top)
     else drawExpandedNarrow(api,T,roles,player,role,width,height,top) end
 end
 

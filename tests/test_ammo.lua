@@ -47,7 +47,7 @@ do
 end
 
 -- Refill only the equipped, registered, enabled tool, preserving its first
--- observed reserve and restoring all refilled tools from that same entry.
+-- observed reserve. Stopping never restores while the feature is suspended.
 do
     local w=world();local controller=w.api.OSP.Ammo.new()
     local one={ammo=true,ammoRestore=true,challenge=11}
@@ -64,13 +64,12 @@ do
     w.players[1].ammo.gun=11000;controller:tick(1,one)
     eq(w.players[1].ammo.gun,11000,"ammo above the reserve is never reduced")
     controller:stop(1,true)
-    eq(w.players[1].ammo.gun,8,"stop restores original gun stock")
-    eq(w.players[1].ammo.sledge,100,"stop restores every touched tool")
+    eq(w.players[1].ammo.gun,11000,"stop leaves the current gun stock unchanged")
+    eq(w.players[1].ammo.sledge,9999,"suspended restoration does not write touched tools")
     eq(w.players[2].ammo.sledge,12000,"stopping another player leaves their baseline alone")
 end
 
--- A baseline is retained even while restoration is disabled; the preference is
--- read only when the effect ends, not when it changes.
+-- Legacy true preferences cannot re-enable the suspended controller path.
 do
     local w=world();local controller=w.api.OSP.Ammo.new()
     local e={ammo=true,ammoRestore=false,challenge=4}
@@ -81,7 +80,8 @@ do
     e.ammoRestore=true
     eq(#w.writes,writes,"changing restoration preference has no immediate effect")
     controller:stop(1,e.ammoRestore)
-    eq(w.players[1].ammo.gun,12,"latest restoration preference restores captured baseline")
+    eq(w.players[1].ammo.gun,9999,"legacy true preference is ignored on stop")
+    eq(#w.writes,writes,"stop with a legacy true flag performs no setter")
 
     e={ammo=true,ammoRestore=false,challenge=5};w.players[1].ammo.gun=6
     controller:tick(1,e);w.players[1].ammo.gun=7000
@@ -102,7 +102,7 @@ do
     w.players[1].enabled.gun=true;controller:tick(1,e)
     eq(w.players[1].ammo.gun,9999,"enabled equipped tool can be captured later")
     w.players[1].enabled.gun=false;controller:stop(1,true)
-    eq(w.players[1].ammo.gun,5,"a disabled but registered tool can be restored")
+    eq(w.players[1].ammo.gun,9999,"disabled tools receive no restoration writes")
 
     w.players[1].enabled.gun=true;w.players[1].ammo.gun=2
     controller:tick(1,e);eq(w.players[1].ammo.gun,9999)
@@ -127,13 +127,13 @@ do
     eq(w.players[1].ammo.gun,9999,"changed join captures a fresh stock")
     eq(#w.writes,before+1,"old join snapshot is not restored onto the new occupant")
     controller:stop(1,true)
-    eq(w.players[1].ammo.gun,70,"new join restores its own baseline")
+    eq(w.players[1].ammo.gun,9999,"new join cleanup does not restore a stock")
 
     e.challenge=3;w.players[1].ammo.gun=20;controller:tick(1,e)
     before=#w.writes;controller:remove(1)
     eq(#w.writes,before,"removal never writes to a possibly recycled ID")
     w.players[1].ammo.gun=30;e.challenge=4;controller:tick(1,e)
-    controller:stop(1,true);eq(w.players[1].ammo.gun,30,"reused ID does not inherit prior baseline")
+    controller:stop(1,true);eq(w.players[1].ammo.gun,9999,"reused ID cleanup never restores a snapshot")
 
     e.challenge=5;e.ammo=true;w.players[1].ammo.gun=14;controller:tick(1,e)
     before=#w.writes;w.players[1].ammo.gun=42;e.challenge=6;e.ammo=false
@@ -155,14 +155,14 @@ do
     local e={ammo=true,ammoRestore=true,challenge=8}
     w.players[1].ammo.gun=9;controller:tick(1,e)
     w.players[1].health=0;controller:tick(1,e)
-    eq(w.players[1].ammo.gun,9,"death restores when the current preference allows it")
+    eq(w.players[1].ammo.gun,9999,"death ignores legacy restore=true")
     check(e.ammo,"death does not revoke the saved ability flag")
     w.players[1].health=1;w.players[1].ammo.gun=22;controller:tick(1,e)
     eq(w.players[1].ammo.gun,9999,"living respawn begins with a new baseline")
     controller:stop(1,false);eq(w.players[1].ammo.gun,9999)
 end
 
--- Empty enabled tools can be selected immediately, with restorable stock.
+-- Empty enabled tools stay selectable; stopping performs no restoration.
 do
     local w=world();local c=w.api.OSP.Ammo.new();local e={ammo=true,ammoRestore=true,challenge=1}
     w.players[1].tool="none";w.players[1].ammo.gun=0;w.players[1].ammo.sledge=0;w.players[1].enabled.sledge=false
@@ -172,6 +172,8 @@ do
     c:tick(1,e);eq(w.players[1].ammo.gun,9999,"equipped tool keeps the existing replenishment behavior")
     w.catalog[#w.catalog+1]="late";w.players[1].enabled.late=true;w.players[1].ammo.late=0
     c:tick(1,e,true);eq(w.players[1].ammo.late,9999,"newly registered empty tool is supplied on refresh")
-    c:stop(1,true);eq(w.players[1].ammo.gun,1);eq(w.players[1].ammo.late,1)
+    local before=#w.writes;c:stop(1,true)
+    eq(w.players[1].ammo.gun,9999);eq(w.players[1].ammo.late,9999)
+    eq(#w.writes,before,"legacy restore request cannot write primed tools")
 end
 print("PASS ammo controller behavior: "..count.." assertions")

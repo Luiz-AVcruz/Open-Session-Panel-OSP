@@ -1,8 +1,8 @@
 # Open Session Panel
 
-An independently written Teardown administration panel for solo and multiplayer. Development version **1.5.0**, by **Luiz-AVcruz**, uses Lua 5.1 and multiplayer scripting version 2. English is the default; Brazilian Portuguese is available.
+An independently written Teardown administration panel for solo and multiplayer. Stable version **1.5.1**, by **Luiz-AVcruz**, uses Lua 5.1 and multiplayer scripting version 2. English is the default; Brazilian Portuguese is available.
 
-This is the **main** distribution, carrying the **1.5.0** development bundle integrated from Beta. Existing settings, player profiles, rules and roles keep the `savegame.mod.osp.*` namespace. The separate Beta item retains `savegame.mod.osp_beta.*`; no saved data is copied between them. Keep only one of the two panels enabled at a time.
+The stable distribution uses `savegame.mod.osp.*`, preserving the original panel's saved settings and profiles. The separate Beta branch and item remain independent under `savegame.mod.osp_beta.*`; no preferences, profiles or Workshop IDs are copied between them. Keep only one panel enabled at a time.
 
 ## Appearance
 
@@ -28,6 +28,12 @@ Buttons use their full visible rectangle and react on press. Holding or releasin
 
 Numeric fields combine a slider and editable number. Click the number to position the cursor and select/edit text, or drag the bar to adjust. Enter or clicking outside applies valid text; Escape cancels. Slider changes apply when you release the mouse. Values stay within each setting's range. Ctrl+A selects all; clipboard shortcuts are unavailable. The same controls are available in Mod Manager Options. Closing the panel, changing tabs or selecting another player cancels an unfinished numeric edit.
 
+## Group actions
+
+In **Players**, choose one player, everyone, a Role or a manual checkbox selection. Group controls cover invincibility, freeze, Fly, Noclip, Super strength, infinite ammo, healing and bringing players. Mixed effects offer explicit enable/disable choices. Other actions and numeric settings stay in individual mode. Role selection filters its current members; assigning another Role does not automatically change effects.
+
+The host can choose **Present players only** or **Present and future players** in Settings. Future defaults apply to everyone or a Role without replacing saved individual choices. Manual selections and delegated actions affect present players only. Switching back to present players removes future defaults and keeps effects already applied. Closing the panel or leaving the tab clears the group selection.
+
 ## Super strength
 
 **Player → Super strength** enables carrying heavier loose objects with the normal Grab button. Its **...** popup sets force (1–20×), maximum mass (1–100,000 in the game's mass scale) and optional throwing. Throwing starts off; when enabled, Use tool throws once at the configured speed (1–100 m/s). Force defaults to 1×, mass to 5,000 and throw speed to 20 m/s. Configuring these values does not enable the ability.
@@ -36,17 +42,17 @@ Your shortcut has no default key. Set it in your own Super strength popup or in 
 
 ## Infinite ammo
 
-**Players → Infinite ammo** supplies the equipped, enabled tool and primes enabled empty tools using the game's standard ammo counter. It starts off. Open **...** to choose **Restore ammo when disabling** (on by default) and an optional personal shortcut. Host choices persist per player. Explicitly disabling your own ability is saved; delegated activation and configuration remain temporary. Commands follow the Infinite ammo role permission.
+**Players → Infinite ammo** supplies the equipped, enabled tool and primes enabled empty tools using the game's standard ammo counter. It starts off. Open **...** to configure an optional personal shortcut. Host choices persist per player; delegated activation remains temporary. Commands follow the Infinite ammo role permission.
 
-Restoration returns each affected tool to the amount captured before its first refill, with a minimum of 1 if it was empty. Empty tools are supplied even before selection; newly enabled or registered tools are included while the ability is active. Turning restoration off leaves the supplied stock when the ability ends. Death or an OSP respawn ends the current stock snapshot; the ability stays granted and starts a new snapshot after respawning. Original amounts above 9,999 are preserved. Tools with private ammo systems may be unaffected. The mod does not enable blocked tools, change campaign unlocks or modify other mods. Snapshot data is temporary; stopping the mod abruptly cannot guarantee restoration.
+Ammo restoration is temporarily suspended. Disabling the ability stops replenishment and leaves the current stock, which may be 9,999. Saved restoration preferences are ignored and the old command is unavailable. Empty tools are supplied before selection, and tools with private ammo systems may be unaffected. Blocked tools and campaign unlocks are unchanged.
 
 ## Panel roles and permissions
 
 The **Permissions** tab assigns a role to each player. It is available to the host and to delegates with role-management permissions. Built-in roles are Guest, Self only, Helper, Moderator and Administrator. **Self only** offers healing, confirmed self-kill, respawning, leaving vehicles, invincibility, Fly, Noclip, speed, Super strength, infinite ammo and tools for the caller; going to another player moves only the caller. Other players and the host are protected from changes by that role.
 
-The compact view selects a player and assigns a role through a dropdown. **Expand** opens the permission preview and role editor, with search and collapsible categories. Closing with X or clicking outside keeps an unfinished draft; **Continue editing** and **Discard** remain available in the compact view. Saving or a confirmed reset returns to assignment. On wide screens, role management sits beside the permission list; smaller screens use scrolling.
+Select one or more players using the checkboxes, then choose the destination Role and confirm **Assign role**. **Select all** spans every page; **Clear** removes the selection. On wider panels, the player list and assignment controls sit side by side; narrower panels stack them. **Manage roles**, in the assignment block, opens the permission preview and role editor, with search and collapsible categories. Closing with X or clicking outside keeps an unfinished draft; **Continue editing** and **Discard** remain available in the compact view. Saving or a confirmed reset returns to assignment. On wide screens, role management sits beside the permission list; smaller screens use scrolling.
 
-Every role can be edited under its existing ID. Up to **16 custom roles** are supported, with ASCII names of up to 40 characters. Targeted actions allow **Blocked / Self only / Any player**; bulk actions and session rules have separate on/off permissions. **Reset role** restores OSP defaults for supplied roles, or the name and permissions saved when a custom role was created. For older custom roles, the first state loaded by this update becomes that baseline. Supplied roles cannot be deleted.
+**Create role** starts a custom role using the selected role as a base. Use the player checkboxes in **Permissions** to assign the same Role to multiple players with one confirmation. Host access and delegated authority limits still apply. Every role can be edited under its existing ID. Up to **16 custom roles** are supported, with ASCII names of up to 40 characters. Targeted actions allow **Blocked / Self only / Any player**; bulk actions and session rules have separate on/off permissions. **Reset role** restores OSP defaults for supplied roles, or the name and permissions saved when a custom role was created. For older custom roles, the first state loaded by this update becomes that baseline. Supplied roles cannot be deleted.
 
 Assignments and role changes are saved on the host across missions and restarts. Editing or resetting a role updates everyone assigned to it, including offline players when they reconnect. Deleting a custom role returns its linked players to Guest. Guests retain personal settings and appearance. Existing full-admin grants remain Administrator assignments.
 
@@ -54,9 +60,9 @@ Assignments and role changes are saved on the host across missions and restarts.
 
 ## Player options between missions
 
-The host's choices for a player are saved automatically: tool access, invincibility, Fly, Noclip, freeze, speed, Super strength, infinite ammo, ammo restoration and permission role. They are restored on a new map or reconnect. Freeze uses the player's new spawn position. Healing, killing, respawning and teleporting remain one-time actions. Delegates can save an explicit disable of their own invincibility, Fly, Noclip, Super strength, infinite ammo or freeze, and returning their own speed to 1×. The host can explicitly enable them again. Self activation, tuning and changes to other players remain temporary. Activating Fly or Noclip does not save the incidental suspension of the other mode. Granted session-rule changes are saved separately and persist.
+The host's choices for a player are saved automatically: tool access, invincibility, Fly, Noclip, freeze, speed, Super strength, infinite ammo and permission role. They are restored on a new map or reconnect. Freeze uses the player's new spawn position. Healing, killing, respawning and teleporting remain one-time actions. Delegates can save an explicit disable of their own invincibility, Fly, Noclip, Super strength, infinite ammo or freeze, and returning their own speed to 1×. The host can explicitly enable them again. Self activation, tuning and changes to other players remain temporary. Activating Fly or Noclip does not save the incidental suspension of the other mode. Granted session-rule changes are saved separately and persist.
 
-**Settings → Effects on map load** offers the host **Start maps with effects off**, disabled by default. The next map load or restart clears saved and active player effects and returns speed to 1×, including players who join later. It preserves roles, Fly/Noclip and Super strength tuning, ammo-restoration preferences and tool rules. Effects can be enabled during that map; respawn does not disable them again. Changing the setting during play applies to the next map load.
+**Settings → Effects on map load** offers the host **Start maps with effects off**, disabled by default. The next map load or restart clears saved and active player effects and returns speed to 1×, including players who join later. It preserves roles, Fly/Noclip and Super strength tuning and tool rules. Effects can be enabled during that map; respawn does not disable them again. Changing the setting during play applies to the next map load.
 
 The public game API does not expose a persistent account identity to mods. This panel assigns its own profile and stores its reference on the client, separately for each host. It does not identify players by their name or recyclable session number. A new or missing client profile starts without saved permissions; copied profiles are not authenticated identities. Keeping both the host's saved mod data and the client's profile reference is required. This mechanism supports normal clients, not anti-cheat enforcement.
 
@@ -92,7 +98,7 @@ Select **Open Session Panel → Options** in the Mod Manager. This separate menu
 
 **Reset saved host options on this computer** requires confirmation and removes this computer's saved session rules, tool policies and player choices, including permission assignments and the map-load policy. It keeps custom role definitions, personal preferences, the host identity, profile identity references and profile slots. It does not modify another host or native campaign unlocks. Changes take effect on the next map load.
 
-The install archive uses the folder **Open Session Panel**, with spaces, for the local Mod Manager entry. Update the existing Workshop item and preserve its installed `id.txt`. The separate Beta item has its own ID; never substitute one for the other. Enable only one panel at a time.
+The install archive uses the folder **Open Session Panel**, with spaces, for the local Mod Manager entry. The stable update preserves the original installation's `id.txt`. The separately installed Beta keeps its own ID and saved data; never copy either between the distributions. Enable only one panel at a time.
 
 ## Color palettes
 
@@ -102,9 +108,9 @@ Custom lets you choose each interface color with the previous/next role arrows, 
 
 ## Install and develop
 
-The **1.4.0 release is complete**. The **1.5.0 development bundle** includes the changes integrated from Beta and remains open until Luiz-AVcruz closes it.
+Stable version **1.5.1** includes the changes developed and validated on the separate Beta branch. The Beta branch and its Workshop item remain independent.
 
-Players do not need Python or LuaJIT. Extract `dist/OpenSessionPanel-1.5.0.zip` as its own folder in Teardown's local mods directory and enable **Open Session Panel**. After updating an already loaded mod, reload the map to load the new scripts. Keep only one administration panel active while testing conflicting gameplay controls.
+Players do not need Python or LuaJIT. Extract `dist/OpenSessionPanel-1.5.1.zip` as its own folder in Teardown's local mods directory and enable **Open Session Panel**. After updating an already loaded mod, reload the map to load the new scripts. Keep only one administration panel active while testing conflicting gameplay controls.
 
 Before disabling or removing the mod, restore session/tool defaults as desired, then reload the map to clear temporary effects. A global mod's `server.destroy` callback is not guaranteed cleanup. Remove only this mod's folder; no game files or campaign saves are included.
 
@@ -115,9 +121,9 @@ python3 tools/check.py
 python3 tools/package.py
 ```
 
-Packaging creates `OpenSessionPanel-1.5.0.zip`, `OpenSessionPanel-1.5.0-source.zip` and `SHA256SUMS`. Both contain readable source and licensing notices; there is no compilation or minification. Source repository: [Luiz-AVcruz/Open-Session-Panel-OSP, main branch](https://github.com/Luiz-AVcruz/Open-Session-Panel-OSP/tree/main).
+Packaging creates `OpenSessionPanel-1.5.1.zip`, `OpenSessionPanel-1.5.1-source.zip` and `SHA256SUMS`. Both contain readable source and licensing notices; there is no compilation or minification. Source repository: [Luiz-AVcruz/Open-Session-Panel-OSP, main branch](https://github.com/Luiz-AVcruz/Open-Session-Panel-OSP/tree/main).
 
-Workshop assets are included in both archives. `preview.jpg` (512 × 512, below 1 MB) and `preview-menu.png` (512 × 292) use the logo supplied by Luiz-AVcruz, fitted with black padding. `WORKSHOP-DESCRIPTION.txt` keeps the complete Steam description and one-paragraph AI disclosure; `info.txt` contains only a short Mod Manager summary, without the source link or disclosure. The descriptions are validated independently as nonempty. The new Workshop item receives its own ID when the author publishes it; no ID is stored in this project or its archives.
+Workshop assets are included in both archives. `preview.jpg` (512 × 512, below 1 MB) and `preview-menu.png` (512 × 292) use the logo supplied by Luiz-AVcruz, fitted with black padding. `WORKSHOP-DESCRIPTION.txt` keeps the complete Steam description and one-paragraph AI disclosure; `info.txt` contains only a short Mod Manager summary, without the source link or disclosure. The descriptions are validated independently as nonempty. Neither archive contains a Workshop ID; preserve the stable and Beta `id.txt` files in their respective installed folders.
 
 ## Verification and limits
 
@@ -130,6 +136,8 @@ Teardown's documented `ServerCall` API does not expose an authenticated sender i
 Original code is **AGPL-3.0-or-later**, with a narrow additional permission for the Teardown runtime/API. Read [LICENSE](LICENSE) and [ADDITIONAL-PERMISSION](ADDITIONAL-PERMISSION). The exception gives no rights to redistribute Teardown code or assets.
 
 ## Português
+
+Em **Jogadores**, escolha uma pessoa, Todos, uma Role ou uma seleção manual por checkboxes. O alcance coletivo cobre efeitos, cura e trazer jogadores; demais ações e ajustes numéricos continuam individuais. O host pode definir se os comandos em Todos/Role também fornecem padrões para futuras entradas, respeitando escolhas individuais. Em **Permissões**, checkboxes permitem atribuir uma Role a vários jogadores de uma vez. Trocar de Role não concede nem remove efeitos automaticamente nesta versão.
 
 Painel de administração por **Luiz-AVcruz**, com inglês padrão e opção de português brasileiro. Abra com **P** ou pelo menu de pausa. Configurações e Sobre são áreas separadas. O mod usa o HUD nativo do jogo.
 
@@ -157,6 +165,6 @@ Ao desligar explicitamente um efeito em si mesmo, o jogador salva esse desligame
 
 Em **Configurações → Efeitos ao carregar mapa**, o host pode ativar **Começar mapas com efeitos desligados**, desativado por padrão. No próximo carregamento/reinício, os efeitos ficam desligados e a velocidade volta a 1× para todos, inclusive quem entrar depois. Roles, ajustes de voo/Superforça, preferência de restauração de munição e regras de ferramentas são preservados. É possível reativar efeitos durante a partida; reaparecer não os desliga novamente.
 
-Em **Permissões**, a visão compacta serve para selecionar jogador e atribuir uma Role pelo dropdown. **Ampliar** abre consulta, busca, categorias e editor. Todas as Roles podem ser editadas; **Restaurar Role** recupera os padrões do OSP para as prontas ou o nome e as permissões da criação para as customizadas. Nas customizadas antigas, o primeiro estado carregado nesta atualização vira a base. As prontas não podem ser excluídas; há limite de 16 customizadas. Fechar pelo X ou por clique fora preserva o rascunho, com Continuar edição/Descartar na tela compacta. Editar ou restaurar altera todos os vinculados, inclusive após reconexão. Admin separa os poderes de gerenciamento e o Administrador recebe todos por padrão. Delegados não podem gerenciar Roles mais fortes, conceder permissões que não possuem ou alterar o acesso do host. Apenas em si permite morte confirmada somente do próprio jogador.
+Em **Permissões**, marque uma ou várias pessoas na lista e escolha a Role a atribuir. Marcar todos considera todas as páginas e Limpar remove a seleção. A lista e o bloco da Role ficam lado a lado quando há largura; em telas estreitas, são empilhados. **Gerenciar Roles**, no bloco de atribuição, abre consulta, busca, categorias e editor. **Criar Role** inicia uma Role customizada com base na selecionada. Todas as Roles podem ser editadas; **Restaurar Role** recupera os padrões do OSP para as prontas ou o nome e as permissões da criação para as customizadas. Nas customizadas antigas, o primeiro estado carregado nesta atualização vira a base. As prontas não podem ser excluídas; há limite de 16 customizadas. Fechar pelo X ou por clique fora preserva o rascunho, com Continuar edição/Descartar na tela compacta. Editar ou restaurar altera todos os vinculados, inclusive após reconexão. Admin separa os poderes de gerenciamento e o Administrador recebe todos por padrão. Delegados não podem gerenciar Roles mais fortes, conceder permissões que não possuem ou alterar o acesso do host. Apenas em si permite morte confirmada somente do próprio jogador.
 
 Os controles de ferramentas ficam em **Ferramentas**, com filtros Vanilla e Mods; ações de categoria abrangem os IDs registrados naquele momento. Restaurar padrões não muda os desbloqueios da campanha. Recarregue o mapa após atualizar. Persistência dos perfis e multiplayer real ainda precisam ser observados no jogo com os mesmos arquivos em todos os participantes.

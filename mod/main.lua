@@ -9,6 +9,7 @@
 #include "scripts/theme.lua"
 #include "scripts/number_control.lua"
 #include "scripts/permissions.lua"
+#include "scripts/collective.lua"
 #include "scripts/search_input.lua"
 #include "scripts/permissions_ui.lua"
 #include "scripts/strength.lua"

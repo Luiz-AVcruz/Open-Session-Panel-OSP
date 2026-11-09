@@ -40,22 +40,23 @@ Antes de remover o mod, restaurar regras conforme desejado e recarregar o mapa. 
 
 ## Organização e comandos
 
-Lua 5.1, scripting version 2 do Teardown, sem dependências no runtime. Código jogável em `mod/`, teste do contrato do servidor/cliente em `tests/`, ferramentas locais em `tools/`. A versão estável desta branch é **1.5.0**; `version = 2` no manifesto continua significando a geração do scripting.
+Lua 5.1, scripting version 2 do Teardown, sem dependências no runtime. Código jogável em `mod/`, teste do contrato do servidor/cliente em `tests/`, ferramentas locais em `tools/`. A versão estável desta branch é **1.5.1**; `version = 2` no manifesto continua significando a geração do scripting.
 
 ```sh
 python3 tools/check.py
 python3 tools/package.py
 ```
 
-O usuário encerrou o bundle de desenvolvimento **1.4.0** em 2026-11-07 e confirmou a versão como pronta. As mudanças posteriores integram o bundle **1.5.0**, conforme orientação posterior do usuário. O desenvolvimento posterior segue na Beta 1.5.1; esta branch conserva a versão estável até promoção autorizada. Não reescrever o histórico Git.
+O usuário encerrou o bundle de desenvolvimento **1.4.0** em 2026-11-07 e confirmou a versão como pronta. As mudanças posteriores integraram o bundle **1.5.0**. Em 2026-11-09, a versão estável **1.5.1** foi promovida da branch Beta no commit de origem `9b75fc8`, conforme autorização explícita do autor. Não reescrever o histórico Git.
 
-O empacotador produz `OpenSessionPanel-1.5.0.zip`, `OpenSessionPanel-1.5.0-source.zip` e hashes determinísticos. A raiz instalável é `Open Session Panel` e a raiz das fontes é `OpenSessionPanel-source`. O pacote não inclui `.git`, identificadores de Workshop, backups, tokens ou assets proprietários. Não é necessário Python para jogar.
+O empacotador produz `OpenSessionPanel-1.5.1.zip`, `OpenSessionPanel-1.5.1-source.zip` e hashes determinísticos. A raiz instalável é `Open Session Panel` e a raiz das fontes é `OpenSessionPanel-source`. O pacote não inclui `.git`, identificadores de Workshop, backups, tokens ou assets proprietários. Não é necessário Python para jogar.
 
 ## Backlog futuro
 
 Solicitações para próximos ciclos, sem ordem de prioridade definida. Planejar, implementar e validar um grupo coeso por vez.
 
 - [ ] Permitir escolher ferramentas específicas para cada Role.
+- [ ] Aplicar efeitos enquanto uma Role estiver ativa e remover apenas sua contribuição ao perder a Role, preservando outros estados válidos. Exemplo futuro: Espectador com invisibilidade e Noclip; não confundir com ações coletivas aplicadas aos integrantes da Role.
 - [ ] Melhorar o editor da paleta personalizada e a organização e o compartilhamento de presets de cores.
 - [ ] Adicionar mais idiomas; os idiomas ainda serão escolhidos.
 - [ ] Melhorar a aba de regras da sessão e ampliar suas opções de personalização.
@@ -67,10 +68,33 @@ Pendências já levantadas:
 
 - [ ] Automatizar e padronizar verificação, empacotamento, instalação e promoção da Beta para a main, reaproveitando as ferramentas existentes.
 - [ ] Tratar a compatibilidade do bloqueio com ferramentas que se reabilitam continuamente, como o Air Strike.
+- [ ] Investigar a restauração de munição com ferramentas nativas e de mods; a restauração ao desligar permanece suspensa nesta 1.5.1.
 
-## Desenvolvimento 1.5.1 na Beta
+## Bundle 1.5.1
 
-As mudanças da **1.5.1** são desenvolvidas, instaladas e avaliadas primeiro na branch e no mod **Beta**. A `main` permanece na versão estável **1.5.0**. Promover uma versão para a principal exige orientação explícita do autor; aprovação de um plano de interface não autoriza essa promoção.
+A versão estável **1.5.1** foi promovida da branch `beta` em 2026-11-09, a partir do commit `9b75fc8`, após autorização explícita do autor. A distribuição principal mantém `savegame.mod.osp.*`, preservando os dados da instalação original. A branch e a instalação Beta permanecem independentes, com `savegame.mod.osp_beta.*`; não houve migração de preferências, perfis, regras ou IDs.
+
+### Atribuição de Roles
+
+Permissões usa uma lista única de checkboxes para um ou vários jogadores. O host não é alvo; com apenas ele na sessão, a lista apresenta estado vazio. A partir de 720 unidades de conteúdo, a lista fica à esquerda e o bloco Role a atribuir ocupa 320 à direita, separados por 24; em áreas menores, os blocos são empilhados. Nomes e Roles atuais aparecem nas linhas, com Marcar todos/Limpar, contador e paginação. O mesmo fluxo aparece na área ampliada; em pouca altura usa o viewport existente. Rascunhos e formulário de edição permanecem preservados. Criar Role continua iniciando um rascunho customizado com base na selecionada.
+
+### Ações coletivas e atribuição em lote
+
+Jogadores usa alcance individual, Todos, Role ou seleção manual por checkboxes. O ciclo coletivo abrange god, freeze, fly, noclip, strength, ammo, heal e bring; configurações numéricas continuam individuais. A seleção é transitória, com ID e marcador de entrada, e termina ao fechar o painel ou sair da aba. Role funciona como filtro, sem conceder ou revogar efeitos ao mudar a atribuição. Host é identidade separada e não entra no filtro por Role. Permissões usa `roles_assign_many` tanto para uma pessoa quanto para várias, sempre com confirmação. Marcar todos considera todas as páginas; a seleção começa vazia e permanece separada do alvo compartilhado de Jogadores/Ferramentas. O acesso explícito Gerenciar Role em Jogadores pré-seleciona aquela pessoa quando elegível, após a troca de aba limpar o contexto anterior. O endpoint individual permanece disponível para compatibilidade.
+
+`players_group` e `roles_assign_many` recebem namespace, marcador do autor e alvos com ID/marcador; o servidor valida cada alvo antes de executar, sem repetir comandos pela rede. Aplicam-se permissões e teto de autoridade existentes, proteção do host e pré-validação do lote inteiro antes de eventual autodemissão. Resultados informam afetados, ignorados e falhas parciais. O histórico conserva apenas ação/alcance/Role/valor validados, sem a lista de contextos.
+
+Settings da sessão oferece `collective_future`, somente ao host; ausência significa Somente presentes. Em Presentes e quem entrar depois, Todos/Role criam padrões separados em `savegame.mod.osp.collective.defaults.*`. Perfis continuam guardando apenas escolhas explícitas. Padrão por Role prevalece sobre geral; nova ordem geral remove exceções por Role daquele efeito. Fly/Noclip atualizam também o padrão oposto para desligado. Escolhas individuais, restauração com optout e a política de efeitos desligados na entrada prevalecem sobre herança. Desativar `collective_future` limpa os padrões sem reverter jogadores atuais; religar não recupera regras antigas. Seleção manual e delegados atuam somente nos presentes. Renomear Role preserva seus padrões; excluir remove-os.
+
+Ações ligadas à própria Role permanecem no backlog; não há concessões temporárias nem invisibilidade automática nesta versão.
+
+### Suspensão da restauração de munição
+
+A restauração ao desligar está suspensa após relatos de falhas. O controle sai do popup; o atalho permanece. O estado efetivo `ammoRestore` fica false, preferências antigas são ignoradas sem migração e o RPC legado retorna unavailable após conferir acesso/alvo. Um bloqueio interno no controlador impede restauração até se algum chamador antigo passar true. Desligamento, morte, respawn e restauração de jogador não escrevem uma quantidade antiga de munição. A munição infinita continua abastecendo até pelo menos 9.999; desligar interrompe a reposição e mantém o estoque atual. Esta suspensão não resolve a compatibilidade dos contadores privados dos mods. A pendência de investigação permanece no backlog.
+
+### Validação e limites da promoção
+
+O gate completo `python3 tools/check.py` foi executado após normalizar a Beta para a identidade principal; a evidência e os limites de simulação estão registrados em Verificação e próximo ponto de retomada. A publicação ou atualização na Steam não faz parte da promoção. A instalação estável preserva seu `id.txt` byte a byte; os arquivos Beta e seu `id.txt` permanecem separados.
 
 ## Bundle 1.5.0
 
@@ -194,7 +218,7 @@ No teste seguinte, o usuário relatou atraso ao acompanhar a câmera e tentativa
 
 AGPLv3 ou posterior para o código próprio, com permissão adicional restrita ao runtime/API do Teardown. Manter o texto GNU e sua atribuição original; a identificação de autoria do projeto é Luiz-AVcruz. Código independente, sem copiar scripts ou assets do Admin Panel.
 
-O usuário indicou `https://github.com/Luiz-AVcruz/Open-Session-Panel-OSP.git` como destino Git. Esse é o remoto `origin`, com autoria Luiz-AVcruz. A distribuição principal usa a branch `main`; `beta` permanece como distribuição de testes separada. Publicar ou atualizar um item no Workshop é uma operação separada do envio Git e cabe ao autor. A aceitação multiplayer normal depende dos mesmos arquivos entre participantes e de testes no jogo.
+O usuário indicou `https://github.com/Luiz-AVcruz/Open-Session-Panel-OSP.git` como destino Git. Esse é o remoto `origin`, com autoria Luiz-AVcruz. A distribuição estável usa a branch `main`; a branch e o item Beta permanecem separados, com armazenamento `savegame.mod.osp_beta.*`. Envio Git e publicação ou atualização no Workshop são ações distintas; esta promoção não atualiza o Workshop. A aceitação multiplayer normal depende dos mesmos arquivos entre participantes e de testes no jogo.
 
 ## Verificação e próximo ponto de retomada
 

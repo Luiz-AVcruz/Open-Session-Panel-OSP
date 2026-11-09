@@ -7,11 +7,21 @@ local f=assert(loadfile('tests/test_client.lua'))
 setfenv(f,setmetatable({arg={arg[1],'fixture'}},{__index=_G}))
 local world=f()
 local function other(w,area)
-    local e=w.api;e.OSP.UI.selectTab('players');w:clickControl('player_11');e.OSP.UI.selectTab(area)
-    if area=='players' then w:clickControl('player_23')
-    elseif area=='tools' then w:clickControl('tool_mode_player');w:clickControl('tool_player_next')
-    else w:clickControl('role_target_next') end
-    eq(w:draw().selected,23,'other player selected in '..area)
+    local e=w.api;e.OSP.UI.selectTab('players');w:clickControl('player_11')
+    if area=='players' then
+        w:clickControl('player_23')
+        eq(w:draw().selected,23,'other player selected in Players')
+    elseif area=='tools' then
+        e.OSP.UI.selectTab('tools');w:clickControl('tool_mode_player');w:clickControl('tool_player_next')
+        eq(w:draw().selected,23,'other player selected in Tools')
+    else
+        w:clickControl('player_23');w:clickControl('player_role_manage')
+        local state=e.OSP.PermissionUI.getState()
+        eq(state.batchSelected,1,'Manage role explicitly preselects one target')
+        local target;for _,entry in pairs(state.batchSelection) do target=entry end
+        check(target and target.id==23 and target.join==2,'Permissions target uses its ID and join marker')
+        eq(w:draw().tab,'permissions','Manage role enters Permissions')
+    end
 end
 for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
  for _,lang in ipairs({'en','pt'}) do
@@ -19,20 +29,29 @@ for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
    for _,area in ipairs({'players','tools','permissions'}) do
     local w=world(size[1],size[2],{});local e=w.api
     w.reg['savegame.mod.osp.language']=lang;e.OSP.Navigation.setSelectionMode(mode);e.OSP.UI.open(true)
-    other(w,area);w:tick();w:draw();eq(w:draw().selected,23,'redraw does not reset selection')
+    other(w,area);w:tick();w:draw()
+    if area=='permissions' then eq(e.OSP.PermissionUI.getState().batchSelected,1,'redraw keeps explicit checkbox selection')
+    else eq(w:draw().selected,23,'redraw does not reset shared Players/Tools selection') end
     if area=='players' then w:clickControl('fly_settings');w:clickControl('movement_popup_close')
     elseif area=='tools' then w:clickControl('tools_actions');w:clickControl('tools_popup_close')
-    else w:clickControl('permission_view_expand');w:clickControl('permission_view_close') end
-    eq(w:draw().selected,23,'closing an inner window does not reset selection')
-    w:clickControl('tab_session');eq(w:draw().selected,mode=='leave' and 11 or 23,'tab-change policy')
+    else
+        w:clickControl('permission_view_expand');w:clickControl('permission_view_close')
+        eq(e.OSP.PermissionUI.getState().batchSelected,1,'closing role management keeps the explicit target checked')
+    end
+    if area~='permissions' then eq(w:draw().selected,23,'closing an inner window does not reset shared selection') end
+    w:clickControl('tab_session')
+    if area~='permissions' then eq(w:draw().selected,mode=='leave' and 11 or 23,'tab-change policy') end
+    if area=='permissions' then eq(e.OSP.PermissionUI.getState().batchSelected,0,'leaving Permissions clears target checkboxes') end
     for _,how in ipairs({'button','key','api','esc'}) do
         other(w,area)
         if how=='button' then w:clickControl('close') elseif how=='key' then w:tick('p')
         elseif how=='esc' then w:tick('esc') else e.OSP.UI.open(false) end
         local st=w:draw();eq(st.open,false,'outer panel closes via '..how)
-        eq(st.selected,mode=='keep' and 23 or 11,'close policy via '..how)
+        if area~='permissions' then eq(st.selected,mode=='keep' and 23 or 11,'close policy via '..how) end
         if how=='api' then e.OSP.UI.open(true) else w:tick('p') end
-        st=w:draw();eq(st.tab,area,'last tab restored');eq(st.selected,mode=='keep' and 23 or 11,'selection on reopen')
+        st=w:draw();eq(st.tab,area,'last tab restored')
+        if area=='permissions' then eq(e.OSP.PermissionUI.getState().batchSelected,0,'closing the panel clears checkbox selection')
+        else eq(st.selected,mode=='keep' and 23 or 11,'selection on reopen') end
     end
     eq(#w.sent,0,'navigation has no gameplay RPC')
    end
@@ -84,11 +103,12 @@ end
 -- Explicit target navigation, draft preservation and pending RPCs remain safe.
 do
  local w=world(1920,1080);local e=w.api;e.OSP.Navigation.setSelectionMode('leave');e.OSP.UI.open(true)
- other(w,'players');w:clickControl('player_role_manage')
- eq(w:draw().tab,'permissions');eq(w:draw().selected,23,'Manage Role preserves its explicit target')
+ other(w,'permissions')
+ eq(w:draw().tab,'permissions')
+ eq(e.OSP.PermissionUI.getState().batchSelected,1,'explicit navigation is independent of the global selection source')
  w:clickControl('role_create_custom');local draft=e.OSP.PermissionUI.getState().draft
- w:clickControl('permission_view_close');eq(w:draw().selected,23)
- w:clickControl('tab_session');eq(w:draw().selected,11)
+ w:clickControl('permission_view_close');eq(e.OSP.PermissionUI.getState().batchSelected,1,'closing role management retains the explicit target')
+ w:clickControl('tab_session');eq(e.OSP.PermissionUI.getState().batchSelected,0,'tab change clears explicit assignment target')
  eq(e.OSP.PermissionUI.getState().draft.name,draft.name,'role draft survives navigation reset')
  other(w,'players');w:clickControl('player_action_god');local request=w.sent[#w.sent]
  eq(request.args[3],23);check(w:draw().requestPending)
