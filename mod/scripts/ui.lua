@@ -958,6 +958,9 @@ function OSP.installClient()
         end
         return result,counts
     end
+    -- Manually documented causes; detection alone does not identify a writer.
+    local compatibilityNotes={airstrike="compatibility_airstrike"}
+    local function compatibilityText(id,fallback) return T(compatibilityNotes[id] or fallback) end
     local function toolConflict(p,id)
         return p and p.toolConflicts and p.toolConflicts[id]==true
     end
@@ -980,7 +983,7 @@ function OSP.installClient()
             local key=ROOT.."compatibility.seen."..tool.id:gsub(".",function(c) return string.format("%02x",c:byte()) end)
             if conflict and GetString(key)~="1" then
                 SetString(key,"1")
-                confirm={info=true,target=0,toolName=toolName(tool),message=T("compatibility_notice")}
+                confirm={info=true,target=0,toolName=toolName(tool),message=compatibilityText(tool.id,"compatibility_notice")}
                 typing=false;capturing=false;OSP.NumberInput.cancel();OSP.PermissionUI.cancelInput();InputClear()
                 return
             end
@@ -1272,7 +1275,7 @@ function OSP.installClient()
             if n>0 then
                 if not hasConflicts then entries[#entries+1]={T("compatibility_title"),C.accent};hasConflicts=true end
                 entries[#entries+1]={T("compatibility_detected",toolName(tool),n),C.text}
-                entries[#entries+1]={T("compatibility_detected_help"),C.muted}
+                entries[#entries+1]={compatibilityText(tool.id,"compatibility_detected_help"),C.muted}
             end
         end
         local y=86
@@ -1429,7 +1432,7 @@ function OSP.installClient()
         local incompatible=false
         for _,id in ipairs(v.ids) do if toolConflictCount(id)>0 then incompatible=true;break end end
         UiPush();UiTranslate(x+18,y+h-40);UiAlign("left top");UiFont("regular.ttf",13);UiWordWrap(w-36);UiTextDisableWildcards(true);rgb(C.accent)
-        UiText(T(incompatible and "tool_conflict_help" or "movement_popup_help"));UiPop()
+        UiText(incompatible and compatibilityText(v.tool and v.tool.id,"tool_conflict_help") or T("movement_popup_help"));UiPop()
     end
     local function drawCollectivePopup()
         local current=collectivePopup

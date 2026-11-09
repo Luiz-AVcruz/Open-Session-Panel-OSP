@@ -205,4 +205,21 @@ do
     w:ack();check(w:draw().confirm.info,'notice appears after response')
     eq(#w.sent,1,'informational modal never duplicates the tool command')
 end
+for _,language in ipairs({'en','pt'}) do
+    local w=ui(1024,768,{['savegame.mod.osp_beta.language']=language});local e=w.api
+    e.shared.osp.tools[1]={id='airstrike',name='Air Strike',origin='mod',policy='disabled'}
+    w:tick('p');w:draw();w:clickControl('tab_tools')
+    check(not w:draw().confirm,'manual note alone does not declare a conflict')
+    e.shared.osp.players[1].toolConflicts={airstrike=true}
+    local st=w:draw()
+    eq(st.confirm.message,e.OSP.L('compatibility_airstrike'),'known conflict identifies the supplying mod')
+    w:clickControl('compatibility_notice_close');w:clickControl('tool_more_airstrike');w:draw()
+    local found=false
+    for _,text in ipairs(w.texts) do if text==e.OSP.L('compatibility_airstrike') then found=true end end
+    check(found,'tool popup uses manually documented cause')
+    w:clickControl('tools_popup_close');w:clickControl('tab_about');w:draw();found=false
+    for _,text in ipairs(w.texts) do if text==e.OSP.L('compatibility_airstrike') then found=true end end
+    check(found,'About uses the same known cause when detected')
+    eq(#w.sent,0,'manual descriptions do not alter gameplay')
+end
 print('PASS tool conflict suspension, command boundaries and UI: '..count..' assertions')
