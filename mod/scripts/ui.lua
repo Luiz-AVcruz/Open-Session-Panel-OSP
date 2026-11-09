@@ -957,6 +957,20 @@ function OSP.installClient()
         end
         return result,counts
     end
+    local function toolConflict(p,id)
+        return p and p.toolConflicts and p.toolConflicts[id]==true
+    end
+    local function toolConflictCount(id)
+        local n=0
+        for _,p in ipairs(roster()) do if toolConflict(p,id) then n=n+1 end end
+        return n
+    end
+    local function toolChoice(p,tool)
+        if tool.policy=="disabled" then return false end
+        if p.toolRules and p.toolRules[tool.id]~=nil then return p.toolRules[tool.id] end
+        if tool.policy=="enabled" then return true end
+        return IsToolEnabled(tool.id,p.id)
+    end
     local function drawTools()
         local w=layout.contentW;local items,counts=filteredTools();local p=selectedPlayer()
         if solo() then toolMode="global" elseif not allowed("tool_policy",0) then toolMode="player" end
@@ -1006,11 +1020,21 @@ function OSP.installClient()
             if tool then
                 local ry=y+(row-1)*45;local policy=tool.policy or "default"
                 local locked=policy=="disabled" and toolMode=="player"
-                local enabled=p and IsToolEnabled(tool.id,p.id) or false
+                local enabled=false
+                if p then
+                    if toolConflict(p,tool.id) then enabled=toolChoice(p,tool)
+                    else enabled=IsToolEnabled(tool.id,p.id) end
+                end
                 local active=enabled
                 if toolMode=="global" and not solo() then active=policy=="default" and IsToolEnabled(tool.id,me) or policy=="enabled" end
                 local meta=locked and T("blocked_by_host") or toolMode=="global" and T("policy_"..policy) or T(enabled and "tool_enabled" or "tool_disabled")
                 if solo() then meta=T(enabled and "tool_enabled" or "tool_disabled") end
+                local conflicts=toolConflictCount(tool.id)
+                if toolMode=="global" and conflicts>0 then
+                    meta=T(policy=="disabled" and "tool_use_block_count" or "tool_inventory_conflict",conflicts)
+                elseif toolMode=="player" and toolConflict(p,tool.id) then
+                    meta=T(enabled and "tool_inventory_conflict" or "tool_use_block")
+                end
                 label(0,ry+3,toolName(tool),17,C.text,w-204)
                 label(0,ry+24,meta,13,C.muted,w-204)
                 if button("tool_"..tool.id,w-194,ry+3,144,34,T(active and "deactivate" or "activate"),active and "active" or "plain",not p or (toolMode=="global" and not allowed("tool_policy",0)) or (toolMode=="player" and (blocked or locked and not enabled))) then
@@ -1020,7 +1044,7 @@ function OSP.installClient()
                         else command("tool_policy",0,{id=tool.id,mode=mode}) end
                     else command("tool",p.id,{id=tool.id,enabled=not enabled}) end
                 end
-                if button("tool_more_"..tool.id,w-40,ry+3,40,34,"...","plain",toolMode=="global" and (not allowed("tool_policy",0) or not solo() and policy=="default")) then openActions(tool) end
+                if button("tool_more_"..tool.id,w-40,ry+3,40,34,"...","plain",toolMode=="global" and (not allowed("tool_policy",0) or not solo() and policy=="default" and conflicts==0)) then openActions(tool) end
                 rect(0,ry+44,w,1,C.line)
             end
         end
@@ -1085,7 +1109,9 @@ function OSP.installClient()
                 label(actor+actionW+16,y+7,e.target~="" and e.target or "—",15,C.muted,target)
                 local resultKey=e.result=="ok" and "done" or e.result=="partial" and "result_partial" or "error_short"
                 label(w-result,y+7,T(resultKey),15,e.result=="ok" and C.success or e.result=="partial" and C.accent or C.danger,result)
-                label(0,y+28,T("counts_short",e.affected or 0,e.skipped or 0),13,C.muted,w)
+                local counts=T("counts_short",e.affected or 0,e.skipped or 0)
+                if (e.inventoryConflicts or 0)>0 then counts=counts.." · "..T("tool_inventory_count",e.inventoryConflicts) end
+                label(0,y+28,counts,13,C.muted,w)
                 rect(0,y+46,w,1,C.line);y=y+48
             end
         end
@@ -1340,7 +1366,10 @@ function OSP.installClient()
                 action("tools_disable_results_everyone","tools_disable_results","right","tools_selection_all",{target=0,scope=T(host() and "tools_present" or "tools_present_except_host"),value={category=v.category,ids=v.resultIds,enabled=false}},true,not allowed("tools_all",0) or #v.resultIds==0,v.query)
             end
         end
-        label(x+18,y+h-34,T("movement_popup_help"),13,C.accent,w-36)
+        local incompatible=false
+        for _,id in ipairs(v.ids) do if toolConflictCount(id)>0 then incompatible=true;break end end
+        UiPush();UiTranslate(x+18,y+h-40);UiAlign("left top");UiFont("regular.ttf",13);UiWordWrap(w-36);UiTextDisableWildcards(true);rgb(C.accent)
+        UiText(T(incompatible and "tool_conflict_help" or "movement_popup_help"));UiPop()
     end
     local function drawCollectivePopup()
         local current=collectivePopup
@@ -1541,6 +1570,9 @@ function OSP.installClient()
         local defaultSaved=ok and lastAction=="players_group" and details and details.defaultsSaved==true
         if defaultSaved then
             if code=="partial" then msg=msg.."  "..T("group_default_saved") else msg=T("group_default_saved") end
+        end
+        if details and details.inventoryConflicts and details.inventoryConflicts>0 then
+            msg=msg.."  "..T("tool_inventory_count",details.inventoryConflicts)
         end
         if details and details.skipped and details.skipped>0 then msg=msg.."  "..T("skipped",details.skipped) end
         if details and details.failed and details.failed>0 then msg=msg.."  "..T("failed_count",details.failed) end

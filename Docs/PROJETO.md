@@ -67,12 +67,14 @@ Solicitações para próximos ciclos, sem ordem de prioridade definida. Planejar
 Pendências já levantadas:
 
 - [ ] Automatizar e padronizar verificação, empacotamento, instalação e promoção da Beta para a main, reaproveitando as ferramentas existentes.
-- [ ] Tratar a compatibilidade do bloqueio com ferramentas que se reabilitam continuamente, como o Air Strike.
+- [x] Detectar ferramentas que se reativam continuamente, como o Air Strike, e suspender a disputa pelo inventário preservando o bloqueio de seleção.
 - [ ] Investigar a restauração de munição com ferramentas nativas e de mods; opção suspensa na Beta 1.5.1 a pedido do autor.
 
 ## Bundle 1.5.1 em desenvolvimento
 
-As mudanças da **1.5.1** são desenvolvidas, instaladas e avaliadas primeiro na branch e no mod **Beta**. A `main` permanece na versão estável **1.5.0**. Promover uma versão para a principal exige orientação explícita do autor; aprovação de um plano de interface não autoriza essa promoção.
+As mudanças da **1.5.1** são desenvolvidas, instaladas e avaliadas primeiro na branch e no mod **Beta**. A `main` recebeu a versão estável **1.5.1** por solicitação do autor. Novas alterações continuam na Beta; promover para a principal exige orientação explícita do autor.
+
+O servidor detecta quatro reativações de uma ferramenta após suas próprias gravações de bloqueio, em até um segundo. A partir daí, deixa de escrever OFF no inventário para aquele par ferramenta/jogador, mas continua retirando a ferramenta da seleção conforme as regras individuais e gerais. A substituição só pode ser uma ferramenta habilitada e permitida; sem alternativa, a seleção fica vazia. Ativar/desativar continua disponível, e o painel distingue bloqueio de uso de visibilidade no inventário. Respostas e Atividade contam os bloqueios que usam essa alternativa. A detecção é transitória: reinicia em outra missão, nova entrada ou remoção do registro da ferramenta; regras salvas permanecem. Respawns e restaurações isoladas não devem provocar suspensão. A simulação cobre escritores concorrentes e seleção, sem provar ordenação de disparos entre mods no motor; o teste nativo com o Air Strike continua necessário. O OSP não altera o outro mod nem garante remover seu item do inventário.
 
 A atribuição em Permissões usa uma lista única de checkboxes para um ou vários jogadores. O host não é alvo; com apenas ele na sessão, a lista apresenta estado vazio. A partir de 720 unidades de conteúdo, a lista fica à esquerda e o bloco Role a atribuir ocupa 320 à direita, separados por 24; abaixo disso os blocos são empilhados. Nomes e Roles atuais aparecem nas linhas discretas, com Marcar todos/Limpar, contador e paginação. Aplicar Role e Gerenciar Roles têm largura normal dentro do bloco. Foram removidos seletor individual com setas, Current role e os toggles de modo/lista. O mesmo fluxo aparece na área de atribuição ampliada; em pouca altura ela usa o viewport existente. Rascunhos e formulário de edição permanecem preservados. Criar Role continua iniciando um rascunho customizado com base na selecionada.
 

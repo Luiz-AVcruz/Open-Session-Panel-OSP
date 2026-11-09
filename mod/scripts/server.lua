@@ -127,7 +127,7 @@ function OSP.installServer()
             baseGod=GetPlayerParam("godMode", p),
             baseFly=GetPlayerParam("flyMode", p),
             baseRegen=GetPlayerParam("healthRegeneration", p),
-            toolRules={}, toolBase={}, alive=GetPlayerHealth(p)>0,challenge=join,
+            toolRules={}, toolBase={}, toolProbes={}, toolConflicts={}, alive=GetPlayerHealth(p)>0,challenge=join,
         }
         if resetEffectsOnEntry then clearEntryEffects(e) end
         if isHost(p) then loadProfile(p,e,"host") end
@@ -152,7 +152,7 @@ function OSP.installServer()
                     strength=e.strength,strengthForce=e.strengthForce,strengthMass=e.strengthMass,
                     strengthThrow=e.strengthThrow,strengthThrowSpeed=e.strengthThrowSpeed,
                     strengthHolding=strengthController:heldBody(p)~=0,
-                    ammo=e.ammo,ammoRestore=e.ammoRestore,
+                    ammo=e.ammo,ammoRestore=e.ammoRestore,toolRules=OSP.copy(e.toolRules),toolConflicts=OSP.copy(e.toolConflicts),
                     freeze=e.freeze,speed=e.speed,role=playerRole(p).id,permissions=OSP.copy(playerRole(p).permissions),profileReady=e.profile~=nil,profileChallenge=e.challenge}
             end
         end
@@ -177,7 +177,7 @@ function OSP.installServer()
         logs[#logs+1]={seq=sequence,actor=IsPlayerValid(actor) and GetPlayerName(actor) or "?",
             action=action,target=type(target)=="number" and IsPlayerValid(target) and GetPlayerName(target) or "",
             result=result,affected=details and details.affected or 0,skipped=details and details.skipped or 0,failed=details and details.failed or 0,
-            argument=OSP.copy(arg)}
+            inventoryConflicts=details and details.inventoryConflicts or 0,argument=OSP.copy(arg)}
         if #logs>100 then table.remove(logs,1) end
     end
     local function reply(actor,ok,code,details,requestId)
@@ -220,37 +220,75 @@ function OSP.installServer()
             tools[#tools+1]={id=id,name=name,nameKey=nameKey,origin=OSP.toolOrigin(id),policy=mode}
             known[id]=true
         end
+        for _,e in pairs(players) do
+            for id in pairs(e.toolProbes) do if not known[id] then e.toolProbes[id]=nil end end
+            for id in pairs(e.toolConflicts) do if not known[id] then e.toolConflicts[id]=nil end end
+        end
+    end
+    local function desiredTool(e,id)
+        local want=e.toolRules[id]
+        if policies[id]==false then want=false
+        elseif want==nil then want=policies[id] end
+        return want
+    end
+    local function deselectTool(p,id)
+        if GetPlayerTool(p)~=id then return end
+        local replacement=""
+        for _,tool in ipairs(tools) do
+            if tool.id~=id and desiredTool(players[p],tool.id)~=false and IsToolEnabled(tool.id,p) then
+                replacement=tool.id;break
+            end
+        end
+        SetPlayerTool(replacement,p)
+    end
+    local function canHideTool(p,id)
+        local e=players[p]
+        if e.toolConflicts[id] then return false end
+        -- Only count reversals of our own OFF writes. Do not accumulate
+        -- isolated resets or tool restoration on death/respawn.
+        if not e.alive or GetPlayerHealth(p)<=0 then e.toolProbes[id]=nil;return true end
+        local probe=e.toolProbes[id];local now=GetTime()
+        if probe and probe.writtenAt and now>probe.writtenAt and IsToolEnabled(id,p) then
+            if not probe.firstAt or now-probe.firstAt>1 then probe.firstAt=now;probe.reversals=0 end
+            probe.reversals=probe.reversals+1;probe.writtenAt=nil
+            if probe.reversals>=4 then e.toolConflicts[id]=true;e.toolProbes[id]=nil;return false end
+        end
+        return true
     end
     local function applyTool(p,id,on)
         local e=players[p]
         if e.toolBase[id]==nil then e.toolBase[id]=IsToolEnabled(id,p) end
-        SetToolEnabled(id,on,p)
-        if not on and GetPlayerTool(p)==id then
-            local replacement=""
-            for _,tool in ipairs(tools) do
-                if IsToolEnabled(tool.id,p) then replacement=tool.id; break end
+        if on or canHideTool(p,id) then
+            SetToolEnabled(id,on,p)
+            if on then e.toolProbes[id]=nil
+            elseif e.alive and GetPlayerHealth(p)>0 then
+                local probe=e.toolProbes[id] or {reversals=0}
+                probe.writtenAt=GetTime();e.toolProbes[id]=probe
             end
-            SetPlayerTool(replacement,p)
         end
+        -- An external writer may keep the inventory entry visible. Preserve
+        -- the usage restriction without fighting its enabled flag every frame.
+        if not on then deselectTool(p,id) end
+        return not on and e.toolConflicts[id]==true
     end
     local function setTool(actor,p,id,on)
-        applyTool(p,id,on)
-        players[p].toolRules[id]=on
+        local conflict=applyTool(p,id,on)
         local e=players[p]
+        e.toolRules[id]=on
         if isHost(actor) and e.profile then
             SetInt(profileSave..e.profile..".tools."..encoded(id),on and 1 or 2)
         end
+        return conflict and 1 or 0
     end
     local function enforceTools(p)
         local e=players[p]
         for id in pairs(known) do
-            local want=e.toolRules[id]
-            if policies[id]==false then want=false
-            elseif want==nil then want=policies[id] end
+            local want=desiredTool(e,id)
             if want~=nil then
                 -- Capture before the first intervention even if already equal.
                 if e.toolBase[id]==nil then e.toolBase[id]=IsToolEnabled(id,p) end
-                if IsToolEnabled(id,p)~=want then applyTool(p,id,want) end
+                if IsToolEnabled(id,p)~=want then applyTool(p,id,want)
+                elseif not want then deselectTool(p,id) end
             end
         end
     end
@@ -275,7 +313,7 @@ function OSP.installServer()
         return ids
     end
     local function setPolicy(id,mode)
-        local value
+        local value,conflicts=nil,0
         if mode=="enabled" then value=true elseif mode=="disabled" then value=false end
         policies[id]=value
         if value==nil then ClearKey(policyKey(id)) else SetInt(policyKey(id),value and 1 or 2) end
@@ -285,10 +323,18 @@ function OSP.installServer()
         for _,p in ipairs(roster()) do
             local e=players[p]
             e.toolRules[id]=nil
-            if value~=nil then applyTool(p,id,value)
-            elseif e.toolBase[id]~=nil then applyTool(p,id,e.toolBase[id]) end
+            local conflict=false
+            if value~=nil then conflict=applyTool(p,id,value)
+            elseif e.toolBase[id]~=nil then conflict=applyTool(p,id,e.toolBase[id]) end
+            if conflict then conflicts=conflicts+1 end
         end
         for _,tool in ipairs(tools) do if tool.id==id then tool.policy=mode end end
+        return conflicts
+    end
+    local function policySelection(ids,mode)
+        local conflicts=0
+        for _,id in ipairs(ids) do conflicts=conflicts+setPolicy(id,mode) end
+        return {affected=#ids>0 and #roster() or 0,skipped=0,tools=#ids,inventoryConflicts=conflicts}
     end
     local function moveTo(p,anchor)
         strengthController:release(p,true)
@@ -555,44 +601,49 @@ function OSP.installServer()
     local function toolGuard(v)
         if v.enabled and policies[v.id]==false then return "protected" end
     end
-    add("tool",toolArg,function(c,p,v) setTool(c,p,v.id,v.enabled) end,{target=true,guard=toolGuard,persistent=true})
+    local function toolDetails(applied,conflicts)
+        return {affected=applied and 1 or 0,skipped=applied and 0 or 1,inventoryConflicts=conflicts or 0}
+    end
+    local function toolEach(c,fn)
+        local conflicts=0
+        local details=each(c,function(p)
+            local applied,n=fn(p);conflicts=conflicts+(n or 0);return applied
+        end)
+        details.inventoryConflicts=conflicts;return details
+    end
+    add("tool",toolArg,function(c,p,v) return toolDetails(true,setTool(c,p,v.id,v.enabled)) end,{target=true,guard=toolGuard,persistent=true})
     local function allTools(c,p,on,category,selectedIds)
         if isHost(c) and not players[p].profile then return false end
-        local applied=0
+        local applied,conflicts=0,0
         for _,id in ipairs(selectedIds or chooseCategory(category or "all")) do
-            if not on or policies[id]~=false then setTool(c,p,id,on);applied=applied+1 end
+            if not on or policies[id]~=false then conflicts=conflicts+setTool(c,p,id,on);applied=applied+1 end
         end
-        return applied>0
+        return applied>0,conflicts
     end
     add("tools",boolean,function(c,p,v)
-        local changed=allTools(c,p,v)
-        return {affected=changed and 1 or 0,skipped=changed and 0 or 1}
+        return toolDetails(allTools(c,p,v))
     end,{target=true,persistent=true})
-    add("tool_all",toolArg,function(c,_,v) return each(c,function(p)
+    add("tool_all",toolArg,function(c,_,v) return toolEach(c,function(p)
         if isHost(c) and not players[p].profile then return false end
-        setTool(c,p,v.id,v.enabled)
+        return true,setTool(c,p,v.id,v.enabled)
     end) end,{guard=toolGuard})
-    add("tools_all",boolean,function(c,_,v) return each(c,function(p) return allTools(c,p,v) end) end)
+    add("tools_all",boolean,function(c,_,v) return toolEach(c,function(p) return allTools(c,p,v) end) end)
     local function category(v) return v=="all" or v=="vanilla" or v=="mod" end
     local function filteredArg(v) return type(v)=="table" and category(v.category) and boolean(v.enabled) end
     add("tools_filtered",filteredArg,function(c,p,v)
-        local changed=allTools(c,p,v.enabled,v.category)
-        return {affected=changed and 1 or 0,skipped=changed and 0 or 1}
+        return toolDetails(allTools(c,p,v.enabled,v.category))
     end,{target=true,persistent=true})
     add("tools_filtered_all",filteredArg,function(c,_,v)
-        return each(c,function(p) return allTools(c,p,v.enabled,v.category) end)
+        return toolEach(c,function(p) return allTools(c,p,v.enabled,v.category) end)
     end)
     local function mode(v) return v=="default" or v=="enabled" or v=="disabled" end
     add("tool_policy",function(v) return type(v)=="table" and type(v.id)=="string" and known[v.id] and mode(v.mode) end,
         function(_,_,v)
-            setPolicy(v.id,v.mode)
-            return {affected=#roster(),skipped=0,tools=1}
+            return policySelection({v.id},v.mode)
         end)
     add("tool_policy_bulk",function(v) return type(v)=="table" and category(v.category) and mode(v.mode) end,
         function(_,_,v)
-            local ids=chooseCategory(v.category)
-            for _,id in ipairs(ids) do setPolicy(id,v.mode) end
-            return {affected=#ids>0 and #roster() or 0,skipped=0,tools=#ids}
+            return policySelection(chooseCategory(v.category),v.mode)
         end)
     local function selectionArg(v,policy)
         if type(v)~="table" or not category(v.category) then return false end
@@ -623,17 +674,15 @@ function OSP.installServer()
         return true
     end
     add("tools_selection",function(v) return selectionArg(v,false) end,function(c,p,v)
-        local changed=allTools(c,p,v.enabled,v.category,v.ids)
-        return {affected=changed and 1 or 0,skipped=changed and 0 or 1,tools=#v.ids}
+        local details=toolDetails(allTools(c,p,v.enabled,v.category,v.ids));details.tools=#v.ids;return details
     end,{target=true,persistent=true})
     add("tools_selection_all",function(v) return selectionArg(v,false) end,function(c,_,v)
-        local details=each(c,function(p) return allTools(c,p,v.enabled,v.category,v.ids) end)
+        local details=toolEach(c,function(p) return allTools(c,p,v.enabled,v.category,v.ids) end)
         details.tools=#v.ids
         return details
     end)
     add("tool_policy_selection",function(v) return selectionArg(v,true) end,function(_,_,v)
-        for _,id in ipairs(v.ids) do setPolicy(id,v.mode) end
-        return {affected=#roster(),skipped=0,tools=#v.ids}
+        return policySelection(v.ids,v.mode)
     end)
     local function ruleArg(v)
         if type(v)~="table" then return false end
