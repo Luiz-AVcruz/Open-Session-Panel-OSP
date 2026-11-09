@@ -1,7 +1,7 @@
 -- Copyright (C) 2026 Luiz-AVcruz
 -- AGPL-3.0-or-later; see LICENSE and ADDITIONAL-PERMISSION.
 -- Local presentation preferences; hiding a tab never grants or revokes access.
-OSP.Navigation={tabs={"players","session","tools","permissions","activity","appearance","settings","about"}}
+OSP.Navigation={tabs={"players","session","tools","permissions","activity","appearance","settings","about","debug"}}
 local N=OSP.Navigation
 local root="savegame.mod.osp_beta.navigation.hidden."
 local behaviorRoot="savegame.mod.osp_beta.navigation."
@@ -36,14 +36,15 @@ function N.resetBehavior()
     SetString(behaviorRoot.."last_tab","")
 end
 function N.visible(id)
+    if id=="debug" then return GetString(root..id)=="0" end
     return known(id) and (id=="settings" or GetString(root..id)~="1")
 end
 function N.setVisible(id,visible)
     if not known(id) or id=="settings" or type(visible)~="boolean" then return false end
-    SetString(root..id,visible and "" or "1");return true
+    SetString(root..id,visible and (id=="debug" and "0" or "") or "1");return true
 end
 function N.reset()
-    for _,id in ipairs(N.tabs) do if id~="settings" then N.setVisible(id,true) end end
+    for _,id in ipairs(N.tabs) do if id~="settings" then N.setVisible(id,id~="debug") end end
 end
 function N.list(eligible)
     local out={};for _,id in ipairs(N.tabs) do if N.visible(id) and (not eligible or eligible(id)) then out[#out+1]=id end end

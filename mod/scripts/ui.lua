@@ -50,6 +50,7 @@ function OSP.installClient()
     local viewMode=OSP.ViewMode.resolve()
     local function solo() return viewMode=="single" end
     local function eligible(id) return OSP.ViewMode.eligible(id,viewMode) end
+    local function personalTab(id) return id=="settings" or id=="appearance" or id=="about" or id=="debug" end
     local function lang() return GetString(ROOT.."language")=="pt" and "pt" or "en" end
     OSP.getLanguage=lang
     local function T(k,...) return OSP.L(k,...) end
@@ -217,7 +218,7 @@ function OSP.installClient()
         end
     end
     local function setTab(t,keepTarget)
-        t=navigation.choose(t,function(id) return id=="settings" or id=="appearance" or id=="about" or admin() and (id~="permissions" or rolesAccess()) end,eligible)
+        t=navigation.choose(t,function(id) return personalTab(id) or admin() and (id~="permissions" or rolesAccess()) end,eligible)
         if tab~=t then
             closeDropdown();resetTooltip();closeMovement();closeTools();scroll=0;confirm=nil;typing=false;capturing=false
             shortcuts.cancel();OSP.PermissionUI.closeExpanded();OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel()
@@ -1224,6 +1225,42 @@ function OSP.installClient()
                 consume=function() clickConsumed=true;OSP.NumberInput.cancel() end,
             },0,85,w)
     end
+    local function drawDebug()
+        local w=layout.contentW;title(T("debug"),T("debug_subtitle"))
+        local y=85
+        local function paragraph(text,color)
+            UiPush();UiTranslate(0,y);UiAlign("left top");UiFont("regular.ttf",15)
+            UiTextDisableWildcards(true);UiWordWrap(w);rgb(color or C.muted)
+            local _,height=UiText(text);UiPop();y=y+height+14
+        end
+        local bw=math.min(w,320)
+        if button("debug_reset_first_entry",0,y,bw,36,T("debug_reset_first_entry"),"outlined",false) then
+            ClearKey(ROOT.."compatibility.seen")
+            setStatus(T("debug_first_entry_reset"))
+        end
+        y=y+46;paragraph(T("debug_reset_help"))
+        if button("debug_preview_notice",0,y,bw,36,T("debug_preview_notice"),"outlined",pending~=nil) then
+            confirm={info=true,target=0,toolName=T("debug_sample_tool"),message=T("compatibility_notice")}
+        end
+        y=y+46;paragraph(T("debug_preview_help"))
+        rect(0,y,w,1,C.line);y=y+18
+        label(0,y,T("debug_state"),20,C.text,w,true);y=y+34
+        local s=state();local own=findPlayer(me);local conflicts=0
+        for _,tool in ipairs(s and s.tools or {}) do if toolConflictCount(tool.id)>0 then conflicts=conflicts+1 end end
+        paragraph(T("version",OSP.version),C.text)
+        paragraph(T("debug_panel_mode",T("view_"..(solo() and "single" or "multi")),T("view_"..OSP.ViewMode.get())),C.text)
+        paragraph(T("debug_server",T(s and s.ready and "debug_ready" or "debug_waiting")),C.text)
+        paragraph(T("debug_profile",T(own and own.profileReady and "debug_ready" or "debug_waiting")),C.text)
+        paragraph(T("debug_roster",#roster(),T(host() and "debug_yes" or "debug_no")),C.text)
+        paragraph(T("debug_tools",s and #(s.tools or {}) or 0,conflicts),C.text)
+        paragraph(T("debug_pending",T(pending and "debug_yes" or "debug_no")),C.text)
+        if status then paragraph(T("debug_last_status",status),C.text) end
+        y=y+6
+        if button("debug_hide",0,y,bw,36,T("debug_hide"),"outlined",false) then
+            navigation.setVisible("debug",false);setTab("settings")
+        end
+        return y+52
+    end
     local function drawAbout()
         local w=layout.contentW;title(T("about_title"),T("about_subtitle"))
         local entries={{T("version",OSP.version),C.accent},{"Luiz-AVcruz",C.text},{T("about_summary"),C.text},
@@ -1481,7 +1518,7 @@ function OSP.installClient()
             local x,y,w,h
             if narrow then w=(W-36-(navCols-1)*4)/navCols;h=32;x=18+((i-1)%navCols)*(w+4);y=header+7+math.floor((i-1)/navCols)*36
             else x=12;y=header+19+(i-1)*43;w=side-24;h=37 end
-            if button("tab_"..t,x,y,w,h,T(solo() and t=="players" and "player_solo" or t),tab==t and "active" or "outlined",not admin() and t~="settings" and t~="appearance" and t~="about") then setTab(t) end
+            if button("tab_"..t,x,y,w,h,T(solo() and t=="players" and "player_solo" or t),tab==t and "active" or "outlined",not admin() and not personalTab(t)) then setTab(t) end
         end
         if not narrow then label(22,H-32,T("version",OSP.version),13,C.muted,side-44) end
         clip={x=cx,y=cy,w=cw,h=ch};bodyHovered=inside(cx,cy,cw,ch,mouseX,mouseY)
@@ -1491,8 +1528,9 @@ function OSP.installClient()
         clip={x=0,y=scroll,w=cw,h=ch}
         local contentHeight=0
         local s=state()
-        if not s or not s.ready then title(T("connecting"));contentHeight=90
-        elseif not admin() and tab~="settings" and tab~="appearance" and tab~="about" then setTab("settings");contentHeight=drawSettings()
+        if tab=="debug" then contentHeight=drawDebug()
+        elseif not s or not s.ready then title(T("connecting"));contentHeight=90
+        elseif not admin() and not personalTab(tab) then setTab("settings");contentHeight=drawSettings()
         elseif tab=="players" then contentHeight=drawPlayers()
         elseif tab=="session" then contentHeight=drawSession()
         elseif tab=="tools" then contentHeight=drawTools()
@@ -1747,7 +1785,7 @@ function OSP.installClient()
             if delta~=0 then scroll=math.max(0,math.min(maxScroll,scroll-delta*48)) end
         end
         if PauseMenuButton(T("pause_button"),"bottom_bar",false) then setMenu(true);confirm=nil end
-        if not admin() and tab~="settings" and tab~="appearance" and tab~="about" then setTab("settings") end
+        if not admin() and not personalTab(tab) then setTab("settings") end
         if not wasMenu and not menu and not shortcuts.capture and not typing and not capturing
             and not confirm and not movementSettings and not toolsPopup and not collectivePopupOpen() and not search.focused
             and not OSP.NumberInput.active() and not permissionExpanded() and not OSP.PermissionUI.capturing()
