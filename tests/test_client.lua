@@ -16,7 +16,7 @@ local function world(width,height,previousRegistry)
     -- Older scenarios explicitly exercise expanded Settings; use an empty
     -- supplied registry below to test the actual first-run defaults.
     if not previousRegistry then
-        for _,id in ipairs({"language","shortcut","view_mode","navigation","effects_on_load","palette","background"}) do w.reg["savegame.mod.osp_beta.settings.collapsed."..id]="0" end
+        for _,id in ipairs({"language","shortcut","view_mode","behavior","navigation","effects_on_load","palette","background"}) do w.reg["savegame.mod.osp_beta.settings.collapsed."..id]="0" end
     end
     env.GetString=function(k) return w.reg[k] or '' end
     env.SetString=function(k,v) w.reg[k]=v end
@@ -164,6 +164,7 @@ local function world(width,height,previousRegistry)
     end
     return w
 end
+if arg[2]=="fixture" then return world end
 -- Identity is private to this host and survives a fresh client Lua context.
 do
     local namespace=string.rep('a',32)
@@ -299,7 +300,7 @@ for _,size in ipairs({{1280,720},{1920,1080},{2560,1440},{1024,768},{2560,1080}}
     w.reg['savegame.mod.osp_beta.health_hud']=true -- Old saved preferences must not resurrect the removed HUD.
     w:draw();eq(#w.texts,0,'no health HUD even with old setting enabled')
     local nextMap=world(size[1],size[2],w.reg);nextMap:draw();eq(#nextMap.texts,0,'no HUD after map reload')
-    e.IsPlayerHost=function() return false end;e.shared.osp.players[1].admin=false;e.OSP.UI.selectTab('players');w:tick();e.OSP.UI.open(true);w:draw();eq(e.OSP.UI.getState().tab,'appearance')
+    e.IsPlayerHost=function() return false end;e.shared.osp.players[1].admin=false;e.OSP.UI.selectTab('players');w:tick();e.OSP.UI.open(true);w:draw();eq(e.OSP.UI.getState().tab,'about','reopening restores the last accessible tab')
     w:clickControl('tab_about');w:draw();eq(e.OSP.UI.getState().tab,'about','guests can read about')
     local d=world(size[1],size[2]);local de=d.api
     de.IsPlayerHost=function() return false end
@@ -631,8 +632,8 @@ for _,size in ipairs({{1024,768},{1920,1080}}) do
     eq(#w.sent,before,'Escape discards a numeric edit')
     eq(e.OSP.NumberInput.active(),false)
     w:editControl('player_speed_value');w:tick('2');w:clickControl('close')
-    eq(#w.sent,before+1,'Close confirms a valid number before closing')
-    eq(w.sent[#w.sent].args[4],2);w:ack();before=#w.sent
+    eq(#w.sent,before,'Close discards an unsent numeric edit')
+    before=#w.sent
     eq(e.OSP.NumberInput.active(),false)
     e.OSP.UI.open(true);w:editControl('player_speed_value')
     local r=w:scrollTo('speed_up');w:pressAt(r.x+2,r.y+2,'9');w:releaseAt(r.x+2,r.y+2)
@@ -649,8 +650,8 @@ for _,size in ipairs({{1024,768},{1920,1080}}) do
     edit('rule_fog_value','151.8','rule',152,'fog')
     -- Each row captures its own rule key, and edits cannot survive navigation.
     before=#w.sent;w:editControl('rule_fog_value');w:tick('5');w:clickControl('tab_players');w:tick('return')
-    eq(#w.sent,before+1,'changing tabs confirms a valid number once')
-    eq(w.sent[#w.sent].args[4].value,10);w:ack();before=#w.sent
+    eq(#w.sent,before,'changing tabs discards an unsent numeric edit')
+    eq(e.OSP.NumberInput.active(),false);before=#w.sent
     w.reg['savegame.mod.osp_beta.settings.collapsed.palette']='1';w:clickControl('tab_appearance');w:clickControl('settings_section_palette');w:clickControl('palette_custom')
     local color=e.OSP.Theme.colors().back
     local green,blue=math.floor(color[2]*255+.5)/255,math.floor(color[3]*255+.5)/255
@@ -1288,7 +1289,7 @@ for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
     w:clickControl("rebind");check(e.OSP.Shortcuts.capture=="menu","capture starts")
     w:clickControl("settings_section_shortcut");check(not e.OSP.Shortcuts.capture,"collapse cancels capture")
     eq(w.reg["savegame.mod.osp_beta.menu_key"],"p","collapse does not change binding")
-    for _,id in ipairs({"view_mode","navigation","effects_on_load"}) do w:clickControl("settings_section_"..id) end
+    for _,id in ipairs({"view_mode","behavior","navigation","effects_on_load"}) do w:clickControl("settings_section_"..id) end
     w:clickControl("tab_appearance")
     for _,id in ipairs({"palette","background"}) do w:clickControl("settings_section_"..id) end
     for _,id in ipairs(sections.ids) do check(not sections.expanded(id),"all sections collapsed") end
@@ -1323,8 +1324,8 @@ do
     w:tick("p");w:clickControl("tab_settings");local st=w:draw()
     for _,id in ipairs(e.OSP.SettingsSections.ids) do check(not e.OSP.SettingsSections.expanded(id),"first-run collapsed") end
     check(not st.controls.language_en and not st.controls.palette_classic,"first-run bodies hidden")
-    eq(#w.images,5,"one graphical icon per Settings heading")
-    for _,id in ipairs({"language","shortcut","view_mode","navigation","effects_on_load"}) do
+    eq(#w.images,6,"one graphical icon per Settings heading")
+    for _,id in ipairs({"language","shortcut","view_mode","behavior","navigation","effects_on_load"}) do
         local found=false;for _,value in ipairs(w.texts) do if value==e.OSP.L("settings_help_"..id) then found=true end end
         check(found,"description visible while collapsed: "..id)
     end

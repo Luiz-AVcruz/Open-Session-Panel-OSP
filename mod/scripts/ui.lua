@@ -6,6 +6,7 @@ function OSP.installClient()
     local strengthInputReport,strengthInputSequence=nil,0
     local ROOT="savegame.mod.osp_beta."
     local menu,tab,selected=false,"players",nil
+    local selectedJoin,selectedHost=nil,nil
     local toolMode,filter="global","all"
     local tipKey,tipSince,tooltip=nil,nil,nil
     local function resetTooltip() tipKey=nil;tipSince=nil;tooltip=nil end
@@ -164,9 +165,47 @@ function OSP.installClient()
     end
     local function closeMovement() movementSettings=nil;OSP.NumberInput.cancel();shortcuts.cancel() end
     local function closeTools() toolsPopup=nil;search.blur() end
-    local function setTab(t)
+    local function selectPlayer(id)
+        local p=findPlayer(id);local namespace=state() and state().profileHost
+        local join=p and p.profileChallenge
+        id=p and p.id or nil
+        if selected~=id or selectedJoin~=join or selectedHost~=namespace then
+            closeDropdown();resetTooltip();closeMovement();closeTools();confirm=nil
+            OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel()
+        end
+        selected=id;selectedJoin=join;selectedHost=namespace
+    end
+    local function resetSelection()
+        selectPlayer(me);pages.players=1
+    end
+    local function validateSelection()
+        local p=selected and findPlayer(selected)
+        if not p or p.profileChallenge~=selectedJoin or (state() and state().profileHost)~=selectedHost then
+            if selected then lmbPressed=false;numericFrame.mousePressed=false;clickConsumed=true;InputClear() end
+            resetSelection()
+        end
+    end
+    local function setTab(t,keepTarget)
         t=navigation.choose(t,function(id) return id=="settings" or id=="appearance" or id=="about" or admin() and (id~="permissions" or rolesAccess()) end,eligible)
-        if tab~=t then closeDropdown();resetTooltip();closeMovement();closeTools();tab=t;scroll=0;confirm=nil;typing=false;capturing=false;shortcuts.cancel();OSP.PermissionUI.closeExpanded();OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end
+        if tab~=t then
+            closeDropdown();resetTooltip();closeMovement();closeTools();scroll=0;confirm=nil;typing=false;capturing=false
+            shortcuts.cancel();OSP.PermissionUI.closeExpanded();OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel()
+            if not keepTarget and navigation.selectionMode()=="leave" then resetSelection() end
+            tab=t
+        end
+        if menu then navigation.rememberTab(t) end
+    end
+    local function setMenu(value)
+        local changed=menu~=value
+        shortcuts.cancel();capturing=false;resetTooltip()
+        if changed and value then
+            local wanted=navigation.openingMode()=="players" and "players" or navigation.lastTab()
+            menu=true;validateSelection();setTab(wanted);confirm=nil
+        elseif not value then
+            menu=false;closeDropdown();closeMovement();closeTools();confirm=nil;typing=false
+            OSP.PermissionUI.closeExpanded();OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel()
+            if changed and navigation.selectionMode()~="keep" then resetSelection() end
+        end
     end
     local function refreshViewMode()
         local current=OSP.ViewMode.resolve()
@@ -177,7 +216,7 @@ function OSP.installClient()
         shortcuts.cancel();OSP.PermissionUI.closeExpanded();OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel()
         pages.players=1;pages.tools=1;scroll=0
         if menu then lmbPressed=false;clickConsumed=true;InputClear() end
-        if solo() then selected=me;toolMode="global" elseif not allowed("tool_policy",0) then toolMode="player" end
+        if solo() then selectPlayer(me);toolMode="global" elseif not allowed("tool_policy",0) then toolMode="player" end
         setTab(tab)
     end
     local function command(action,target,arg,expectedContext,frozenContext)
@@ -258,7 +297,11 @@ function OSP.installClient()
         local clicked=hover and not clickConsumed and (lmbPressed or InputPressed("lmb"))
         if clicked then
             clickConsumed=true
-            OSP.NumberControl.beforeAction()
+            local nextTab=id:match("^tab_(.+)$")
+            local nextPlayer=tonumber(id:match("^player_(%d+)$"))
+            local contextChange=id=="close" or nextTab and nextTab~=tab or nextPlayer and nextPlayer~=selected
+                or id=="role_target_prev" or id=="role_target_next" or id=="tool_player_prev" or id=="tool_player_next"
+            if contextChange then OSP.NumberInput.cancel() else OSP.NumberControl.beforeAction() end
             shortcuts.cancel();capturing=false;search.blur()
         end
         local col,edge=OSP.Theme.buttonPaint(C,kind,hover,clicked)
@@ -338,10 +381,10 @@ function OSP.installClient()
         return pages[key]
     end
     local function selectedPlayer()
-        if solo() then selected=me;return findPlayer(me) end
+        if solo() then selectPlayer(me);return findPlayer(me) end
         local list=roster()
-        if selected and not findPlayer(selected) then selected=nil;confirm=nil;OSP.NumberInput.cancel() end
-        if not selected and #list>0 then selected=findPlayer(me) and me or list[1].id end
+        validateSelection()
+        if not selected and #list>0 then selectPlayer(findPlayer(me) and me or list[1].id) end
         return findPlayer(selected)
     end
     local function actionForPlayer(p,verb,caption,value,kind)
@@ -364,7 +407,7 @@ function OSP.installClient()
                     local role=roleLabel(player)
                     local suffix="  ·  "..role
                     if button("player_"..player.id,0,102+(i-1)*48,listW,40,utf8clip(player.name,15)..suffix,
-                        player.id==p.id and "active" or "plain",false) then selected=player.id;confirm=nil end
+                        player.id==p.id and "active" or "plain",false) then selectPlayer(player.id) end
                 end
             end
             if #list>rows then page("players",#list,rows,0,102+rows*48) end
@@ -442,7 +485,7 @@ function OSP.installClient()
         y=y+43
         if not solo() and rolesAccess() and not p.host then
             if button("player_role_manage",ax,y,aw,37,T("manage_player_role"),"plain",p.profileReady==false) then
-                OSP.PermissionUI.focusPlayerRole(p.role or (p.admin and "admin" or "guest"));setTab("permissions")
+                OSP.PermissionUI.focusPlayerRole(p.role or (p.admin and "admin" or "guest"));setTab("permissions",true)
             end
             y=y+49
         end
@@ -564,7 +607,7 @@ function OSP.installClient()
             ask=ask,command=command,resetScroll=function() scroll=0 end,
             playerCaption=function() return p and utf8clip(p.name,24) or "?" end,
             playerIndex=playerIndex,playerCount=function() return #list end,
-            playerStep=function(d) local q=list[playerIndex()+d];if q then selected=q.id end end,
+            playerStep=function(d) local q=list[playerIndex()+d];if q then selectPlayer(q.id) end end,
         }
     end
     local function drawPermissions()
@@ -652,8 +695,8 @@ function OSP.installClient()
             local list=roster();local index=1
             for i,q in ipairs(list) do if p and q.id==p.id then index=i end end
             label(0,y+8,T("selected_player")..": "..(p and p.name or "—"),16,C.text,w-120)
-            if button("tool_player_prev",w-108,y,48,32,"<","plain",index<=1) then selected=list[index-1].id end
-            if button("tool_player_next",w-54,y,48,32,">","plain",index>=#list) then selected=list[index+1].id end
+            if button("tool_player_prev",w-108,y,48,32,"<","plain",index<=1) then selectPlayer(list[index-1].id) end
+            if button("tool_player_next",w-54,y,48,32,">","plain",index>=#list) then selectPlayer(list[index+1].id) end
             y=y+42
         end
         if button("tools_search",0,y,w-48,34,search.query~="" and search.query..(search.focused and "_" or "") or T("tools_search"),search.focused and "active" or "plain",false) then
@@ -793,6 +836,7 @@ function OSP.installClient()
             y=y+54
         end
         if section("view_mode","view_mode") then y=y+OSP.ViewMode.draw(api,0,y,w,true)+12 end
+        if section("behavior","panel_behavior") then y=y+navigation.drawBehavior(api,0,y,w,true)+12 end
         if section("navigation","navigation_title") then y=y+navigation.draw(api,0,y,w,true)+12 end
         if host() and section("effects_on_load","effects_on_load") then
             label(0,y+7,T("effects_on_load_toggle"),16,C.text,w)
@@ -1026,7 +1070,7 @@ function OSP.installClient()
             local x=math.max(260,W-490)
             if target and W-145-x>=90 then label(x,headerCenter-14/2,T("selected_short")..": "..target.name,14,C.muted,W-145-x) end
         end
-        if button("close",W-122,headerCenter-34/2,104,34,T("close"),"outlined",false) then closeDropdown();shortcuts.cancel();menu=false;closeTools();confirm=nil;typing=false;capturing=false;OSP.PermissionUI.closeExpanded();OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end
+        if button("close",W-122,headerCenter-34/2,104,34,T("close"),"outlined",false) then setMenu(false) end
         if not narrow then rect(0,header,side,H-header,C.side);rect(side,header,1,H-header,C.line) end
         for i,t in ipairs(tabs) do
             local x,y,w,h
@@ -1217,7 +1261,7 @@ function OSP.installClient()
             if shortcutRequest then shortcutMessage(shortcutRequest.action,T("request_unknown"),10);shortcutRequest=nil else setStatus(T("request_unknown"),10) end
             pending=nil;lastAction=nil
         end
-        if selected and not findPlayer(selected) then selected=nil;confirm=nil;OSP.NumberInput.cancel() end
+        validateSelection()
         if movementSettings then
             local target=findPlayer(movementSettings.player)
             if not target or target.profileChallenge~=movementSettings.challenge or selected~=target.id
@@ -1249,14 +1293,14 @@ function OSP.installClient()
             if shortcuts.message then setStatus(T(shortcuts.message)) end
         elseif typing then consumeText()
         else
-            if InputPressed(keybind()) then menu=not menu;confirm=nil;if not menu then closeDropdown();closeMovement();closeTools();OSP.PermissionUI.closeExpanded();OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end end
-            if menu and InputPressed("esc") then if confirm then confirm=nil else menu=false;closeMovement();closeTools();OSP.PermissionUI.closeExpanded();OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end end
+            if InputPressed(keybind()) then setMenu(not menu) end
+            if menu and InputPressed("esc") then if confirm then confirm=nil else setMenu(false) end end
         end
         if menu and bodyHovered and not confirm and not movementSettings and not toolsPopup and not dropdown and not permissionExpanded() and not OSP.NumberControl.dragging() then
             local delta=InputValue("mousewheel")
             if delta~=0 then scroll=math.max(0,math.min(maxScroll,scroll-delta*48)) end
         end
-        if PauseMenuButton(T("pause_button"),"bottom_bar",false) then menu=true;setTab(tab);confirm=nil end
+        if PauseMenuButton(T("pause_button"),"bottom_bar",false) then setMenu(true);confirm=nil end
         if not admin() and tab~="settings" and tab~="appearance" and tab~="about" then setTab("settings") end
         if not wasMenu and not menu and not shortcuts.capture and not typing and not capturing
             and not confirm and not movementSettings and not toolsPopup and not search.focused
@@ -1353,5 +1397,5 @@ function OSP.installClient()
         end
     end
     OSP.UI={getState=function() return {open=menu,tab=tab,selected=selected,confirm=confirm,movementPopup=OSP.copy(movementSettings),permissionExpanded=permissionExpanded(),permissionViewport=OSP.copy(permissionViewport),roleDropdown=dropdown and {id=dropdown.id,first=dropdown.first,bounds=OSP.copy(dropdown.bounds)} or nil,toolsPopup=OSP.copy(toolsPopup),searchQuery=search.query,searchFocused=search.focused,keyCapture=shortcuts.capture~=nil,shortcutNotice=shortcutNotice,typing=typing,language=lang(),menuKey=keybind(),requestPending=pending~=nil,pendingId=pending,status=status,layout=OSP.copy(layout),controls=OSP.copy(controls),tooltip=OSP.copy(tooltip),scroll=scroll,maxScroll=maxScroll,filter=filter,toolMode=toolMode,viewMode=viewMode} end,
-        open=function(v) shortcuts.cancel();capturing=false;resetTooltip();menu=v==true;if not menu then closeDropdown();closeMovement();closeTools();confirm=nil;typing=false;capturing=false;OSP.PermissionUI.closeExpanded();OSP.PermissionUI.cancelInput();OSP.NumberInput.cancel() end end,selectTab=setTab}
+        open=function(v) setMenu(v==true) end,selectTab=setTab}
 end

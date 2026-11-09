@@ -67,6 +67,14 @@ Modo local do painel: `auto` (padrão), `single` ou `multi`, salvo em `savegame.
 
 Verificação: testes de detecção e preferência, navegação contextual, UI simulada EN/PT em três tamanhos, troca de modo com pedido pendente, proteção de convidados e Options sem mapa. Detecção e aparência dentro do Teardown ainda dependem de conferência no motor.
 
+### Preferências de seleção e abertura — 1.5.0
+
+`Navigation` guarda `navigation.selection_mode` (keep/close/leave, padrão keep), `navigation.opening_mode` (last/players, padrão last) e `navigation.last_tab` no namespace local da Beta. Configurações → Comportamento do painel é recolhível e pessoal; Options → Interface compartilha os controles em viewport rolável com Voltar fixo. Restaurar preferências pessoais limpa o histórico de aba e restaura keep/last; Mostrar todas as abas continua restrito à visibilidade.
+
+A seleção é compartilhada por Jogadores, Ferramentas e Permissões, sem persistir IDs ou perfis de jogadores. keep mantém o alvo no mapa; close retorna ao próprio jogador ao fechar; leave retorna também na troca de aba. Popups internos não contam como fechamento. Gerenciar Role preserva o alvo explícito. As transições de painel passam pelo mesmo caminho para Fechar, atalho, pausa e API local. A aba inicial passa pelo filtro existente de visibilidade, acesso e modo de sessão.
+
+Seleção inclui marcador de entrada e namespace do host: saída/reutilização do ID encerra o contexto local e volta a si, consumindo entrada obsoleta. Fechar ou mudar aba/alvo cancela edições numéricas e confirmações não enviadas. Pedidos enviados mantêm contexto e ACK; rascunhos de Role são preservados. Nenhum RPC ou permissão de servidor foi acrescentado. Os testes exercitam os três modos nas três áreas, fechamento por diferentes entradas, persistência, fallback, edição, rascunhos, pending/ACK e controles EN/PT em três tamanhos. Aparência e entrada nativas continuam para conferência no jogo.
+
 ### Seções recolhíveis em Settings
 
 Idioma, Atalho, Modo do painel e Abas têm cabeçalhos recolhíveis em Settings durante a partida. Paleta mantém o mesmo mecanismo na nova aba Aparência. O estado local fica em `savegame.mod.osp_beta.settings.collapsed.<id>`; `0` significa expandido; ausência ou valor inválido significa recolhido. Os cabeçalhos usam ícones PNG próprios de seta à direita, sem caracteres no título, e uma descrição breve visível também quando recolhidos. Recolher remove os controles do desenho e da entrada, reorganiza os blocos seguintes e atualiza os limites da rolagem. Captura de atalho e edição numérica não confirmada são canceladas; recolher Paleta também encerra arraste. Alterações já aplicadas permanecem. A restauração pessoal nas Options recolhe todos os blocos, sem alterar regras ou perfis. As subpáginas das Options mantêm seus títulos e organização.

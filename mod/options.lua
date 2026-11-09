@@ -17,6 +17,7 @@ local appearance = false
 local appearanceScroll,appearanceHeight=0,0
 local appearanceHit=nil
 local navigation = false
+local navigationScroll,navigationHeight,navigationHit=0,0,nil
 local personalShortcuts = false
 local shortcuts = OSP.Shortcuts
 local colors = OSP.Theme.colors()
@@ -51,7 +52,7 @@ local function button(x, y, width, caption, selected, modal, recovery, clipCapti
     UiPush()
     UiTranslate(x, y)
     local mx, my = UiGetMousePos()
-    local enabled = not disabled and appearanceHit~=false and (not confirming or modal)
+    local enabled = not disabled and appearanceHit~=false and navigationHit~=false and (not confirming or modal)
     local hovered = enabled and mx >= 0 and my >= 0 and mx < width and my < height
     local clicked = hovered and pressed and not consumed
     if clicked then
@@ -104,11 +105,26 @@ function draw()
         OSP.NumberControl.endFrame(consumed);UiPop();return
     end
     if navigation then
-        local y=90+OSP.ViewMode.draw({label=label,button=function(id,x,y,w,h,value,kind) return button(x,y,w,value,kind=="active") end},28,90,744)
-        OSP.Navigation.draw({
-            label=label,
-            button=function(id,x,y,width,height,value,kind) return button(x,y,width,value,kind=="active") end,
-        },28,y,744)
+        local mx,my=UiGetMousePos()
+        navigationHit=mx>=28 and mx<772 and my>=90 and my<640 and not confirming
+        local wheel=InputValue("mousewheel")
+        if navigationHit and wheel~=0 then
+            navigationScroll=math.max(0,math.min(math.max(0,navigationHeight-550),navigationScroll-wheel*40))
+        end
+        local api={label=label,button=function(id,x,y,w,h,value,kind)
+            return button(x,y,w,value,kind=="active",false,false,false,false,h)
+        end}
+        UiPush();UiTranslate(28,90);UiWindow(744,550,true,true);UiTranslate(0,-navigationScroll)
+        local y=OSP.ViewMode.draw(api,0,0,744)+12
+        y=y+OSP.Navigation.drawBehavior(api,0,y,744)+12
+        navigationHeight=y+OSP.Navigation.draw(api,0,y,744)
+        UiPop();navigationHit=nil
+        navigationScroll=math.max(0,math.min(math.max(0,navigationHeight-550),navigationScroll))
+        if navigationHeight>550 then
+            UiPush();UiTranslate(778,90);UiColor(unpack(colors.line));UiRect(3,550)
+            local h=550*550/navigationHeight
+            UiTranslate(0,(550-h)*navigationScroll/(navigationHeight-550));UiColor(unpack(colors.muted));UiRect(3,h);UiPop()
+        end
         if button(28,658,220,text("back")) then navigation=false end
         OSP.NumberControl.endFrame(consumed);UiPop();return
     end
@@ -180,6 +196,7 @@ function draw()
         capturing = false
         OSP.Theme.resetAppearance()
         OSP.Navigation.reset()
+        OSP.Navigation.resetBehavior()
         OSP.ViewMode.set("auto")
         OSP.SettingsSections.reset()
         shortcuts.reset()
@@ -194,7 +211,7 @@ function draw()
     label(28, 428, text("reset_saved_host_help"), 17, 744)
     if message then label(28, 508, message, 17, 744) end
     if button(408, 568, 364, text("personal_shortcuts")) then personalShortcuts=true;capturing=false;shortcuts.cancel();OSP.NumberInput.cancel() end
-    if button(28, 568, 368, text("interface_settings")) then shortcuts.cancel();navigation=true;capturing=false;OSP.NumberInput.cancel() end
+    if button(28, 568, 368, text("interface_settings")) then shortcuts.cancel();navigation=true;navigationScroll=0;capturing=false;OSP.NumberInput.cancel() end
     if button(28, 658, 170, text("back")) then shortcuts.cancel();Menu() end
     if button(210,658,350,text("appearance")) then shortcuts.cancel();appearance=true;appearanceScroll=0;capturing=false end
     label(610, 668, text("version", OSP.version), 16)

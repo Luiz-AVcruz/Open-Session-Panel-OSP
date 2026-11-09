@@ -16,6 +16,8 @@ Open with **P** or the pause menu. In **Settings → Panel tabs**, hide tabs you
 
 Settings sections can be collapsed by clicking their headers. All start collapsed, with graphical disclosure arrows; your choices persist locally. **Reset personal preferences** in Mod Manager Options collapses them again.
 
+**Settings → Panel behavior** controls the selected player and opening tab. **Keep selection** is the default; alternatives return to yourself when closing the panel, or when leaving a tab and closing. Players, per-player Tools and Permissions share the selection. Inner popups do not reset it, and **Manage role** keeps its explicit target. The selection stays within the current map; new maps start on yourself. **Last used tab** is the default opening choice and persists between maps and restarts; **Always Players** is optional. Hidden or inaccessible tabs use the normal fallback. These personal controls are also in **Options → Interface**, which scrolls above a fixed Back button. Personal recovery resets both choices; **Show all tabs** only changes visibility.
+
 Only the host can directly change the host. Host player-option changes are saved; players can also save an explicit disable of their own effects. Role management, map restart, explicit player reset and global tool policies can be delegated through the Admin category. A delegate may use the host as a teleport destination but cannot move or change the host. Bulk actions skip the host when issued by a delegate.
 
 In **Players**, **Go to** and **Bring here** require selecting another player; both controls are disabled for your own selection. Delegates can still go to the host, and **Bring all** continues to skip its caller.
@@ -24,7 +26,7 @@ In **Players**, **Go to** and **Bring here** require selecting another player; b
 
 Buttons use their full visible rectangle and react on press. Holding or releasing does not repeat an action. Gameplay commands show immediate pending feedback and still wait for the server's acknowledgement.
 
-Numeric fields combine a slider and editable number. Click the number to position the cursor and select/edit text, or drag the bar to adjust. Enter or clicking outside applies valid text; Escape cancels. Slider changes apply when you release the mouse. Values stay within each setting's range. Ctrl+A selects all; clipboard shortcuts are unavailable. The same controls are available in Mod Manager Options.
+Numeric fields combine a slider and editable number. Click the number to position the cursor and select/edit text, or drag the bar to adjust. Enter or clicking outside applies valid text; Escape cancels. Slider changes apply when you release the mouse. Values stay within each setting's range. Ctrl+A selects all; clipboard shortcuts are unavailable. The same controls are available in Mod Manager Options. Closing the panel, changing tabs or selecting another player cancels an unfinished numeric edit.
 
 ## Super strength
 
@@ -136,6 +138,8 @@ Painel de administração por **Luiz-AVcruz**, com inglês padrão e opção de 
 A aba **Aparência** reúne cores e opacidade do fundo (65–100%). O preset Grafite é opcional; Clássico e 98% de opacidade continuam como padrão. As mesmas opções ficam nas Options do gerenciador, sem mapa.
 
 Os blocos de Configurações podem ser recolhidos pelo cabeçalho. Todos começam recolhidos, com ícones gráficos de seta, e suas escolhas ficam salvas localmente. A restauração de preferências pessoais nas Options do gerenciador recolhe todos os blocos.
+
+Em **Configurações → Comportamento do painel**, escolha manter o jogador selecionado (padrão), voltar para si ao fechar ou voltar ao trocar de aba e fechar. A seleção é compartilhada por Jogadores, Ferramentas por jogador e Permissões e dura somente durante o mapa. A aba ao abrir pode ser a última usada (padrão) ou sempre Jogadores, respeitando visibilidade e acesso. As escolhas e a última aba persistem localmente. Os mesmos controles estão em **Options → Interface**, com rolagem e Voltar fixo. Restaurar preferências pessoais recupera esses padrões; Mostrar todas as abas continua afetando somente a visibilidade.
 
 Os campos numéricos combinam slider e número editável. Clique no número para posicionar o cursor, selecionar e editar trechos, ou arraste a barra para ajustar. Enter ou clique fora aplica o texto válido; Esc cancela. O slider aplica ao soltar o mouse, respeitando a faixa de cada opção. Ctrl+A seleciona tudo; os atalhos de clipboard não estão disponíveis. O mesmo controle aparece nas Options do gerenciador.
 

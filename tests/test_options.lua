@@ -42,6 +42,7 @@ local function world(width, height)
     end
     for _,name in ipairs({'UiColor','UiRect','UiAlign','UiFont','UiText','UiWordWrap','UiTextDisableWildcards'}) do env[name]=function() end end
     env.UiFont=function(_,size) w.font=size end
+    env.UiText=function(value) w.labels[#w.labels+1]={text=value,x=w.x,y=w.y} end
     env.UiGetTextSize=function(text) return #text*w.font*.55,w.font end
     env.GetTime=function() return w.now end
     env.InputPressed=function(k) return (k=='lmb' and w.pressed) or (w.physical and w.physical[k]) or false end
@@ -54,10 +55,23 @@ local function world(width, height)
     env.GetLocalPlayer=function() error('Options must not need a loaded map') end
     env.ServerCall=function() error('Options must not call the server') end
     local chunk=assert(loadfile(arg[1]));setfenv(chunk,env);chunk()
-    function w.draw() w.now=w.now+.02;env.draw();check(#w.stack==0,'UI stack') end
+    function w.draw() w.labels={};w.now=w.now+.02;env.draw();check(#w.stack==0,'UI stack') end
     function w.click(x,y)
         local s=math.min(1,width/840,height/760)
         w.mouse={(width-800*s)/2+x*s,(height-720*s)/2+y*s};w.pressed=true;w.draw();w.pressed=false;w.draw()
+    end
+    function w.clickText(value)
+        local scale=math.min(1,width/840,height/760)
+        local ox,oy=(width-800*scale)/2,(height-720*scale)/2
+        for _=1,30 do
+            w.draw();local found
+            for _,label in ipairs(w.labels) do if label.text==value then found=label;break end end
+            assert(found,'label not found: '..value)
+            local x,y=(found.x-ox)/scale,(found.y-oy)/scale
+            if y>=99 and y<=613 then w.click(x+3,y+3);return end
+            w.mouse={ox+400*scale,oy+300*scale};w.wheel=y<99 and 2 or -2;w.draw();w.wheel=0
+        end
+        error('label not reachable: '..value)
     end
     function w.type(k) w.key=k;w.draw();w.key='' end
     function w.selectAll() w.mods={ctrl=true};w.type('a');w.mods=nil end
@@ -165,15 +179,45 @@ for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
  for _,language in ipairs({'en','pt'}) do
     local w,r,env=world(unpack(size));w.registry[r..'language']=language
     w.registry[r..'identity.host']='keep';w.registry[r..'tools.abc']=2
-    w.click(30,570);w.click(30,210)
+    w.click(30,570);w.clickText(env.OSP.L('players')..' · '..env.OSP.L('navigation_shown'))
     check(w.registry[r..'navigation.hidden.players']=='1','Options hides tab without map')
     check(not env.OSP.Navigation.visible('players'),'Options uses shared preference contract')
     local other,_,otherEnv=world(unpack(size));other.registry=w.registry
     check(not otherEnv.OSP.Navigation.visible('players'),'new Options context keeps visibility')
-    w.click(30,416);check(env.OSP.Navigation.visible('players'),'show all from Options')
-    w.click(30,210);w.click(30,660);w.click(30,315)
+    env.OSP.Navigation.setSelectionMode('leave');env.OSP.Navigation.setOpeningMode('players');env.OSP.Navigation.rememberTab('tools')
+    w.clickText(env.OSP.L('navigation_restore'));check(env.OSP.Navigation.visible('players'),'show all from Options')
+    check(env.OSP.Navigation.selectionMode()=='leave' and env.OSP.Navigation.lastTab()=='tools','show all keeps behavior preferences')
+    w.clickText(env.OSP.L('players')..' · '..env.OSP.L('navigation_shown'));w.click(30,660);w.click(30,315)
     check(env.OSP.Navigation.visible('players'),'personal reset includes navigation')
+    check(env.OSP.Navigation.selectionMode()=='keep' and env.OSP.Navigation.openingMode()=='last' and env.OSP.Navigation.lastTab()=='players','personal reset includes behavior')
     check(w.registry[r..'identity.host']=='keep' and w.registry[r..'tools.abc']==2,'navigation reset preserves host data')
+ end
+end
+-- A hidden scrolled control cannot consume the fixed Back button's click.
+do
+ local w,r,e=world(840,760);w.click(30,570)
+ local before=e.OSP.Navigation.selectionMode();w.click(30,690)
+ check(not w.back,'fixed Back leaves Interface before leaving Options')
+ check(e.OSP.Navigation.selectionMode()==before,'fixed Back does not activate clipped preferences')
+ w.click(30,690);check(w.back,'fixed Back is reachable without scrolling')
+end
+-- Shared behavior controls work without a map and stay inside the viewport.
+for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
+ for _,language in ipairs({'en','pt'}) do
+    local w,r,e=world(unpack(size));w.registry[r..'language']=language
+    w.click(30,570)
+    for _,mode in ipairs({'keep','close','leave'}) do
+        w.clickText(e.OSP.L('behavior_selection_'..mode))
+        check(e.OSP.Navigation.selectionMode()==mode,'Options selection mode uses shared settings')
+    end
+    w.clickText(e.OSP.L('behavior_opening_players'));check(e.OSP.Navigation.openingMode()=='players','Options fixed opening tab')
+    w.clickText(e.OSP.L('behavior_opening_last'));check(e.OSP.Navigation.openingMode()=='last','Options last opening tab')
+    local before=e.OSP.Navigation.selectionMode()
+    w.mouse={0,0};w.wheel=-100;w.draw();w.wheel=0
+    w.click(30,70);check(e.OSP.Navigation.selectionMode()==before,'off-viewport clicks cannot change behavior')
+    w.clickText(e.OSP.L('navigation_restore'))
+    w.click(30,660);check(not w.back,'Interface Back returns to Options')
+    w.click(30,660);check(w.back,'main Back remains accessible after scrolling')
  end
 end
 -- The real Options entry shares binding/capture/conflict rules without a map.

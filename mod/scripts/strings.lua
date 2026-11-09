@@ -8,6 +8,11 @@ OSP.languages = {
 	en = {
         appearance="Appearance",appearance_colors="Colors",appearance_subtitle="Personal colors and menu styling.",palette_graphite="Graphite",background="Background",settings_help_background="Adjust the main background opacity.",appearance_opacity="Background opacity (%)",appearance_restore="Restore default appearance",
         settings_help_language="Choose the panel language.",settings_help_shortcut="Key used to open and close the panel.",settings_help_view_mode="Choose the solo or multiplayer layout.",settings_help_navigation="Choose which tabs appear in the panel.",settings_help_palette="Choose a theme or customize the colors.",
+        panel_behavior="Panel behavior",settings_help_behavior="Player selection and the tab shown when opening.",
+        behavior_selection="Return to yourself",behavior_selection_keep="Keep selection",behavior_selection_close="When closing",behavior_selection_leave="When leaving a tab",
+        behavior_selection_help="Leaving a tab also includes closing the panel.",
+        behavior_opening="When opening the panel",behavior_opening_last="Last used tab",behavior_opening_players="Always Players",
+        behavior_opening_help="The last tab is remembered between maps and restarts.",
         view_mode="Panel mode",view_auto="Automatic",view_single="Singleplayer",view_multi="Multiplayer",interface_settings="Interface",player_solo="Player",player_solo_title="Your player",tools_solo_description="Tool availability",
         ammo="Infinite ammo",ammo_settings_title="Infinite ammo settings",ammo_restore="Restore ammo when disabling",
         ammo_restore_help="Restores the original amount, with a minimum of 1 for an empty tool.",
@@ -233,6 +238,11 @@ OSP.languages = {
 	pt = {
         appearance="Aparência",appearance_colors="Cores",appearance_subtitle="Cores e acabamento pessoal do menu.",palette_graphite="Grafite",background="Fundo",settings_help_background="Ajuste a opacidade do fundo principal.",appearance_opacity="Opacidade do fundo (%)",appearance_restore="Restaurar aparência padrão",
         settings_help_language="Escolha o idioma do painel.",settings_help_shortcut="Tecla para abrir e fechar o painel.",settings_help_view_mode="Escolha o layout para solo ou multiplayer.",settings_help_navigation="Escolha quais abas aparecem no painel.",settings_help_palette="Escolha um tema ou personalize as cores.",
+        panel_behavior="Comportamento do painel",settings_help_behavior="Seleção de jogador e aba ao abrir o painel.",
+        behavior_selection="Voltar para si",behavior_selection_keep="Manter seleção",behavior_selection_close="Ao fechar",behavior_selection_leave="Ao sair da aba",
+        behavior_selection_help="Sair da aba também inclui fechar o painel.",
+        behavior_opening="Ao abrir o painel",behavior_opening_last="Última aba usada",behavior_opening_players="Sempre Jogadores",
+        behavior_opening_help="A última aba é lembrada entre mapas e reinícios.",
         view_mode="Modo do painel",view_auto="Automático",view_single="Singleplayer",view_multi="Multiplayer",interface_settings="Interface",player_solo="Jogador",player_solo_title="Seu jogador",tools_solo_description="Disponibilidade das ferramentas",
         ammo="Munição infinita",ammo_settings_title="Configurações de munição infinita",ammo_restore="Restaurar munição ao desligar",
         ammo_restore_help="Restaura a quantidade original, com mínimo de 1 para uma ferramenta vazia.",
