@@ -979,7 +979,7 @@ function OSP.installClient()
             local key=ROOT.."compatibility.seen."..tool.id:gsub(".",function(c) return string.format("%02x",c:byte()) end)
             if conflict and GetString(key)~="1" then
                 SetString(key,"1")
-                confirm={info=true,target=0,message=toolName(tool).."\n\n"..T("compatibility_notice")}
+                confirm={info=true,target=0,toolName=toolName(tool),message=T("compatibility_notice")}
                 typing=false;capturing=false;OSP.NumberInput.cancel();OSP.PermissionUI.cancelInput();InputClear()
                 return
             end
@@ -1228,12 +1228,12 @@ function OSP.installClient()
         local w=layout.contentW;title(T("about_title"),T("about_subtitle"))
         local entries={{T("version",OSP.version),C.accent},{"Luiz-AVcruz",C.text},{T("about_summary"),C.text},
             {T("license"),C.text},{T("license_permission"),C.muted},{T("source_included"),C.text},
-            {T("source_location"),C.muted},{T("source_offer"),C.muted},{T("limits"),C.muted},
-            {T("compatibility_title"),C.accent},{T("compatibility_known"),C.muted},
-            {"AC130 Airstrike",C.text},{T("compatibility_airstrike"),C.muted}}
+            {T("source_location"),C.muted},{T("source_offer"),C.muted},{T("limits"),C.muted}}
+        local hasConflicts=false
         for _,tool in ipairs(state() and state().tools or {}) do
             local n=toolConflictCount(tool.id)
             if n>0 then
+                if not hasConflicts then entries[#entries+1]={T("compatibility_title"),C.accent};hasConflicts=true end
                 entries[#entries+1]={T("compatibility_detected",toolName(tool),n),C.text}
                 entries[#entries+1]={T("compatibility_detected_help"),C.muted}
             end
@@ -1423,17 +1423,30 @@ function OSP.installClient()
     end
     local function drawModal()
         if not confirm then return end
-        local w=math.min(layout.w-32,540);local h=math.min(layout.h-32,confirm.info and 310 or 232);local x=(layout.w-w)/2;local y=(layout.h-h)/2
+        if confirm.info then
+            local w=math.min(layout.w-32,480);local lines={};local line=""
+            UiPush();UiFont("regular.ttf",16)
+            for word in confirm.message:gmatch("%S+") do
+                local nextLine=line=="" and word or line.." "..word
+                if line~="" and UiGetTextSize(nextLine)>w-40 then lines[#lines+1]=line;line=word else line=nextLine end
+            end
+            if line~="" then lines[#lines+1]=line end
+            UiPop()
+            local h=154+#lines*22;local x,y=(layout.w-w)/2,(layout.h-h)/2
+            rect(0,0,layout.w,layout.h,{0,0,0,.65});rect(x,y,w,h,C.side);rect(x,y,w,3,C.accent)
+            label(x+20,y+18,T("compatibility_notice_title"),20,C.text,w-40,true)
+            label(x+20,y+52,confirm.toolName,18,C.accent,w-40,true)
+            for i,value in ipairs(lines) do label(x+20,y+82+(i-1)*22,value,16,C.text,w-40) end
+            if button("compatibility_notice_close",x+w-148,y+h-54,128,36,T("understood"),"outlined",not confirm.ready,true) then confirm=nil;return end
+            confirm.ready=true;return
+        end
+        local w=math.min(layout.w-32,540);local h=math.min(layout.h-32,232);local x=(layout.w-w)/2;local y=(layout.h-h)/2
         rect(0,0,layout.w,layout.h,{0,0,0,.65});rect(x,y,w,h,C.side);rect(x,y,w,3,C.accent)
-        label(x+20,y+18,T(confirm.info and "compatibility_title" or "confirmation"),20,C.text,w-40,true)
+        label(x+20,y+18,T("confirmation"),20,C.text,w-40,true)
         UiPush();UiTranslate(x+20,y+55);UiAlign("left top");UiFont("regular.ttf",17)
         UiTextDisableWildcards(true);UiWordWrap(w-40);UiWindow(w-40,h-124,true,true)
         rgb(C.text);UiText(confirm.message);UiPop()
         local awaitingFrame=not confirm.ready
-        if confirm.info then
-            if button("compatibility_notice_close",x+(w-140)/2,y+h-53,140,38,T("understood"),"plain",awaitingFrame,true) then confirm=nil;return end
-            confirm.ready=true;return
-        end
         if button("confirm_cancel",x+w-246,y+h-53,102,38,T("cancel"),"plain",awaitingFrame,true) then confirm=nil;return end
         if button("confirm_accept",x+w-136,y+h-53,116,38,T("confirm"),"danger",awaitingFrame,true) then
             local current=confirm;confirm=nil;command(current.action,current.target,current.arg,current.targetContext,true)

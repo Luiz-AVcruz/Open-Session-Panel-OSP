@@ -178,8 +178,13 @@ for _,language in ipairs({'en','pt'}) do
     check(not w:draw().confirm,'acknowledgement closes notice')
     w:clickControl('tab_about');w:draw()
     local found=false
-    for _,text in ipairs(w.texts) do if text==e.OSP.L('compatibility_airstrike') then found=true end end
-    check(found,'About attributes the examined conflict to Airstrike behavior')
+    for _,text in ipairs(w.texts) do if text==e.OSP.L('compatibility_detected_help') then found=true end end
+    check(found,'About explains only the detected inventory conflict')
+    for _,text in ipairs(w.texts) do check(text~='AC130 Airstrike','no static mod compatibility list') end
+    e.shared.osp.players[1].toolConflicts={};w:draw()
+    for _,text in ipairs(w.texts) do
+        check(text~=e.OSP.L('compatibility_title'),'no compatibility section without a detected conflict')
+    end
     local again=ui(1024,768,reg)
     again.api.shared.osp.players[1].toolConflicts={gun=true}
     again:tick('p');again:draw();again:clickControl('tab_tools')

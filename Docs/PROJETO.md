@@ -72,7 +72,7 @@ Pendências já levantadas:
 
 ## Bundle 1.5.1 em desenvolvimento
 
-A primeira exibição de um conflito detectado em Ferramentas abre um aviso informativo, sem enviar comandos de jogo nem interromper uma solicitação pendente. O registro local por ID codificado fica em `savegame.mod.osp_beta.compatibility.seen.<id>` e evita repetição entre mapas/reinícios. Sobre lista o caso examinado do AC130 Airstrike, a origem da disputa e o alcance da alternativa do OSP; também apresenta ferramentas em conflito na sessão sem atribuir um responsável não identificado. A lista conhecida não indica instalação nem incompatibilidade total do outro mod.
+A primeira exibição de um conflito detectado em Ferramentas abre um aviso informativo, sem enviar comandos de jogo nem interromper uma solicitação pendente. O registro local por ID codificado fica em `savegame.mod.osp_beta.compatibility.seen.<id>` e evita repetição entre mapas/reinícios. Sobre mostra apenas ferramentas em conflito na sessão, com uma descrição curta: outro script reativa o item, que continua no inventário mesmo quando o OSP bloqueia sua seleção. A lista geral de incompatibilidades fica para a descrição da Steam; não aparece no jogo. O aviso usa um cartão compacto com altura conforme o texto, nome da ferramenta separado e botão Entendi com contorno. O texto explica que o item permanece visível por ser reativado por outro mod e que o bloqueio de uso continua disponível.
 
 As mudanças da **1.5.1** são desenvolvidas, instaladas e avaliadas primeiro na branch e no mod **Beta**. A `main` recebeu a versão estável **1.5.1** por solicitação do autor. Novas alterações continuam na Beta; promover para a principal exige orientação explícita do autor.
 
