@@ -95,7 +95,7 @@ local function world(options)
         return result
     end
     env.GetString=function(k) return registry[k] or '' end
-    env.SetString=function(k,v) assert(k:sub(1,22)=="savegame.mod.osp_beta.");registry[k]=v end
+    env.SetString=function(k,v) assert(k:sub(1,#"savegame.mod.osp.")=="savegame.mod.osp.");registry[k]=v end
     local randomValue=100
     env.GetRandomInt=function() randomValue=randomValue+1;return randomValue end
     env.HasKey=function(k)
@@ -108,10 +108,10 @@ local function world(options)
         return false
     end
     env.GetInt=function(k) return registry[k] or 0 end
-    env.SetInt=function(k,v) assert(k:sub(1,22)=="savegame.mod.osp_beta.","writes must stay in mod namespace");registry[k]=v end
+    env.SetInt=function(k,v) assert(k:sub(1,#"savegame.mod.osp.")=="savegame.mod.osp.","writes must stay in mod namespace");registry[k]=v end
     env.GetFloat=function(k) return registry[k] or 0 end
     env.GetBool=function(k) return registry[k] or false end
-    env.SetFloat=function(k,v) assert(k:sub(1,22)=="savegame.mod.osp_beta.","writes must stay in mod namespace");registry[k]=v end
+    env.SetFloat=function(k,v) assert(k:sub(1,#"savegame.mod.osp.")=="savegame.mod.osp.","writes must stay in mod namespace");registry[k]=v end
     env.SetBool=env.SetFloat
     env.ClearKey=function(k)
         for key in pairs(registry) do if key==k or key:sub(1,#k+1)==k..'.' then registry[key]=nil end end
@@ -220,7 +220,7 @@ end
 do
     registry={}
     local t=world();local stale=t.context(23);local identity=t.identities[23]
-    local root='savegame.mod.osp_beta.players.'..identity..'.'
+    local root='savegame.mod.osp.players.'..identity..'.'
     local before=#t.api.shared.osp.log
     t.removed={23};t.now=t.now+1;t.api.server.tick();t.removed={}
     local current=t.context(23);check(current.targetJoin~=stale.targetJoin,'reentry receives a new join marker')
@@ -348,7 +348,7 @@ w.command(11,'rule',0,{key='rain',value=.8});w.command(11,'rule',0,{key='fog',va
 w.command(11,'rule',0,{key='time',value=.4});w.command(11,'rule',0,{key='regen',value=false});w.tick();eq(w.time,.4);eq(w.players[47].params.healthRegeneration,false)
 local w2=world();eq(w2.env.rain,.8);eq(w2.api.shared.osp.rules.regen,false);eq(w2.api.shared.osp.players[2].admin,false)
 w2.command(11,'reset_rules',0);eq(w2.env.rain,.15);eq(w2.env.fogparams[1],80);eq(w2.env.fogparams[2],300);eq(w2.players[23].params.healthRegeneration,true)
-eq(w2.api.HasKey('savegame.mod.osp_beta.rules'),false,'reset rules preserves unrelated saved profiles')
+eq(w2.api.HasKey('savegame.mod.osp.rules'),false,'reset rules preserves unrelated saved profiles')
 w2.tick();eq(w2.time,1)
 -- Dead teleport destinations cannot report a successful move.
 w2.players[23].health=0
@@ -586,12 +586,12 @@ assign(47,custom.id)
 access.players[47]=nil;access.removed={47};access.tick()
 eq(access.command(11,'role_delete',0,{id=custom.id,version=custom.version}),true)
 denied(23,'heal',23)
-eq(registry['savegame.mod.osp_beta.players.'..ids[47]..'.role'],'guest','deletion revokes offline assignments')
+eq(registry['savegame.mod.osp.players.'..ids[47]..'.role'],'guest','deletion revokes offline assignments')
 local afterDelete=world({identities=ids})
 eq(afterDelete.api.shared.osp.players[2].admin,false)
 eq(afterDelete.api.shared.osp.players[3].admin,false)
-registry['savegame.mod.osp_beta.players.'..ids[23]..'.role']='deleted_or_corrupt'
-registry['savegame.mod.osp_beta.players.'..ids[23]..'.admin']=true
+registry['savegame.mod.osp.players.'..ids[23]..'.role']='deleted_or_corrupt'
+registry['savegame.mod.osp.players.'..ids[23]..'.admin']=true
 local corrupt=world({identities=ids})
 eq(corrupt.api.shared.osp.players[2].admin,false,'unknown explicit role never resurrects legacy admin')
 local replacement=saveRole('','New role',0,{heal=2})
@@ -738,7 +738,7 @@ local flyingMap=world({identities=flight.identities});flyingMap.players[23].vehi
 eq(flyingMap.api.shared.osp.players[2].fly,true,'flight ability persists between maps')
 eq(flyingMap.api.shared.osp.players[2].flying,false,'active flight is not saved')
 eq(flyingMap.players[23].params.flyMode,false)
-local flightRoot='savegame.mod.osp_beta.players.'..flight.identities[23]..'.'
+local flightRoot='savegame.mod.osp.players.'..flight.identities[23]..'.'
 eq(registry[flightRoot..'fly'],false,'older builds cannot turn the new ability into noclip')
 registry[flightRoot..'noclip']=nil;registry[flightRoot..'flight']=nil;registry[flightRoot..'fly']=true
 local oldFlight=world({identities=flight.identities});oldFlight.tick()
@@ -747,17 +747,17 @@ eq(oldFlight.api.shared.osp.players[2].fly,false)
 -- Existing custom-role Fly grants retain their old meaning, independently of
 -- the new capability. Storage remains safe when returning to an older build.
 registry={}
-registry['savegame.mod.osp_beta.templates.c7.name']='Legacy flyer'
-registry['savegame.mod.osp_beta.templates.c7.version']=1
-registry['savegame.mod.osp_beta.templates.c7.permissions.fly']=2
-registry['savegame.mod.osp_beta.templates_next']=7
+registry['savegame.mod.osp.templates.c7.name']='Legacy flyer'
+registry['savegame.mod.osp.templates.c7.version']=1
+registry['savegame.mod.osp.templates.c7.permissions.fly']=2
+registry['savegame.mod.osp.templates_next']=7
 local legacy=world()
 eq(legacy.command(11,'role_assign',23,{id='c7'}),true)
 eq(legacy.command(23,'noclip',47,true),true)
 ok,code=legacy.command(23,'fly',47,true);eq(ok,false);eq(code,'denied')
 eq(legacy.command(11,'role_save',0,{id='c7',name='New flyer',version=1,permissions={fly=1,noclip=0}}),true)
-eq(registry['savegame.mod.osp_beta.templates.c7.permissions.fly'],0,'legacy grant mirrors only noclip')
-eq(registry['savegame.mod.osp_beta.templates.c7.permissions.flight'],1)
+eq(registry['savegame.mod.osp.templates.c7.permissions.fly'],0,'legacy grant mirrors only noclip')
+eq(registry['savegame.mod.osp.templates.c7.permissions.flight'],1)
 local modern=world({identities=legacy.identities})
 eq(modern.command(23,'fly',23,true),true)
 ok,code=modern.command(23,'fly',47,true);eq(ok,false);eq(code,'denied')
@@ -779,8 +779,8 @@ for _,bad in ipairs({0,101,0/0,math.huge,'9'}) do
 end
 tunedMap.command(11,'reset_player',47)
 eq(tunedMap.api.shared.osp.players[3].flySpeed,9);eq(tunedMap.api.shared.osp.players[3].flyBoost,18)
-registry['savegame.mod.osp_beta.players.'..tuningId..'.flight_speed']=-100
-registry['savegame.mod.osp_beta.players.'..tuningId..'.flight_boost']=math.huge
+registry['savegame.mod.osp.players.'..tuningId..'.flight_speed']=-100
+registry['savegame.mod.osp.players.'..tuningId..'.flight_boost']=math.huge
 local invalidTuning=world({identities={[47]=tuningId}})
 eq(invalidTuning.api.shared.osp.players[3].flySpeed,9,'invalid saved tuning falls back')
 eq(invalidTuning.api.shared.osp.players[3].flyBoost,18)
@@ -838,8 +838,8 @@ end
 migrated.command(11,'reset_player',47)
 state=migrated.api.shared.osp.players[3]
 eq(state.flySpeed,9);eq(state.flyBoost,18);eq(state.noclipSpeed,9);eq(state.noclipBoost,18)
-registry['savegame.mod.osp_beta.players.'..modeId..'.noclip_speed']=-4
-registry['savegame.mod.osp_beta.players.'..modeId..'.noclip_boost']=math.huge
+registry['savegame.mod.osp.players.'..modeId..'.noclip_speed']=-4
+registry['savegame.mod.osp.players.'..modeId..'.noclip_boost']=math.huge
 local corruptModes=world({identities={[47]=modeId}})
 eq(corruptModes.api.shared.osp.players[3].noclipSpeed,9);eq(corruptModes.api.shared.osp.players[3].noclipBoost,18)
 -- Selection commands accept an exact cross-page subset and preserve unrelated
@@ -939,7 +939,7 @@ local profile23=selectionPolicy.identities[23]
 local profile47=selectionPolicy.identities[47]
 local encodedTool01=('tool01'):gsub('.',function(c) return string.format('%02x',c:byte()) end)
 local encodedTool02=('tool02'):gsub('.',function(c) return string.format('%02x',c:byte()) end)
-local profileRoot='savegame.mod.osp_beta.players.'
+local profileRoot='savegame.mod.osp.players.'
 eq(registry[profileRoot..profile23..'.tools.'..encodedTool01],2)
 eq(registry[profileRoot..profile47..'.tools.'..encodedTool02],2)
 selectionPolicy.players[47]=nil;selectionPolicy.removed={47};selectionPolicy.tick()
@@ -1003,7 +1003,7 @@ local strong=world();local ids=strong.identities;local se=strong.api
 local function strongState(who,wld)
     for _,p in ipairs((wld or strong).api.shared.osp.players) do if p.id==who then return p end end
 end
-local root='savegame.mod.osp_beta.players.'..ids[23]..'.'
+local root='savegame.mod.osp.players.'..ids[23]..'.'
 eq(strongState(23).strength,false);eq(strongState(23).strengthForce,1)
 eq(strongState(23).strengthMass,5000);eq(strongState(23).strengthThrow,false);eq(strongState(23).strengthThrowSpeed,20)
 for _,spec in ipairs({{'strength_force',4.5},{'strength_mass',12000},{'strength_throw_speed',37.5},{'strength_throw',true}}) do
@@ -1108,10 +1108,10 @@ eq(strongState(23,corruptStrength).strengthMass,5000,'invalid saved mass falls b
 eq(strongState(23,corruptStrength).strengthThrowSpeed,20,'invalid saved throw speed falls back')
 
 -- Stored custom roles predating strength receive no implicit new grant.
-registry['savegame.mod.osp_beta.templates.c8.name']='Legacy helper'
-registry['savegame.mod.osp_beta.templates.c8.version']=1
-registry['savegame.mod.osp_beta.templates.c8.permissions.heal']=2
-registry['savegame.mod.osp_beta.templates.c8.permissions.noclip']=0
+registry['savegame.mod.osp.templates.c8.name']='Legacy helper'
+registry['savegame.mod.osp.templates.c8.version']=1
+registry['savegame.mod.osp.templates.c8.permissions.heal']=2
+registry['savegame.mod.osp.templates.c8.permissions.noclip']=0
 local legacyStrength=world();local template
 for _,r in ipairs(legacyStrength.api.shared.osp.templates) do if r.id=='c8' then template=r end end
 check(template~=nil);eq(template.permissions.strength,0)
@@ -1123,7 +1123,7 @@ local ammoMap=world({gunAmmo=60});local ammoIds=ammoMap.identities;local ammoApi
 local function ammoState(who,wld)
     for _,p in ipairs((wld or ammoMap).api.shared.osp.players) do if p.id==who then return p end end
 end
-local ammoRoot='savegame.mod.osp_beta.players.'..ammoIds[23]..'.'
+local ammoRoot='savegame.mod.osp.players.'..ammoIds[23]..'.'
 eq(ammoState(23).ammo,false,'ammo is off by default')
 eq(ammoState(23).ammoRestore,true,'restoration defaults to true')
 eq(ammoMap.command(11,'ammo',23,true),true)
@@ -1198,8 +1198,8 @@ eq(ammoMap.command(11,'reset_player',23),true)
 eq(ammoMap.players[23].ammo.gun,9999,'reset with restore false conserves current stock')
 eq(ammoState(23).ammo,false);eq(ammoState(23).ammoRestore,true)
 eq(registry[ammoRoot..'exists'],true,'reset keeps profile identity')
-eq(registry['savegame.mod.osp_beta.hostid'],ammoApi.shared.osp.profileHost,'reset keeps host namespace')
-eq(registry['savegame.mod.osp_beta.rules.rain'],.4,'player reset keeps global session rules')
+eq(registry['savegame.mod.osp.hostid'],ammoApi.shared.osp.profileHost,'reset keeps host namespace')
+eq(registry['savegame.mod.osp.rules.rain'],.4,'player reset keeps global session rules')
 local resetAmmoMap=world({identities=ammoIds})
 eq(ammoState(23,resetAmmoMap).ammo,false);eq(ammoState(23,resetAmmoMap).ammoRestore,true)
 
@@ -1210,17 +1210,17 @@ eq(P.resolve('guest').permissions.ammo,0)
 eq(P.resolve('self').permissions.ammo,1)
 eq(P.resolve('helper').permissions.ammo,0);eq(P.resolve('moderator').permissions.ammo,0)
 eq(P.resolve('admin').permissions.ammo,2)
-registry['savegame.mod.osp_beta.templates.c9.name']='Legacy ammo role'
-registry['savegame.mod.osp_beta.templates.c9.version']=1
-registry['savegame.mod.osp_beta.templates.c9.permissions.heal']=2
-registry['savegame.mod.osp_beta.templates.c9.permissions.noclip']=0
+registry['savegame.mod.osp.templates.c9.name']='Legacy ammo role'
+registry['savegame.mod.osp.templates.c9.version']=1
+registry['savegame.mod.osp.templates.c9.permissions.heal']=2
+registry['savegame.mod.osp.templates.c9.permissions.noclip']=0
 local oldAmmoRole=world();local oldTemplate
 for _,r in ipairs(oldAmmoRole.api.shared.osp.templates) do if r.id=='c9' then oldTemplate=r end end
 check(oldTemplate~=nil);eq(oldTemplate.permissions.ammo,0,'legacy template gets no new ammo grant')
 local delegatedAmmo=world();local _,_,ammoRole=delegatedAmmo.command(11,'role_save',0,
     {id='',name='Ammo self',version=0,permissions={ammo=1}})
 eq(delegatedAmmo.command(11,'role_assign',23,{id=ammoRole.template.id}),true)
-local delegatedRoot='savegame.mod.osp_beta.players.'..delegatedAmmo.identities[23]..'.'
+local delegatedRoot='savegame.mod.osp.players.'..delegatedAmmo.identities[23]..'.'
 eq(delegatedAmmo.command(23,'ammo',23,{expected=false,value=true}),true,'self role may use conditional ammo toggle')
 eq(delegatedAmmo.command(23,'ammo_restore',23,false),true,'ammo_restore alias follows ammo permission')
 eq(registry[delegatedRoot..'ammo'],nil,'delegated ammo change is temporary')

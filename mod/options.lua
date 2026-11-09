@@ -11,7 +11,7 @@
 #include "scripts/theme.lua"
 #include "scripts/number_control.lua"
 
-local root = "savegame.mod.osp_beta."
+local root = "savegame.mod.osp."
 local capturing = false
 local appearance = false
 local appearanceScroll,appearanceHeight=0,0

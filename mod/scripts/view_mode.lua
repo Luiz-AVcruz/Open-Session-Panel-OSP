@@ -3,7 +3,7 @@
 -- Presentation only. Session authority and stored gameplay rules are unchanged.
 OSP.ViewMode={}
 local V=OSP.ViewMode
-local key="savegame.mod.osp_beta.view_mode"
+local key="savegame.mod.osp.view_mode"
 function V.get()
     local value=GetString(key)
     return (value=="single" or value=="multi") and value or "auto"

@@ -3,7 +3,7 @@
 -- Personal presentation only. Store RGB as validated hex strings, never game state.
 OSP.Theme = {}
 local Theme = OSP.Theme
-local root = "savegame.mod.osp_beta.theme."
+local root = "savegame.mod.osp.theme."
 local classic = {
     back={0.075,0.075,0.072,0.98}, side={0.105,0.105,0.099,1},
     line={0.27,0.27,0.25,1}, surface={0.16,0.16,0.15,1}, hover={0.21,0.21,0.19,1},

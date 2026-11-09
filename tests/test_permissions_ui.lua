@@ -204,7 +204,7 @@ do
     check(w.api.controls.role_scope_heal_0==nil,"collapsed categories hide rows")
     clickAdvanced(w,roles,"permission_group_players")
     eq(w.UI.getState().groups.players,true,"click expands category")
-    eq(reg["savegame.mod.osp_beta.permissions.expanded.players"],"1","expanded category persists locally")
+    eq(reg["savegame.mod.osp.permissions.expanded.players"],"1","expanded category persists locally")
     local restarted=world(reg)
     eq(restarted.UI.getState().groups.players,true,"expanded state restores after module reload")
     eq(restarted.UI.getState().groups.tools,false,"other categories remain closed")

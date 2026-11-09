@@ -1,9 +1,7 @@
-Open Session Panel Beta 1.5.0 — Luiz-AVcruz.
-
 Compact independent session administration for solo and multiplayer. Host choices for each player persist between missions: tools, effects, speed and admin access. Vanilla/Mods filters, weather, announcements and activity. English / Portugues. Open with P or the pause menu. AGPLv3 or later with an additional Teardown runtime permission. Readable source included.
 
 Source code:
-https://github.com/Luiz-AVcruz/Open-Session-Panel-OSP/tree/beta
+https://github.com/Luiz-AVcruz/Open-Session-Panel-OSP
 
 
 AI Disclosure and Usage:

@@ -5,7 +5,7 @@ local count=0
 local function check(v,m) assert(v,m);count=count+1 end
 local env=setmetatable({},{__index=_G})
 env.GetString=function(k) return registry[k] or '' end
-env.SetString=function(k,v) check(k=='savegame.mod.osp_beta.menu_key' or k:match('^savegame%.mod%.osp_beta%.shortcuts%.[a-z]+$'),'bounded writes');registry[k]=v end
+env.SetString=function(k,v) check(k=='savegame.mod.osp.menu_key' or k:match('^savegame%.mod%.osp%.shortcuts%.[a-z]+$'),'bounded writes');registry[k]=v end
 env.InputPressed=function(k) return pressed[k]==true end
 env.InputDown=function(k) return down[k]==true end
 env.InputLastPressedKey=function() return last end
@@ -19,10 +19,10 @@ check(not s.assign('god','p'),'menu collision')
 check(s.assign('god','f8'),'valid assignment')
 local ok,reason=s.assign('fly','f8');check(not ok and reason=='shortcut_conflict','duplicate refused')
 check(not s.assign('menu','f8'),'panel rebind also rejects collision')
-registry['savegame.mod.osp_beta.shortcuts.fly']='f8'
+registry['savegame.mod.osp.shortcuts.fly']='f8'
 check(s.binding('god')=='' and s.binding('fly')=='','corrupt duplicates never execute')
-s.assign('fly','');registry['savegame.mod.osp_beta.menu_key']='f8';check(s.binding('god')=='','menu wins stored collision')
-registry['savegame.mod.osp_beta.menu_key']='p'
+s.assign('fly','');registry['savegame.mod.osp.menu_key']='f8';check(s.binding('god')=='','menu wins stored collision')
+registry['savegame.mod.osp.menu_key']='p'
 s.begin('fly');s.key();check(s.capture=='fly','empty event does not cancel')
 last='w';s.key();check(s.capture=='fly' and s.message=='invalid_key','invalid event allows retry')
 pressed={w=true};s.key();check(s.capture=='fly' and s.message=='invalid_key','physical reserved key also gives feedback')
@@ -31,9 +31,9 @@ s.begin('noclip');last='f10';s.key();check(s.binding('noclip')=='f10','last-key 
 s.begin('noclip');pressed={f11=true};down={shift=true};s.key();check(s.capture=='noclip' and s.binding('noclip')=='f10','modifier rejected without mutation')
 down={};pressed={f11=true,f12=true};s.key();check(s.capture=='noclip' and s.message=='shortcut_single_key','multiple keys rejected')
 pressed={esc=true};s.key();check(s.capture==nil and s.binding('noclip')=='f10','cancel preserves assignment')
-registry['savegame.mod.osp_beta.identity.host']='keep';s.reset()
+registry['savegame.mod.osp.identity.host']='keep';s.reset()
 check(s.binding('god')=='' and s.binding('fly')=='' and s.binding('noclip')=='','clear all')
-check(registry['savegame.mod.osp_beta.identity.host']=='keep' and s.menuKey()=='p','reset only personal actions')
+check(registry['savegame.mod.osp.identity.host']=='keep' and s.menuKey()=='p','reset only personal actions')
 check(s.assign('strength','f11'),'strength binding accepted without defaults')
 check(not s.assign('god','f11'),'strength participates in conflicts')
 s.begin('strength');pressed={f12=true};last='';s.key()

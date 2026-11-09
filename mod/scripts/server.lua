@@ -5,21 +5,21 @@
 function OSP.installServer()
     local players, rules, logs, tools, known = {}, {}, {}, {}, {}
     local original, sequence, refreshAt = {}, 0, 0
-    local save = "savegame.mod.osp_beta.rules."
+    local save = "savegame.mod.osp.rules."
     local lastRequest, removalSeen = {}, {}
     local policies = {}
-    local toolSave = "savegame.mod.osp_beta.tools"
-    local profileSave = "savegame.mod.osp_beta.players."
+    local toolSave = "savegame.mod.osp.tools"
+    local profileSave = "savegame.mod.osp.players."
     local profileHost
     local effectsOffOnLoad,resetEffectsOnEntry=false,false
-    local effectsOnLoadKey="savegame.mod.osp_beta.effects_off_on_load"
+    local effectsOnLoadKey="savegame.mod.osp.effects_off_on_load"
     local flightInputClock=0
     local strengthController=OSP.Strength.new()
     local ammoController=OSP.Ammo.new()
     local actions = {}
     local templates = {}
     local P=OSP.Permissions
-    local templateSave="savegame.mod.osp_beta.templates"
+    local templateSave="savegame.mod.osp.templates"
     local function roster() return GetAllPlayers() end
     local function isHost(p) return IsPlayerValid(p) and IsPlayerHost(p) end
     local function playerRole(p)
@@ -106,9 +106,9 @@ function OSP.installServer()
         if type(value)=="boolean" then SetBool(path,value) else SetFloat(path,value) end
     end
     local function snapshot(p)
-        local join=GetInt("savegame.mod.osp_beta.nextjoin")+1
+        local join=GetInt("savegame.mod.osp.nextjoin")+1
         if join<1 or join>2147483647 then join=1 end
-        SetInt("savegame.mod.osp_beta.nextjoin",join)
+        SetInt("savegame.mod.osp.nextjoin",join)
         local e={
             admin=false, god=nil, fly=false, noclip=nil, flying=false, freeze=false, speed=1,
             flySpeed=OSP.flight.normal,flyBoost=OSP.flight.shift,
@@ -673,11 +673,11 @@ function OSP.installServer()
         -- Keep one policy for this map, including players who join later.
         -- Changing the preference only affects the next map load.
         resetEffectsOnEntry=effectsOffOnLoad
-        profileHost=GetString("savegame.mod.osp_beta.hostid")
+        profileHost=GetString("savegame.mod.osp.hostid")
         if not profileHost:match("^[0-9a-f]+$") or #profileHost~=32 then
             profileHost=""
             for _=1,4 do profileHost=profileHost..string.format("%08x",GetRandomInt(0,2147483647)) end
-            SetString("savegame.mod.osp_beta.hostid",profileHost)
+            SetString("savegame.mod.osp.hostid",profileHost)
         end
         original={rain=GetEnvironmentProperty("rain"),fog={GetEnvironmentProperty("fogparams")}}
         loadTemplates(); loadPolicies(); syncPlayers(); refreshTools()
@@ -905,9 +905,9 @@ function OSP.installServer()
                 if p~=actor and other.profile==id then valid=false end
             end
             if not valid then
-                local nextId=GetInt("savegame.mod.osp_beta.nextprofile")+1
+                local nextId=GetInt("savegame.mod.osp.nextprofile")+1
                 if nextId<1 or nextId>2147483647 then return end
-                SetInt("savegame.mod.osp_beta.nextprofile",nextId)
+                SetInt("savegame.mod.osp.nextprofile",nextId)
                 id="p"..nextId
                 SetBool(profileSave..id..".exists",true)
             end

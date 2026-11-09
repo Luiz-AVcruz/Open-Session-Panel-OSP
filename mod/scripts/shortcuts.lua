@@ -3,7 +3,7 @@
 -- Bindings and capture are local preferences; gameplay authority stays on the server.
 OSP.Shortcuts={actions={"god","fly","noclip","strength","ammo"},capture=nil,message=nil}
 local S=OSP.Shortcuts
-local root="savegame.mod.osp_beta."
+local root="savegame.mod.osp."
 local keys={}
 for key in ("abcdefghijklmnopqrstuvwxyz0123456789"):gmatch('.') do keys[#keys+1]=key end
 for i=1,12 do keys[#keys+1]="f"..i end

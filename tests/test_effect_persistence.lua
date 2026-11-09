@@ -13,7 +13,7 @@ local function state(w,id)
 end
 local effects={god='god',fly='flight',noclip='noclip',strength='strength',ammo='ammo',freeze='freeze'}
 local function path(w,id,key)
-    return 'savegame.mod.osp_beta.players.'..(id==11 and 'host' or w.identities[id])..'.'..key
+    return 'savegame.mod.osp.players.'..(id==11 and 'host' or w.identities[id])..'.'..key
 end
 
 -- A delegate can remember only an explicit personal disable, never activation

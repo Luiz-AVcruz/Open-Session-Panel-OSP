@@ -15,8 +15,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MOD = ROOT / "mod"
 DIST = ROOT / "dist"
-MOD_ARCHIVE_ROOT = "Open Session Panel Beta"
-SOURCE_ARCHIVE_ROOT = "OpenSessionPanelBeta-source"
+MOD_ARCHIVE_ROOT = "Open Session Panel"
+SOURCE_ARCHIVE_ROOT = "OpenSessionPanel-source"
 ZIP_TIME = (1980, 1, 1, 0, 0, 0)
 SECTION_ICONS = ("ui/section-down.png", "ui/section-right.png")
 PUBLICATION_FILES = ("preview.jpg", "preview-menu.png", "WORKSHOP-DESCRIPTION.txt")
@@ -197,8 +197,8 @@ def main() -> int:
         required_install_files()
         version = product_version()
         DIST.mkdir(exist_ok=True)
-        install = DIST / f"OpenSessionPanelBeta-{version}.zip"
-        source = DIST / f"OpenSessionPanelBeta-{version}-source.zip"
+        install = DIST / f"OpenSessionPanel-{version}.zip"
+        source = DIST / f"OpenSessionPanel-{version}-source.zip"
         sums = DIST / "SHA256SUMS"
         # Build and validate the complete replacement set before publishing any
         # of it. Re-running the helper refreshes only its own three named outputs.

@@ -4,7 +4,7 @@
 function OSP.installClient()
     local flightInputReport,flightInputSequence=nil,0
     local strengthInputReport,strengthInputSequence=nil,0
-    local ROOT="savegame.mod.osp_beta."
+    local ROOT="savegame.mod.osp."
     local menu,tab,selected=false,"players",nil
     local selectedJoin,selectedHost=nil,nil
     local toolMode,filter="global","all"

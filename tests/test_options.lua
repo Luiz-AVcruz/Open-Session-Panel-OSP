@@ -7,7 +7,7 @@ local function check(value, message)
     assertions = assertions + 1
 end
 local function world(width, height)
-    local root = 'savegame.mod.osp_beta.'
+    local root = 'savegame.mod.osp.'
     local w = {registry={}, key='', pressed=false, held=false, mouse={0,0}, back=false, stack={}, windows={}, x=0,y=0,scale=1,now=0,font=20}
     local env = setmetatable({}, {__index=_G})
     env.GetString=function(k) return w.registry[k] or '' end

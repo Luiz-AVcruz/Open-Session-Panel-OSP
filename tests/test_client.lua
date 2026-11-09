@@ -16,7 +16,7 @@ local function world(width,height,previousRegistry)
     -- Older scenarios explicitly exercise expanded Settings; use an empty
     -- supplied registry below to test the actual first-run defaults.
     if not previousRegistry then
-        for _,id in ipairs({"language","shortcut","view_mode","behavior","navigation","effects_on_load","palette","background"}) do w.reg["savegame.mod.osp_beta.settings.collapsed."..id]="0" end
+        for _,id in ipairs({"language","shortcut","view_mode","behavior","navigation","effects_on_load","palette","background"}) do w.reg["savegame.mod.osp.settings.collapsed."..id]="0" end
     end
     env.GetString=function(k) return w.reg[k] or '' end
     env.SetString=function(k,v) w.reg[k]=v end
@@ -24,7 +24,7 @@ local function world(width,height,previousRegistry)
         if k=='game.player.interactive' and w.reg[k]==nil then return true end
         return w.reg[k] or false
     end
-    env.SetBool=function(k,v) assert(k=='savegame.mod.osp_beta.health_hud');w.reg[k]=v end
+    env.SetBool=function(k,v) assert(k=='savegame.mod.osp.health_hud');w.reg[k]=v end
     env.GetInt=function() return 0 end;env.LoadLanguageTable=function() end
     env.GetTranslatedStringByKey=function(k,fallback) if k=='TOOL_NAME_GUN' then return 'Pistol' end;return fallback end
     env.GetLocalPlayer=function() return 11 end
@@ -173,18 +173,18 @@ do
     w:tick();eq(w.identitySent[#w.identitySent].fn,'server.ospIdentify');eq(w.identitySent[#w.identitySent].args[3],1);eq(w.identitySent[#w.identitySent].args[4],'')
     local before=#w.identitySent;w:tick();eq(#w.identitySent,before,'identity requests are throttled')
     w.now=w.now+1;w:tick();eq(#w.identitySent,before+1,'lost reply can be retried')
-    e.client.ospIdentity(string.rep('b',32),1,'p8');eq(w.reg['savegame.mod.osp_beta.identity.'..namespace],nil)
-    e.client.ospIdentity(namespace,1,'host');eq(w.reg['savegame.mod.osp_beta.identity.'..namespace],nil)
-    e.client.ospIdentity(namespace,1,'p8');eq(w.reg['savegame.mod.osp_beta.identity.'..namespace],'p8')
+    e.client.ospIdentity(string.rep('b',32),1,'p8');eq(w.reg['savegame.mod.osp.identity.'..namespace],nil)
+    e.client.ospIdentity(namespace,1,'host');eq(w.reg['savegame.mod.osp.identity.'..namespace],nil)
+    e.client.ospIdentity(namespace,1,'p8');eq(w.reg['savegame.mod.osp.identity.'..namespace],'p8')
     before=#w.identitySent;w.now=w.now+2;w:tick();eq(#w.identitySent,before,'ACK stops identity retries')
     e.shared.osp.players[1].profileChallenge=2;w.now=w.now+2;w:tick()
-    e.client.ospIdentity(namespace,1,'p99');eq(w.reg['savegame.mod.osp_beta.identity.'..namespace],'p8','old join reply is ignored')
-    e.client.ospIdentity(namespace,2,'p9');eq(w.reg['savegame.mod.osp_beta.identity.'..namespace],'p9')
-    e.client.ospIdentity(namespace,1,'p8');eq(w.reg['savegame.mod.osp_beta.identity.'..namespace],'p9','stale reply cannot overwrite current profile')
+    e.client.ospIdentity(namespace,1,'p99');eq(w.reg['savegame.mod.osp.identity.'..namespace],'p8','old join reply is ignored')
+    e.client.ospIdentity(namespace,2,'p9');eq(w.reg['savegame.mod.osp.identity.'..namespace],'p9')
+    e.client.ospIdentity(namespace,1,'p8');eq(w.reg['savegame.mod.osp.identity.'..namespace],'p9','stale reply cannot overwrite current profile')
     local map=world(1024,768,w.reg);local m=map.api
     m.IsPlayerHost=function() return false end;m.shared.osp.profileHost=namespace;m.shared.osp.players[1].profileChallenge=3
     map:tick();eq(map.identitySent[#map.identitySent].args[4],'p9','new map sends saved identity')
-    m.client.ospIdentity(namespace,2,'p99');eq(map.reg['savegame.mod.osp_beta.identity.'..namespace],'p9','old map reply is ignored')
+    m.client.ospIdentity(namespace,2,'p99');eq(map.reg['savegame.mod.osp.identity.'..namespace],'p9','old map reply is ignored')
     m.shared.osp.profileHost=string.rep('c',32);map.now=map.now+2;map:tick()
     eq(map.identitySent[#map.identitySent].args[4],'','another host does not reuse the profile')
 end
@@ -211,7 +211,7 @@ for _,size in ipairs({{1280,720},{1920,1080},{1024,768},{2560,1080}}) do
  for _,language in ipairs({'en','pt'}) do
   for _,corner in ipairs({{2,2},{-2,2},{2,-2},{-2,-2}}) do
     local w=world(unpack(size));local e=w.api
-    w.reg['savegame.mod.osp_beta.language']=language;w.reg['savegame.mod.osp_beta.settings.collapsed.palette']='1';e.OSP.UI.open(true)
+    w.reg['savegame.mod.osp.language']=language;w.reg['savegame.mod.osp.settings.collapsed.palette']='1';e.OSP.UI.open(true)
     local r=w:scrollTo('tab_appearance')
     local function point(rect)
         return rect.x+(corner[1]>0 and corner[1] or rect.w+corner[1]),rect.y+(corner[2]>0 and corner[2] or rect.h+corner[2])
@@ -221,21 +221,21 @@ for _,size in ipairs({{1280,720},{1920,1080},{1024,768},{2560,1080}}) do
     w:releaseAt(x,y)
     w:clickControl('settings_section_palette');w:clickControl('palette_custom')
     r=w:scrollTo('palette_R_plus');x,y=point(r);w:pressAt(x,y)
-    local color=w.reg['savegame.mod.osp_beta.theme.custom.back']
+    local color=w.reg['savegame.mod.osp.theme.custom.back']
     check(color~=nil,'RGB control reacts on press in background padding')
-    for i=1,3 do w:holdAt(x,y);eq(w.reg['savegame.mod.osp_beta.theme.custom.back'],color,'hold does not repeat') end
-    w:releaseAt(x,y);eq(w.reg['savegame.mod.osp_beta.theme.custom.back'],color,'release does not repeat')
+    for i=1,3 do w:holdAt(x,y);eq(w.reg['savegame.mod.osp.theme.custom.back'],color,'hold does not repeat') end
+    w:releaseAt(x,y);eq(w.reg['savegame.mod.osp.theme.custom.back'],color,'release does not repeat')
     local st=w:draw();local count=#w.sent
     w:pressAt(x,st.layout.oy+st.layout.contentY+st.layout.contentH+4)
     eq(#w.sent,count,'outside viewport sends no command')
-    eq(w.reg['savegame.mod.osp_beta.theme.custom.back'],color,'outside viewport leaves color unchanged')
+    eq(w.reg['savegame.mod.osp.theme.custom.back'],color,'outside viewport leaves color unchanged')
     w:releaseAt(x,y)
   end
  end
 end
 for _,size in ipairs({{1280,720},{1920,1080},{2560,1440},{1024,768},{2560,1080}}) do
  for _,language in ipairs({'en','pt'}) do
-    local w=world(unpack(size));local e=w.api;w.reg['savegame.mod.osp_beta.language']=language
+    local w=world(unpack(size));local e=w.api;w.reg['savegame.mod.osp.language']=language
     w:tick('p');local st=w:draw();eq(st.open,true)
     check(st.layout.w<=1120 and st.layout.h<=720,'panel maximum')
     check(st.layout.w<=size[1]*.85+.01 and st.layout.h<=size[2]*.82+.01,'canvas budget')
@@ -287,17 +287,17 @@ for _,size in ipairs({{1280,720},{1920,1080},{2560,1440},{1024,768},{2560,1080}}
     eq(w.sent[#w.sent].args[6].targetJoin,2,'immediate targeted action captures the current entry');w:ack()
     w:clickControl('tools_actions');w:clickControl('tools_disable_everyone');eq(e.OSP.UI.getState().confirm.action,'tools_selection_all');w:clickControl('confirm_cancel')
     w:clickControl('tab_settings');eq(e.OSP.UI.getState().controls.health_toggle,nil,'health toggle removed')
-    w.reg['savegame.mod.osp_beta.settings.collapsed.palette']='1';w:clickControl('tab_appearance');w:clickControl('settings_section_palette');w:clickControl('palette_ocean');eq(w.reg['savegame.mod.osp_beta.theme.mode'],'ocean')
+    w.reg['savegame.mod.osp.settings.collapsed.palette']='1';w:clickControl('tab_appearance');w:clickControl('settings_section_palette');w:clickControl('palette_ocean');eq(w.reg['savegame.mod.osp.theme.mode'],'ocean')
     w:clickControl('palette_custom');w:clickControl('palette_R_plus')
-    check(w.reg['savegame.mod.osp_beta.theme.custom.back']~=nil,'custom RGB control saves')
-    w:clickControl('palette_restore');eq(w.reg['savegame.mod.osp_beta.theme.mode'],'classic')
+    check(w.reg['savegame.mod.osp.theme.custom.back']~=nil,'custom RGB control saves')
+    w:clickControl('palette_restore');eq(w.reg['savegame.mod.osp.theme.mode'],'classic')
     w:clickControl('tab_settings');w:clickControl('rebind');w:tick('w');eq(e.OSP.UI.getState().keyCapture,true);w:tick('f8');eq(e.OSP.UI.getState().menuKey,'f8')
     local oldStatus=e.OSP.UI.getState().status;e.client.ospResult(false,'error',{},nil)
     eq(e.OSP.UI.getState().status,oldStatus,'unsolicited nil ACK ignored')
     w:clickControl('tab_about');w:draw();local combined=table.concat(w.texts,'|');check(combined:find('Luiz%-AVcruz')~=nil,'about author')
     e.client.ospAnnouncement('Host','Hello everyone');check(e.OSP.UI.getState().status:find('Hello everyone')~=nil,'announcement visible with menu open')
     e.OSP.UI.open(false);w.now=w.now+7
-    w.reg['savegame.mod.osp_beta.health_hud']=true -- Old saved preferences must not resurrect the removed HUD.
+    w.reg['savegame.mod.osp.health_hud']=true -- Old saved preferences must not resurrect the removed HUD.
     w:draw();eq(#w.texts,0,'no health HUD even with old setting enabled')
     local nextMap=world(size[1],size[2],w.reg);nextMap:draw();eq(#nextMap.texts,0,'no HUD after map reload')
     e.IsPlayerHost=function() return false end;e.shared.osp.players[1].admin=false;e.OSP.UI.selectTab('players');w:tick();e.OSP.UI.open(true);w:draw();eq(e.OSP.UI.getState().tab,'about','reopening restores the last accessible tab')
@@ -430,7 +430,7 @@ end
 -- A non-empty history must distinguish values and toggle direction.
 for _,language in ipairs({'en','pt'}) do
     local w=world(1920,1080);local e=w.api
-    w.reg['savegame.mod.osp_beta.language']=language
+    w.reg['savegame.mod.osp.language']=language
     e.shared.osp.log={
         {actor='Host',target='Guest',action='tool',argument={id='gun',enabled=true},result='ok'},
         {actor='Host',target='Guest',action='tool',argument={id='gun',enabled=false},result='ok'},
@@ -453,7 +453,7 @@ end
 for _,size in ipairs({{1024,768},{1920,1080}}) do
  for _,language in ipairs({'en','pt'}) do
     local w=world(unpack(size));local e=w.api
-    w.reg['savegame.mod.osp_beta.language']=language
+    w.reg['savegame.mod.osp.language']=language
     e.shared.osp.templates=e.OSP.Permissions.list({})
     e.OSP.UI.open(true);w:clickControl('tab_permissions')
     local st=w:draw()
@@ -570,7 +570,7 @@ for _,localId in ipairs({11,23}) do
     for _,language in ipairs({'en','pt'}) do
         local w=world(1920,1080);local e=w.api
         e.GetLocalPlayer=function() return localId end;e.client.init()
-        w.reg['savegame.mod.osp_beta.language']=language
+        w.reg['savegame.mod.osp.language']=language
         if localId==23 then
             e.shared.osp.players[2].admin=true;e.shared.osp.players[2].role='admin'
             e.shared.osp.players[2].permissions=e.OSP.Permissions.resolve('admin').permissions
@@ -593,7 +593,7 @@ end
 for _,size in ipairs({{1024,768},{1920,1080}}) do
  for _,language in ipairs({'en','pt'}) do
     local w=world(unpack(size));local e=w.api
-    w.reg['savegame.mod.osp_beta.language']=language;e.OSP.UI.open(true)
+    w.reg['savegame.mod.osp.language']=language;e.OSP.UI.open(true)
     local function edit(id,text,action,value,key)
         w:editControl(id);check(e.OSP.NumberInput.active(id),'number field takes focus')
         for char in text:gmatch('.') do w:tick(char) end
@@ -652,7 +652,7 @@ for _,size in ipairs({{1024,768},{1920,1080}}) do
     before=#w.sent;w:editControl('rule_fog_value');w:tick('5');w:clickControl('tab_players');w:tick('return')
     eq(#w.sent,before,'changing tabs discards an unsent numeric edit')
     eq(e.OSP.NumberInput.active(),false);before=#w.sent
-    w.reg['savegame.mod.osp_beta.settings.collapsed.palette']='1';w:clickControl('tab_appearance');w:clickControl('settings_section_palette');w:clickControl('palette_custom')
+    w.reg['savegame.mod.osp.settings.collapsed.palette']='1';w:clickControl('tab_appearance');w:clickControl('settings_section_palette');w:clickControl('palette_custom')
     local color=e.OSP.Theme.colors().back
     local green,blue=math.floor(color[2]*255+.5)/255,math.floor(color[3]*255+.5)/255
     w:editControl('palette_R_value');w:tick('9');w:tick('9');w:tick('9');w:tick('return')
@@ -700,7 +700,7 @@ end
 for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
  for _,language in ipairs({'en','pt'}) do
     local w=world(unpack(size));local e=w.api
-    w.reg['savegame.mod.osp_beta.language']=language;e.OSP.UI.open(true)
+    w.reg['savegame.mod.osp.language']=language;e.OSP.UI.open(true)
     local a=w:scrollTo('player_action_fly');local b=w:scrollTo('player_action_noclip')
     eq(a.y,b.y,'Fly and Noclip share one row');check(a.x<b.x,'Fly is left of Noclip')
     for _,mode in ipairs({'fly','noclip'}) do
@@ -739,7 +739,7 @@ end
 for _,size in ipairs({{1024,768},{1920,1080}}) do
  for _,language in ipairs({'en','pt'}) do
     local w=world(unpack(size));local e=w.api;e.OSP.UI.open(true)
-    w.reg['savegame.mod.osp_beta.language']=language
+    w.reg['savegame.mod.osp.language']=language
     for i=1,13 do e.shared.osp.tools[#e.shared.osp.tools+1]={id='kit'..i,name='Câmera '..i,origin='mod',policy='default'} end
     w:clickControl('tab_tools')
     for _,mode in ipairs({'global','player'}) do
@@ -791,7 +791,7 @@ for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
  for _,language in ipairs({'en','pt'}) do
   for _,mode in ipairs({'global','player'}) do
     local w=world(unpack(size));local e=w.api;e.OSP.UI.open(true)
-    w.reg['savegame.mod.osp_beta.language']=language
+    w.reg['savegame.mod.osp.language']=language
     w:clickControl('tab_tools');w:clickControl('tool_mode_'..mode)
     e.OSP.ToolSearch.query='pistol'
     w:clickControl('tools_actions');local st=w:draw()
@@ -875,8 +875,8 @@ for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
  for _,language in ipairs({'en','pt'}) do
   for _,palette in ipairs({'classic','ocean','forest','violet','light','graphite','custom'}) do
     local w=world(unpack(size));local e=w.api;w.capturePaint=true
-    w.reg['savegame.mod.osp_beta.language']=language;w.reg['savegame.mod.osp_beta.theme.mode']=palette
-    if palette=='custom' then w.reg['savegame.mod.osp_beta.theme.custom.surface']='334155';w.reg['savegame.mod.osp_beta.theme.custom.line']='94a3b8' end
+    w.reg['savegame.mod.osp.language']=language;w.reg['savegame.mod.osp.theme.mode']=palette
+    if palette=='custom' then w.reg['savegame.mod.osp.theme.custom.surface']='334155';w.reg['savegame.mod.osp.theme.custom.line']='94a3b8' end
     e.OSP.UI.open(true);local st=w:draw();local c=e.OSP.Theme.colors()
     local close=st.controls.close
     for _,p in ipairs(w.paints) do
@@ -916,7 +916,7 @@ end
 -- Hiding tabs reflows navigation and survives new client contexts.
 for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
  for _,language in ipairs({'en','pt'}) do
-    local w=world(unpack(size));local e=w.api;w.reg['savegame.mod.osp_beta.language']=language;e.OSP.UI.open(true)
+    local w=world(unpack(size));local e=w.api;w.reg['savegame.mod.osp.language']=language;e.OSP.UI.open(true)
     local before=w:draw();local session=before.controls.tab_session
     w:clickControl('tab_settings');w:clickControl('navigation_players');local st=w:draw()
     eq(st.controls.tab_players,nil,'hidden tab has no click target')
@@ -946,7 +946,7 @@ end
 -- Tooltips use visible hit rectangles, time and player context, never input capture.
 for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
  for _,language in ipairs({'en','pt'}) do
-    local w=world(unpack(size));local e=w.api;e.OSP.UI.open(true);w.reg['savegame.mod.osp_beta.language']=language
+    local w=world(unpack(size));local e=w.api;e.OSP.UI.open(true);w.reg['savegame.mod.osp.language']=language
     local function hover(id)
         local r=w:scrollTo(id);w.mouse={x=r.x+r.w/2,y=r.y+r.h/2};w:draw();return r
     end
@@ -1041,7 +1041,7 @@ end
 -- Physical shortcuts target self, guard the observed state and never queue input.
 for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
  for _,language in ipairs({'en','pt'}) do
-    local w=world(unpack(size));local e=w.api;w.reg['savegame.mod.osp_beta.language']=language
+    local w=world(unpack(size));local e=w.api;w.reg['savegame.mod.osp.language']=language
     e.shared.osp.players[1].profileReady=true
     e.OSP.Shortcuts.assign('god','f8');e.OSP.Shortcuts.assign('fly','f9');e.OSP.Shortcuts.assign('noclip','f10')
     e.OSP.UI.open(true);w:clickControl('player_23');w:tick('f8');eq(#w.sent,0,'open panel blocks shortcut')
@@ -1089,7 +1089,7 @@ do
     w:tick();eq(#w.sent,count,'closing panel and shortcut in one frame cannot dispatch');e.InputPressed=input
     local down=e.InputDown;e.InputDown=function(k) return k=='f8' or down(k) end
     w:tick();eq(#w.sent,count,'held physical key without a press cannot repeat')
-    e.InputDown=down;w.reg['savegame.mod.osp_beta.shortcuts.noclip']='f8';w:tick('f8');eq(#w.sent,count,'stored duplicates are inactive')
+    e.InputDown=down;w.reg['savegame.mod.osp.shortcuts.noclip']='f8';w:tick('f8');eq(#w.sent,count,'stored duplicates are inactive')
 end
 -- Immediate replies must not be replaced by the pending toast after dispatch.
 do
@@ -1102,7 +1102,7 @@ end
 -- Contextual binding fields are adjacent to their actions and remain personal.
 for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
  for _,language in ipairs({'en','pt'}) do
-    local w=world(unpack(size));local e=w.api;w.reg['savegame.mod.osp_beta.language']=language;e.OSP.UI.open(true)
+    local w=world(unpack(size));local e=w.api;w.reg['savegame.mod.osp.language']=language;e.OSP.UI.open(true)
     for _,mode in ipairs({'god','fly','noclip'}) do
         w:clickControl(mode..'_settings');local st=w:draw();local field=st.controls['shortcut_'..mode]
         check(field~=nil,'binding directly available in contextual popup')
@@ -1125,7 +1125,7 @@ end
 -- Shortcut feedback sizes to measured text and keeps its top-center anchor.
 for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
  for _,language in ipairs({'en','pt'}) do
-    local w=world(unpack(size));local e=w.api;e.OSP.UI.open(false);e.shared.osp.players[1].profileReady=true;w.reg['savegame.mod.osp_beta.language']=language
+    local w=world(unpack(size));local e=w.api;e.OSP.UI.open(false);e.shared.osp.players[1].profileReady=true;w.reg['savegame.mod.osp.language']=language
     e.OSP.Shortcuts.assign('god','f8');e.OSP.Shortcuts.assign('fly','f9');w.capturePaint=true
     local function geometry(expectedY,compact)
         local st=w:draw();local box,band=w.paints[1],w.paints[2];local paintedText
@@ -1206,7 +1206,7 @@ end
 for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
  for _,language in ipairs({"en","pt"}) do
     local w=world(unpack(size));local e=w.api
-    w.reg["savegame.mod.osp_beta.language"]=language
+    w.reg["savegame.mod.osp.language"]=language
     e.IsMultiplayer=function() return false end
     w:tick("p");local st=w:draw()
     eq(st.viewMode,"single");eq(st.selected,11)
@@ -1243,8 +1243,8 @@ end
 -- Context filtering does not rewrite hidden tabs or saved gameplay rules.
 do
     local w=world(1920,1080);local e=w.api
-    w.reg["savegame.mod.osp_beta.navigation.hidden.activity"]="1"
-    w.reg["savegame.mod.osp_beta.players.test.tools.abc"]="2"
+    w.reg["savegame.mod.osp.navigation.hidden.activity"]="1"
+    w.reg["savegame.mod.osp.players.test.tools.abc"]="2"
     w:tick("p");w:clickControl("player_23");w:clickControl("fly_settings")
     check(w:draw().movementPopup,"movement editor for another player")
     e.OSP.ViewMode.set("single");w:tick();local st=w:draw()
@@ -1252,7 +1252,7 @@ do
     check(not st.controls.tab_activity and not st.controls.tab_permissions,"both visibility filters apply")
     e.OSP.ViewMode.set("multi");w:tick();st=w:draw()
     check(st.controls.tab_permissions and not st.controls.tab_activity,"only context-hidden tabs return")
-    eq(w.reg["savegame.mod.osp_beta.players.test.tools.abc"],"2","presentation preserves saved rules")
+    eq(w.reg["savegame.mod.osp.players.test.tools.abc"],"2","presentation preserves saved rules")
     eq(#w.sent,0,"switching modes has no gameplay effects")
     w:clickControl("tab_tools");w:clickControl("tools_actions");check(w:draw().toolsPopup,"tools popup opens")
     e.OSP.ViewMode.set("single");w:tick();check(not w:draw().toolsPopup,"switch closes tools popup")
@@ -1273,7 +1273,7 @@ end
 for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
  for _,language in ipairs({"en","pt"}) do
     local w=world(unpack(size));local e=w.api;local sections=e.OSP.SettingsSections
-    w.reg["savegame.mod.osp_beta.language"]=language
+    w.reg["savegame.mod.osp.language"]=language
     w:tick("p");w:clickControl("tab_settings")
     for _,id in ipairs(sections.ids) do check(sections.expanded(id),"all sections start open") end
     w:scrollTo("settings_section_language");local before=w:draw()
@@ -1288,7 +1288,7 @@ for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
     check(st.maxScroll<initialMax,"collapse shrinks content")
     w:clickControl("rebind");check(e.OSP.Shortcuts.capture=="menu","capture starts")
     w:clickControl("settings_section_shortcut");check(not e.OSP.Shortcuts.capture,"collapse cancels capture")
-    eq(w.reg["savegame.mod.osp_beta.menu_key"],"p","collapse does not change binding")
+    eq(w.reg["savegame.mod.osp.menu_key"],"p","collapse does not change binding")
     for _,id in ipairs({"view_mode","behavior","navigation","effects_on_load"}) do w:clickControl("settings_section_"..id) end
     w:clickControl("tab_appearance")
     for _,id in ipairs({"palette","background"}) do w:clickControl("settings_section_"..id) end
@@ -1332,7 +1332,7 @@ do
     for _,path in ipairs(w.images) do eq(path,"MOD/ui/section-right.png","closed icon") end
     w:clickControl("settings_section_language");w:draw()
     eq(w.images[1],"MOD/ui/section-down.png","expanded icon")
-    eq(w.reg["savegame.mod.osp_beta.settings.collapsed.language"],"0","explicit expanded state stored")
+    eq(w.reg["savegame.mod.osp.settings.collapsed.language"],"0","explicit expanded state stored")
     local again=world(1920,1080,w.reg);check(again.api.OSP.SettingsSections.expanded("language"),"expanded choice survives restart")
 end
 -- A personal disable waits for profile identification instead of silently
@@ -1355,7 +1355,7 @@ for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
  for _,language in ipairs({'en','pt'}) do
     for _,change in ipairs({{before=false,after=true,id='effects_on_load_on'}, {before=true,after=false,id='effects_on_load_off'}}) do
         local w=world(size[1],size[2],{});local e=w.api
-        w.reg['savegame.mod.osp_beta.language']=language;e.shared.osp.effectsOffOnLoad=change.before
+        w.reg['savegame.mod.osp.language']=language;e.shared.osp.effectsOffOnLoad=change.before
         w:tick('p');w:clickControl('tab_settings')
         local section=w:scrollTo('settings_section_effects_on_load');local st=w:draw()
         check(section and not section.disabled,'host can see the map-load section at '..size[1]..'x'..size[2])
@@ -1399,7 +1399,7 @@ end
 for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
  for _,language in ipairs({'en','pt'}) do
     for _,delegatedAdmin in ipairs({false,true}) do
-        local w=world(size[1],size[2],{});local e=w.api;w.reg['savegame.mod.osp_beta.language']=language
+        local w=world(size[1],size[2],{});local e=w.api;w.reg['savegame.mod.osp.language']=language
         e.IsPlayerHost=function() return false end
         local own=e.shared.osp.players[1];own.host=false;own.admin=delegatedAdmin
         own.permissions=delegatedAdmin and e.OSP.Permissions.resolve('admin').permissions or e.OSP.Permissions.resolve('guest').permissions
@@ -1446,7 +1446,7 @@ end
 for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
  for _,language in ipairs({"en","pt"}) do
     local w=world(unpack(size));local e=w.api
-    w.reg["savegame.mod.osp_beta.language"]=language
+    w.reg["savegame.mod.osp.language"]=language
     e.IsPlayerHost=function() return false end;e.shared.osp.players[1].admin=false
     w:tick("p");w:clickControl("tab_appearance")
     w:clickControl("palette_graphite");eq(e.OSP.Theme.mode(),"graphite")
@@ -1466,7 +1466,7 @@ end
 -- and exposes personal shortcuts only while editing the local player.
 for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
  for _,language in ipairs({'en','pt'}) do
-    local w=world(unpack(size));local e=w.api;w.reg['savegame.mod.osp_beta.language']=language
+    local w=world(unpack(size));local e=w.api;w.reg['savegame.mod.osp.language']=language
     w:tick('p');local st=w:draw()
     w:scrollTo('player_action_fly');st=w:draw()
     eq(st.controls.player_action_fly.y,st.controls.player_action_noclip.y,'Fly and Noclip remain on the same row')
@@ -1604,7 +1604,7 @@ end
 
 -- Activity names for the new action and every setting remain localized.
 for _,language in ipairs({'en','pt'}) do
-    local w=world(1024,768);local e=w.api;w.reg['savegame.mod.osp_beta.language']=language
+    local w=world(1024,768);local e=w.api;w.reg['savegame.mod.osp.language']=language
     e.shared.osp.log={{actor='Host',action='strength_force',argument=3,target='',result='ok',affected=1,skipped=0}}
     e.OSP.UI.open(true);w:clickControl('tab_activity')
     check(table.concat(w.texts,'|'):find(e.OSP.L('strength_force_label')..' · 3',1,true)~=nil,'strength setting action is localized in Activity')
@@ -1614,7 +1614,7 @@ end
 do
     local w=world(1024,768);local e=w.api
     for _,language in ipairs({'en','pt'}) do
-        w.reg['savegame.mod.osp_beta.language']=language
+        w.reg['savegame.mod.osp.language']=language
         local value=e.OSP.L('permission_strength')
         check(value~=nil and value~='permission_strength','strength permission has a translation')
     end
@@ -1645,7 +1645,7 @@ end
 -- Expanded Permissions draws outside the normal panel and preserves local work.
 for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
  for _,language in ipairs({'en','pt'}) do
-    local w=world(unpack(size));local e=w.api;w.reg['savegame.mod.osp_beta.language']=language
+    local w=world(unpack(size));local e=w.api;w.reg['savegame.mod.osp.language']=language
     e.shared.osp.templates=e.OSP.Permissions.list({})
     w:tick('p');w:clickControl('tab_permissions');w:clickControl('permission_view_expand')
     w:clickControl('role_create_custom');local st=w:draw();local b=st.layout.permissionModalBounds
@@ -1802,12 +1802,12 @@ do
     for _,p in ipairs(e.shared.osp.players) do if p.id==47 then target=p end end
     eq(target.role,created,'UI assignment is accepted for delegate')
     eq(target.permissions.heal,1,'assigned permissions match the saved draft')
-    eq(backend.api.GetString('savegame.mod.osp_beta.players.'..backend.identities[47]..'.role'),created,'UI assignment is persisted')
+    eq(backend.api.GetString('savegame.mod.osp.players.'..backend.identities[47]..'.role'),created,'UI assignment is persisted')
 end
 -- Ammo has a separate restoration preference and personal shortcut.
 for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
  for _,language in ipairs({'en','pt'}) do
-    local w=world(unpack(size));local e=w.api;w.reg['savegame.mod.osp_beta.language']=language
+    local w=world(unpack(size));local e=w.api;w.reg['savegame.mod.osp.language']=language
     w:tick('p');w:clickControl('ammo_settings');local st=w:draw()
     eq(st.movementPopup.mode,'ammo');eq(#w.sent,0,'opening ammo settings does not enable the ability')
     for _,id in ipairs({'ammo_restore_on','ammo_restore_off','shortcut_ammo','shortcut_clear_ammo'}) do

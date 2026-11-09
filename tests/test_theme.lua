@@ -2,12 +2,12 @@
 -- AGPL-3.0-or-later; see LICENSE and ADDITIONAL-PERMISSION.
 local count=0
 local function check(value,message) assert(value,message);count=count+1 end
-local registry={['savegame.mod.osp_beta.language']='pt',['savegame.mod.osp_beta.health_hud']=true,
-    ['savegame.mod.osp_beta.theme.button_style']='outline'}
+local registry={['savegame.mod.osp.language']='pt',['savegame.mod.osp.health_hud']=true,
+    ['savegame.mod.osp.theme.button_style']='outline'}
 local function loadTheme()
     local env=setmetatable({GetString=function(k) return registry[k] or '' end}, {__index=_G})
     env.SetString=function(k,v)
-        check(k:sub(1,28)=='savegame.mod.osp_beta.theme.' or k:match('^savegame%.mod%.osp_beta%.settings%.collapsed%.'),'theme writes outside own preferences')
+        check(k:sub(1,#'savegame.mod.osp.theme.')=='savegame.mod.osp.theme.' or k:match('^savegame%.mod%.osp%.settings%.collapsed%.'),'theme writes outside own preferences')
         registry[k]=v
     end
     local chunk=assert(loadfile(arg[1]));setfenv(chunk,env);chunk()
@@ -31,7 +31,7 @@ for _,id in ipairs(t.presets) do
     end
 end
 check(not t.select('unknown'),'reject invalid preset')
-registry['savegame.mod.osp_beta.theme.mode']='invalid'
+registry['savegame.mod.osp.theme.mode']='invalid'
 check(t.mode()=='classic','invalid stored preset falls back')
 check(not t.setColor('players.p1.admin',{1,0,0}),'reject foreign role')
 for _,value in ipairs({-1,2,math.huge,0/0}) do check(not t.setColor('text',{value,0,0}),'reject invalid RGB') end
@@ -52,8 +52,8 @@ check(reopened.mode()=='graphite' and reopened.backgroundOpacity()==73,'appearan
 reopened.select('custom');reopened.setColor('accent',{.1,.2,.3})
 reopened.resetAppearance()
 check(reopened.mode()=='classic' and reopened.backgroundOpacity()==98,'appearance recovery restores selected defaults')
-check(registry['savegame.mod.osp_beta.theme.custom.accent']=='1A334D','appearance recovery preserves custom RGB')
-check(registry['savegame.mod.osp_beta.theme.button_style']=='outline','appearance recovery ignores legacy button style')
+check(registry['savegame.mod.osp.theme.custom.accent']=='1A334D','appearance recovery preserves custom RGB')
+check(registry['savegame.mod.osp.theme.button_style']=='outline','appearance recovery ignores legacy button style')
 reopened.setBackgroundOpacity(75);reopened.select('ocean');reopened.reset()
 check(reopened.mode()=='classic' and reopened.backgroundOpacity()==75,'palette recovery only resets palette')
 local filled,edge=t.buttonPaint(t.colors(),'plain',false,false)
@@ -64,7 +64,7 @@ filled,edge=t.buttonPaint(t.colors(),'outlined',false,false)
 check(filled~=nil and edge~=nil,'outlined navigation headers keep their border')
 filled,edge=t.buttonPaint(t.colors(),'recovery',false,false)
 check(filled~=nil and edge==nil,'recovery keeps fixed readable treatment')
-registry['savegame.mod.osp_beta.theme.custom.text']='GGGGGG'
+registry['savegame.mod.osp.theme.custom.text']='GGGGGG'
 check(t.hex(t.colors().text)=='F2F0E8','malformed stored color falls back')
 check(math.abs(t.contrast({0,0,0},{1,1,1})-21)<.001,'contrast endpoints')
 t.select('custom');t.setColor('back',{19/255,19/255,17/255})
@@ -102,11 +102,11 @@ check(changed[1]==old[1] and changed[3]==old[3],'numeric channel edit preserves 
 numberClick=nil;click=nil;t.draw(api,0,0,700)
 check(gradients.palette_R_value[1][1]==0 and gradients.palette_R_value[2][1]==1,'integrated red slider retains its gradient')
 check(gradients.palette_R_value[1][2]==t.colors().back[2],'red gradient preserves other channels')
-local customAccent=registry['savegame.mod.osp_beta.theme.custom.accent']
+local customAccent=registry['savegame.mod.osp.theme.custom.accent']
 click='palette_restore';held=false;t.draw(api,0,0,700)
 check(t.mode()=='classic' and sawRecovery,'fixed-contrast recovery')
-check(registry['savegame.mod.osp_beta.theme.custom.accent']==customAccent,'restore keeps custom work')
-check(registry['savegame.mod.osp_beta.language']=='pt' and registry['savegame.mod.osp_beta.health_hud']==true,'other preferences preserved')
+check(registry['savegame.mod.osp.theme.custom.accent']==customAccent,'restore keeps custom work')
+check(registry['savegame.mod.osp.language']=='pt' and registry['savegame.mod.osp.health_hud']==true,'other preferences preserved')
 N.begin('player_speed_value',1,.5,3,2,function() end)
 t.cancelDrag()
 check(N.active('player_speed_value'),'theme drag cancellation preserves gameplay number capture')
@@ -155,5 +155,5 @@ check(t.backgroundOpacity()==89,'opacity stepper')
 local userRGB='336699';t.setColor('accent',{0x33/255,0x66/255,0x99/255});t.select('custom')
 appearanceClick='appearance_restore';t.drawAppearance(appearanceApi,0,0,600)
 check(t.mode()=='classic' and t.backgroundOpacity()==98,'Appearance restore resets its visual defaults')
-check(registry['savegame.mod.osp_beta.theme.custom.accent']==userRGB,'Appearance restore preserves custom color work')
+check(registry['savegame.mod.osp.theme.custom.accent']==userRGB,'Appearance restore preserves custom color work')
 print('PASS Appearance controls, palette and opacity: '..count..' assertions')

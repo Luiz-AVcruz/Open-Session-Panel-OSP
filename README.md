@@ -1,8 +1,8 @@
-# Open Session Panel Beta
+# Open Session Panel
 
 An independently written Teardown administration panel for solo and multiplayer. Development version **1.5.0**, by **Luiz-AVcruz**, uses Lua 5.1 and multiplayer scripting version 2. English is the default; Brazilian Portuguese is available.
 
-This is the separate **beta** branch and Workshop item. The original release and its `main` branch remain unchanged. Beta preferences, player profiles, rules and roles use `savegame.mod.osp_beta.*`; no game saves or preferences were copied. Keep only one of the two panels enabled at a time.
+This is the **main** distribution, carrying the **1.5.0** development bundle integrated from Beta. Existing settings, player profiles, rules and roles keep the `savegame.mod.osp.*` namespace. The separate Beta item retains `savegame.mod.osp_beta.*`; no saved data is copied between them. Keep only one of the two panels enabled at a time.
 
 ## Appearance
 
@@ -88,11 +88,11 @@ Click the value for movement speed, time scale, rain, fog or an RGB channel to t
 
 ## Settings before loading a map
 
-Select **Open Session Panel Beta → Options** in the Mod Manager. This separate menu runs without a map, player or server. It changes language, the panel shortcut and the color palette using the same saved preferences as the in-game panel. **Restore personal preferences** returns to English, P and the Classic palette.
+Select **Open Session Panel → Options** in the Mod Manager. This separate menu runs without a map, player or server. It changes language, the panel shortcut and the color palette using the same saved preferences as the in-game panel. **Restore personal preferences** returns to English, P and the Classic palette.
 
 **Reset saved host options on this computer** requires confirmation and removes this computer's saved session rules, tool policies and player choices, including permission assignments and the map-load policy. It keeps custom role definitions, personal preferences, the host identity, profile identity references and profile slots. It does not modify another host or native campaign unlocks. Changes take effect on the next map load.
 
-The install archive uses the folder **Open Session Panel Beta**, with spaces, for the local Mod Manager entry. The initial publication uses a new Workshop item restricted to friends. When updating an installed Beta, preserve its own `id.txt`; never reuse the original item's ID. The original item stays on `main` with its existing settings. Enable only one panel at a time.
+The install archive uses the folder **Open Session Panel**, with spaces, for the local Mod Manager entry. Update the existing Workshop item and preserve its installed `id.txt`. The separate Beta item has its own ID; never substitute one for the other. Enable only one panel at a time.
 
 ## Color palettes
 
@@ -102,9 +102,9 @@ Custom lets you choose each interface color with the previous/next role arrows, 
 
 ## Install and develop
 
-The original **1.4.0 release is complete**. This separate Beta branch carries its **1.5.0** development bundle.
+The **1.4.0 release is complete**. The **1.5.0 development bundle** includes the changes integrated from Beta and remains open until Luiz-AVcruz closes it.
 
-Players do not need Python or LuaJIT. Extract `dist/OpenSessionPanelBeta-1.5.0.zip` as its own folder in Teardown's local mods directory and enable **Open Session Panel Beta**. After updating an already loaded mod, reload the map to load the new scripts. Keep only one administration panel active while testing conflicting gameplay controls.
+Players do not need Python or LuaJIT. Extract `dist/OpenSessionPanel-1.5.0.zip` as its own folder in Teardown's local mods directory and enable **Open Session Panel**. After updating an already loaded mod, reload the map to load the new scripts. Keep only one administration panel active while testing conflicting gameplay controls.
 
 Before disabling or removing the mod, restore session/tool defaults as desired, then reload the map to clear temporary effects. A global mod's `server.destroy` callback is not guaranteed cleanup. Remove only this mod's folder; no game files or campaign saves are included.
 
@@ -115,7 +115,7 @@ python3 tools/check.py
 python3 tools/package.py
 ```
 
-Packaging creates `OpenSessionPanelBeta-1.5.0.zip`, `OpenSessionPanelBeta-1.5.0-source.zip` and `SHA256SUMS`. Both contain readable source and licensing notices; there is no compilation or minification. Source repository: [Luiz-AVcruz/Open-Session-Panel-OSP, beta branch](https://github.com/Luiz-AVcruz/Open-Session-Panel-OSP/tree/beta).
+Packaging creates `OpenSessionPanel-1.5.0.zip`, `OpenSessionPanel-1.5.0-source.zip` and `SHA256SUMS`. Both contain readable source and licensing notices; there is no compilation or minification. Source repository: [Luiz-AVcruz/Open-Session-Panel-OSP, main branch](https://github.com/Luiz-AVcruz/Open-Session-Panel-OSP/tree/main).
 
 Workshop assets are included in both archives. `preview.jpg` (512 × 512, below 1 MB) and `preview-menu.png` (512 × 292) use the logo supplied by Luiz-AVcruz, fitted with black padding. `WORKSHOP-DESCRIPTION.txt` keeps the complete Steam description and one-paragraph AI disclosure; `info.txt` contains only a short Mod Manager summary, without the source link or disclosure. The descriptions are validated independently as nonempty. The new Workshop item receives its own ID when the author publishes it; no ID is stored in this project or its archives.
 
@@ -149,7 +149,7 @@ Em **Jogadores**, **Ir até** e **Trazer aqui** exigem outro alvo; os dois contr
 
 As escolhas do host por jogador persistem entre missões: ferramentas, invencibilidade, Fly, Noclip, congelamento, velocidade e role de acesso. O perfil é atribuído pelo mod e guardado no cliente para aquele host; não depende do nome ou número temporário da sessão. Alterações individuais de delegados continuam temporárias; regras de sessão autorizadas podem persistir. **Jogadores → Restaurar opções do jogador** limpa as escolhas pessoais e mantém as regras gerais.
 
-Os atalhos pessoais de **Invencibilidade**, **Fly** e **Noclip** começam sem tecla atribuída. A lista completa fica em **Open Session Panel Beta → Options** no gerenciador de mods. Durante a missão, selecione a si mesmo em **Jogadores** e abra **...** ao lado da ação para configurar o atalho. Fly e Noclip mantêm seus campos de velocidade nesse popup; para outro jogador, esses popups mostram apenas as velocidades. As teclas são locais e sempre agem no próprio jogador com o painel fechado. Os avisos se ajustam ao texto, quebram mensagens longas e descem enquanto um anúncio de sessão está ativo.
+Os atalhos pessoais de **Invencibilidade**, **Fly** e **Noclip** começam sem tecla atribuída. A lista completa fica em **Open Session Panel → Options** no gerenciador de mods. Durante a missão, selecione a si mesmo em **Jogadores** e abra **...** ao lado da ação para configurar o atalho. Fly e Noclip mantêm seus campos de velocidade nesse popup; para outro jogador, esses popups mostram apenas as velocidades. As teclas são locais e sempre agem no próprio jogador com o painel fechado. Os avisos se ajustam ao texto, quebram mensagens longas e descem enquanto um anúncio de sessão está ativo.
 
 Em **Jogadores → Munição infinita**, o contador padrão da ferramenta equipada é reabastecido. O botão **...** oferece restauração ao desligar (padrão ligado) e atalho pessoal sem tecla padrão. Ferramentas habilitadas com munição zerada são abastecidas antes de serem selecionadas. Restaurar devolve cada ferramenta à quantidade capturada antes da primeira reposição, com mínimo de 1 se estava vazia; desligar a restauração mantém o estoque fornecido. Morte ou reaparecimento pelo OSP encerra a captura atual. Ferramentas com munição própria podem não ser afetadas; interromper o mod abruptamente não garante restauração.
 

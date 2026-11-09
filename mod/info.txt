@@ -1,4 +1,4 @@
-name = Open Session Panel Beta
+name = Open Session Panel
 version = 2
 preview = preview-menu.png
 author = Luiz-AVcruz

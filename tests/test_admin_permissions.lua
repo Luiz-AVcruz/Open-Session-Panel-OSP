@@ -43,9 +43,9 @@ do
     eq(count,7,'administrative actions are independent')
     eq(P.normalize({role_create=1}),nil,'global authority cannot use self scope')
     check(P.normalize({reset_player=1})~=nil,'player reset supports self scope')
-    w.api.SetString('savegame.mod.osp_beta.templates.c91.name','Legacy')
-    w.api.SetInt('savegame.mod.osp_beta.templates.c91.version',1)
-    w.api.SetInt('savegame.mod.osp_beta.templates.c91.permissions.heal',1)
+    w.api.SetString('savegame.mod.osp.templates.c91.name','Legacy')
+    w.api.SetInt('savegame.mod.osp.templates.c91.version',1)
+    w.api.SetInt('savegame.mod.osp.templates.c91.permissions.heal',1)
     local nextMap=make({identities=w.identities})
     for _,role in ipairs(nextMap.api.shared.osp.templates) do
         if role.id=='c91' then
@@ -70,7 +70,7 @@ do
     eq(entry(w,47).role,weak.id)
     local nextMap=make({identities=w.identities})
     eq(entry(nextMap,47).role,weak.id,'delegated assignment survives a new map')
-    eq(nextMap.api.GetBool('savegame.mod.osp_beta.players.'..w.identities[47]..'.admin'),false,'legacy bit follows role assignment')
+    eq(nextMap.api.GetBool('savegame.mod.osp.players.'..w.identities[47]..'.admin'),false,'legacy bit follows role assignment')
     w.command(11,'role_assign',47,{id=strong.id})
     denied(w,'role_assign',47,{id='guest'})
     eq(entry(w,47).role,strong.id,'a stronger assignment is not stripped')
@@ -94,7 +94,7 @@ end
 do
     local w,make=fresh();grant(w,{role_edit=2,role_delete=2,heal=1})
     local hostRole=create(w,{heal=1})
-    w.api.SetString('savegame.mod.osp_beta.players.host.role',hostRole.id)
+    w.api.SetString('savegame.mod.osp.players.host.role',hostRole.id)
     local restored=make({identities=w.identities})
     denied(restored,'role_save',0,{id=hostRole.id,name='Changed host',version=1,permissions={}},'protected')
     denied(restored,'role_delete',0,{id=hostRole.id,version=1},'protected')
@@ -138,7 +138,7 @@ do
     w.players[47]=nil;w.removed={47};w.tick()
     denied(w,'role_delete',0,{id=strong.id,version=1})
     eq(w.command(23,'role_delete',0,{id=weak.id,version=1}),true,'delete does not require create or edit')
-    eq(w.api.GetString('savegame.mod.osp_beta.players.'..id..'.role'),'guest','offline assignment is revoked')
+    eq(w.api.GetString('savegame.mod.osp.players.'..id..'.role'),'guest','offline assignment is revoked')
     local nextMap=make({identities=w.identities})
     eq(entry(nextMap,47).role,'guest','offline revocation survives reconnection')
 end

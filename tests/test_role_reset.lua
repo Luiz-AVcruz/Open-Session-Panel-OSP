@@ -78,7 +78,7 @@ do
 end
 -- Legacy custom roles get a single stable baseline before the first new edit.
 do
-    local w,make=fresh();local path='savegame.mod.osp_beta.templates.c91.'
+    local w,make=fresh();local path='savegame.mod.osp.templates.c91.'
     w.api.SetString(path..'name','Legacy');w.api.SetInt(path..'version',5)
     w.api.SetInt(path..'permissions.heal',1)
     local migrated=make({identities=w.identities})
@@ -95,7 +95,7 @@ end
 -- Invalid creation-history data must not silently overwrite a recoverable role.
 do
     local w,make=fresh();local r=create(w,'Recoverable',{heal=1})
-    local path='savegame.mod.osp_beta.templates.'..r.id..'.initial.'
+    local path='savegame.mod.osp.templates.'..r.id..'.initial.'
     w.api.SetString(path..'name',' padded')
     local loaded=make({identities=w.identities});eq(role(loaded,r.id).initial,nil)
     local ok,code=reset(loaded,role(loaded,r.id));eq(ok,false);eq(code,'unavailable')

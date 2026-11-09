@@ -16,7 +16,7 @@ local deleted = {}
 local lastAPI = nil
 local search = OSP.SearchInput.new()
 local groupExpanded = {}
-local groupRoot="savegame.mod.osp_beta.permissions.expanded."
+local groupRoot="savegame.mod.osp.permissions.expanded."
 for _,category in ipairs(P.categories or {}) do
     groupExpanded[category.id]=type(GetString)=="function" and GetString(groupRoot..category.id)=="1" or false
 end

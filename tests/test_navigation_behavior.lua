@@ -18,7 +18,7 @@ for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
   for _,mode in ipairs({'keep','close','leave'}) do
    for _,area in ipairs({'players','tools','permissions'}) do
     local w=world(size[1],size[2],{});local e=w.api
-    w.reg['savegame.mod.osp_beta.language']=lang;e.OSP.Navigation.setSelectionMode(mode);e.OSP.UI.open(true)
+    w.reg['savegame.mod.osp.language']=lang;e.OSP.Navigation.setSelectionMode(mode);e.OSP.UI.open(true)
     other(w,area);w:tick();w:draw();eq(w:draw().selected,23,'redraw does not reset selection')
     if area=='players' then w:clickControl('fly_settings');w:clickControl('movement_popup_close')
     elseif area=='tools' then w:clickControl('tools_actions');w:clickControl('tools_popup_close')
@@ -38,7 +38,7 @@ for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
    end
   end
   -- Exercise the actual local Settings controls and persistence.
-  local w=world(size[1],size[2],{});local e=w.api;w.reg['savegame.mod.osp_beta.language']=lang
+  local w=world(size[1],size[2],{});local e=w.api;w.reg['savegame.mod.osp.language']=lang
   e.OSP.UI.open(true);w:clickControl('tab_settings')
   check(not e.OSP.SettingsSections.expanded('behavior'),'behavior section starts collapsed')
   w:clickControl('settings_section_behavior')

@@ -3,8 +3,8 @@
 -- Local presentation preferences; hiding a tab never grants or revokes access.
 OSP.Navigation={tabs={"players","session","tools","permissions","activity","appearance","settings","about"}}
 local N=OSP.Navigation
-local root="savegame.mod.osp_beta.navigation.hidden."
-local behaviorRoot="savegame.mod.osp_beta.navigation."
+local root="savegame.mod.osp.navigation.hidden."
+local behaviorRoot="savegame.mod.osp.navigation."
 local function known(id)
     for _,tab in ipairs(N.tabs) do if tab==id then return true end end
     return false

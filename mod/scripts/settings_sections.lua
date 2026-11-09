@@ -3,7 +3,7 @@
 -- Local presentation only. Missing or malformed preferences mean collapsed.
 OSP.SettingsSections={ids={"language","shortcut","view_mode","behavior","navigation","effects_on_load","palette","background"}}
 local S=OSP.SettingsSections
-local root="savegame.mod.osp_beta.settings.collapsed."
+local root="savegame.mod.osp.settings.collapsed."
 local function known(id)
     for _,value in ipairs(S.ids) do if id==value then return true end end
     return false
