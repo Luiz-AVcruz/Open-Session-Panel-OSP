@@ -292,9 +292,11 @@ function OSP.installServer()
         saveField(c,p,"fly",v) -- Compatibility with the old native-fly setting.
     end
     add("noclip",boolean,function(c,p,v)
-        SetPlayerVehicle(0,p); SetPlayerParam("flyMode",v,p)
+        local seated=GetPlayerVehicle(p)~=0
+        SetPlayerParam("flyMode",v and not seated,p)
         local e=players[p]
-        SetPlayerVelocity(Vec(0,0,0),p);e.noclip=v;stopFlight(e)
+        if not seated then SetPlayerVelocity(Vec(0,0,0),p) end
+        e.noclip=v;stopFlight(e)
         saveNoclip(c,p,v)
         if v then e.fly=false;saveField(c,p,"flight",false) end
     end,{target=true,persistent=true})
@@ -338,7 +340,7 @@ function OSP.installServer()
     add("ammo",boolean,function(c,p,v)
         local e=players[p]
         e.ammo=v
-        if not v then ammoController:stop(p,e.ammoRestore==true) end
+        if v then ammoController:tick(p,e,true) else ammoController:stop(p,e.ammoRestore==true) end
         saveField(c,p,"ammo",v)
     end,{target=true,persistent=true})
     add("ammo_restore",boolean,function(c,p,v)
@@ -366,53 +368,108 @@ function OSP.installServer()
     add("admin",boolean,function(c,p,v) assignRole(c,p,v and "admin" or "guest") end,{target=true,host=true,noHost=true,persistent=true,profileRequired=true})
     add("role_assign",function(v) return type(v)=="table" and type(v.id)=="string" and P.resolve(v.id,templates).id==v.id end,
         function(c,p,v) assignRole(c,p,v.id) end,{target=true,noHost=true,persistent=true,profileRequired=true})
+    local function storedRole(id) return templates[id] or P.default(id) end
+    local function readPermissions(path)
+        local values={}
+        for _,spec in ipairs(P.spec) do values[spec.id]=GetInt(path..spec.id) end
+        if HasKey(path.."noclip") then values.fly=GetInt(path.."flight")
+        else values.noclip=values.fly;values.fly=0 end
+        return P.normalize(values)
+    end
+    local function writePermissions(path,values)
+        for _,spec in ipairs(P.spec) do
+            SetInt(path..(spec.id=="fly" and "flight" or spec.id),values[spec.id])
+        end
+        SetInt(path.."fly",values.noclip)
+    end
+    local function writeInitial(path,initial)
+        SetString(path.."name",initial.name)
+        writePermissions(path.."permissions.",initial.permissions)
+        SetBool(path.."exists",true)
+    end
+    local function writeRole(role,useDefault)
+        local path=templateSave.."."..role.id.."."
+        ClearKey(path:sub(1,-2))
+        if useDefault then SetBool(path.."use_default",true)
+        else
+            SetString(path.."name",role.name)
+            writePermissions(path.."permissions.",role.permissions)
+        end
+        if not role.builtin then
+            if role.initial then writeInitial(path.."initial.",role.initial)
+            else SetBool(path.."initial.exists",false) end
+        end
+        SetInt(path.."version",role.version)
+    end
     local function loadTemplates()
         templates={}
         for _,id in ipairs(ListKeys(templateSave)) do
-            if id:match("^c%d+$") then
+            if id:match("^c%d+$") or P.isPreset(id) then
                 local path=templateSave.."."..id.."."
-                local name,version=GetString(path.."name"),GetInt(path.."version")
-                local values={}
-                for _,spec in ipairs(P.spec) do values[spec.id]=GetInt(path.."permissions."..spec.id) end
-                if HasKey(path.."permissions.noclip") then values.fly=GetInt(path.."permissions.flight")
-                else values.noclip=values.fly;values.fly=0 end
-                local permissions=P.normalize(values)
-                if P.validName(name) and version>=1 and permissions then
-                    templates[id]={id=id,name=name,version=version,permissions=permissions,builtin=false}
+                local version=GetInt(path.."version")
+                local role
+                if P.isPreset(id) and GetBool(path.."use_default") and version>=1 then
+                    role=P.default(id);role.version=version
+                else
+                    local name,permissions=GetString(path.."name"),readPermissions(path.."permissions.")
+                    if P.validName(name) and version>=1 and permissions then
+                        role={id=id,name=name,version=version,permissions=permissions,builtin=P.isPreset(id)}
+                        if role.builtin then role.initial=P.default(id).initial
+                        elseif not HasKey(path.."initial.exists") then
+                            role.initial={name=name,permissions=OSP.copy(permissions)}
+                            writeInitial(path.."initial.",role.initial)
+                        elseif GetBool(path.."initial.exists") then
+                            local baseName=GetString(path.."initial.name")
+                            local basePermissions=readPermissions(path.."initial.permissions.")
+                            if P.validName(baseName) and basePermissions then role.initial={name=baseName,permissions=basePermissions} end
+                        end
+                    end
                 end
+                if role then templates[id]=role end
             end
         end
     end
     local function templateArg(v)
-        return type(v)=="table" and type(v.id)=="string" and (v.id=="" or templates[v.id]~=nil)
+        return type(v)=="table" and type(v.id)=="string" and (v.id=="" or storedRole(v.id)~=nil)
             and P.validName(v.name) and P.normalize(v.permissions)~=nil and OSP.finite(v.version) and v.version%1==0
     end
     add("role_save",templateArg,function(_,_,v)
         local id=v.id
+        local initial=id~="" and storedRole(id).initial or nil
         if id=="" then
             local nextId=GetInt(templateSave.."_next")+1
             id="c"..nextId;SetInt(templateSave.."_next",nextId)
+            initial={name=v.name,permissions=P.normalize(v.permissions)}
         end
-        local role={id=id,name=v.name,version=v.version+1,permissions=P.normalize(v.permissions),builtin=false}
-        templates[id]=role
-        local path=templateSave.."."..id.."."
-        SetString(path.."name",role.name);SetInt(path.."version",role.version)
-        for _,spec in ipairs(P.spec) do
-            local key=spec.id=="fly" and "flight" or spec.id
-            SetInt(path.."permissions."..key,role.permissions[spec.id])
-        end
-        SetInt(path.."permissions.fly",role.permissions.noclip)
+        local role={id=id,name=v.name,version=v.version+1,permissions=P.normalize(v.permissions),builtin=P.isPreset(id),initial=OSP.copy(initial)}
+        templates[id]=role;writeRole(role,false)
         return {affected=1,skipped=0,template=OSP.copy(role)}
     end,{guard=function(v)
-        if (v.id=="" and v.version~=0) or (v.id~="" and templates[v.id].version~=v.version) then return "conflict" end
+        if (v.id=="" and v.version~=0) or (v.id~="" and storedRole(v.id).version~=v.version) then return "conflict" end
         local count=0
         for id,role in pairs(templates) do
-            count=count+1
-            if id~=v.id and role.name:lower()==v.name:lower() then return "invalid" end
+            if not P.isPreset(id) then count=count+1 end
+            if id~=v.id and role.name and role.name:lower()==v.name:lower() then return "invalid" end
         end
         if v.id=="" and count>=16 then return "template_limit" end
     end})
-    add("role_delete",function(v) return type(v)=="table" and type(v.id)=="string" and templates[v.id]~=nil and OSP.finite(v.version) end,
+    local function roleVersionArg(v)
+        return type(v)=="table" and type(v.id)=="string" and storedRole(v.id)~=nil
+            and OSP.finite(v.version) and v.version>=0 and v.version%1==0
+    end
+    add("role_reset",roleVersionArg,function(_,_,v)
+        local current=storedRole(v.id)
+        local role=P.default(v.id) or {id=v.id,builtin=false,name=current.initial.name,
+            permissions=OSP.copy(current.initial.permissions),initial=OSP.copy(current.initial)}
+        role.version=current.version+1
+        templates[v.id]=role;writeRole(role,role.builtin)
+        return {affected=1,skipped=0,template=OSP.copy(role)}
+    end,{guard=function(v)
+        local role=storedRole(v.id)
+        if role.version~=v.version then return "conflict" end
+        if not role.initial then return "unavailable" end
+    end})
+    add("role_delete",function(v) return roleVersionArg(v) and not P.isPreset(v.id) end,
         function(_,_,v)
             templates[v.id]=nil;ClearKey(templateSave.."."..v.id)
             for _,e in pairs(players) do if e.role==v.id then e.role="guest";e.admin=false end end
@@ -422,7 +479,7 @@ function OSP.installServer()
             end
             return {affected=1,skipped=0,deleted=v.id}
         end,
-        {guard=function(v) if templates[v.id].version~=v.version then return "conflict" end end})
+        {guard=function(v) if storedRole(v.id).version~=v.version then return "conflict" end end})
     add("reset_player",nil,function(_,p)
         ammoController:stop(p,players[p].ammoRestore==true)
         strengthController:release(p,true)
@@ -600,7 +657,7 @@ function OSP.installServer()
         end
         publish()
     end
-    local administrative={role_assign=true,role_save=true,role_delete=true,reset_player=true,
+    local administrative={role_assign=true,role_save=true,role_reset=true,role_delete=true,reset_player=true,
         tool_policy=true,tool_policy_bulk=true,tool_policy_selection=true,restart=true}
     local function administrationGuard(actor,action,target,arg)
         if isHost(actor) then return end
@@ -611,10 +668,18 @@ function OSP.installServer()
             proposed=P.resolve(arg.id,templates).permissions
         elseif action=="role_save" then
             proposed=P.normalize(arg.permissions)
-            if arg.id~="" then current=templates[arg.id].permissions;templateId=arg.id end
-        elseif action=="role_delete" then
-            current=templates[arg.id].permissions;templateId=arg.id
-        elseif action=="reset_player" then current=playerRole(target).permissions end
+            if arg.id~="" then current=storedRole(arg.id).permissions;templateId=arg.id end
+        elseif action=="role_delete" or action=="role_reset" then
+            local role=storedRole(arg.id)
+            current=role.permissions;templateId=arg.id
+            if action=="role_reset" then
+                if not role.initial then return "unavailable" end
+                proposed=role.initial.permissions
+            else proposed=P.resolve("guest",templates).permissions end
+        elseif action=="reset_player" then
+            current=playerRole(target).permissions
+            proposed=P.resolve("guest",templates).permissions
+        end
         if templateId then
             for _,p in ipairs(roster()) do
                 if isHost(p) and playerRole(p).id==templateId then return "protected" end
@@ -686,12 +751,17 @@ function OSP.installServer()
         end
         -- Throttle accepted requests, not permission revocations (which must win immediately).
         local now=GetTime()
-        if action~="admin" and action~="role_assign" and action~="role_save" and action~="role_delete" and lastRequest[actor] and now-lastRequest[actor]<0.05 then deny("rate_limited"); return end
+        if action~="admin" and action~="role_assign" and action~="role_save" and action~="role_reset" and action~="role_delete" and lastRequest[actor] and now-lastRequest[actor]<0.05 then deny("rate_limited"); return end
         lastRequest[actor]=now
         local ok,details=pcall(def.run,actor,target,arg)
         local code=ok and "ok" or "error"
         if not ok then DebugPrint("[Open Session Panel] "..action..": "..tostring(details)); details={} end
         details=details or {affected=1,skipped=0}
+        if ok and (action=="tool" or action=="tools" or action=="tool_all" or action=="tools_all"
+            or action=="tools_filtered" or action=="tools_filtered_all" or action=="tools_selection" or action=="tools_selection_all"
+            or action=="tool_policy" or action=="tool_policy_bulk" or action=="tool_policy_selection") then
+            for _,p in ipairs(roster()) do if players[p].ammo then ammoController:tick(p,players[p],true) end end
+        end
         record(actor,action,target,code,details,arg)
         publish(); reply(actor,ok,code,details,requestId)
     end
@@ -743,7 +813,8 @@ function OSP.installServer()
         e.alive=alive
         if not alive then ammoController:stop(p,e.ammoRestore==true);stopFlight(e);return end
         if e.god~=nil then SetPlayerParam("godMode",e.god,p) end
-        if e.noclip~=nil then SetPlayerParam("flyMode",e.noclip,p) end
+        local seated=GetPlayerVehicle(p)~=0
+        if e.noclip~=nil then SetPlayerParam("flyMode",e.noclip and not seated,p) end
         if e.speed~=1 and not e.noclip then SetPlayerParam("walkingSpeed",e.baseSpeed*e.speed,p) end
         if rules.regen~=nil then SetPlayerRegenerationState(rules.regen,p) end
         local noclip=e.noclip==true or (e.noclip==nil and e.baseFly==true)
@@ -768,7 +839,7 @@ function OSP.installServer()
             SetPlayerVehicle(0,p)
             SetPlayerTransform(e.anchor,p)
             SetPlayerVelocity(Vec(0,0,0),p)
-        elseif e.noclip then
+        elseif e.noclip and not seated then
             -- Logical movement inputs honor the player's actual keyboard mapping.
             local x=(InputDown("right",p) and 1 or 0)-(InputDown("left",p) and 1 or 0)
             local z=(InputDown("down",p) and 1 or 0)-(InputDown("up",p) and 1 or 0)
@@ -777,7 +848,6 @@ function OSP.installServer()
             direction=VecAdd(direction,Vec(0,y,0))
             local length=VecLength(direction)
             if length>1 then direction=VecScale(direction,1/length) end
-            SetPlayerVehicle(0,p)
             local speed=InputDown("shift",p) and e.noclipBoost or e.noclipSpeed
             SetPlayerVelocity(VecScale(direction,speed),p)
         end
@@ -826,7 +896,7 @@ function OSP.installServer()
         for _,p in ipairs(roster()) do
             updatePlayer(p,true)
             local e=players[p]
-            ammoController:tick(p,e)
+            ammoController:tick(p,e,refresh)
             strengthController:tick(p,e,strengthInputAllowed(p,e))
         end
         if refresh then publish() end

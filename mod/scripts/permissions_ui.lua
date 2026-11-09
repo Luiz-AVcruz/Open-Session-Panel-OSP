@@ -40,6 +40,8 @@ end
 
 local function copyDraft(role)
     local value=OSP.copy(role)
+    value.name=P.name(role)
+    value.nameKey=nil
     value.permissions=value.permissions or {}
     for _,spec in ipairs(P.spec) do
         if value.permissions[spec.id]==nil then value.permissions[spec.id]=0 end
@@ -136,7 +138,7 @@ end
 
 local function changed(role)
     if not draft then return false end
-    if draft.id~=role.id or draft.name~=role.name or draft.version~=role.version then return true end
+    if draft.id~=role.id or draft.name~=P.name(role) or draft.version~=role.version then return true end
     local draftPermissions=draft.permissions or {}
     local rolePermissions=role.permissions or {}
     for _,spec in ipairs(P.spec) do
@@ -167,9 +169,6 @@ local function prepareRoles(roles)
     end
     if not lookup(roles,selected) then
         selected=role.id;draft=nil;view="assign";capturingName=false
-    end
-    if view=="edit" and role.builtin and draft and draft.id~="" then
-        view="assign";draft=nil;capturingName=false
     end
     if view=="edit" and not draft then view="assign" end
     return roles,role
@@ -320,7 +319,7 @@ local function selectRole(roles,id,api)
 end
 
 local function enterExistingEdit(role,api)
-    if role and not role.builtin then
+    if role then
         draft=copyDraft(role);capturingName=false;search.blur();view="edit"
         expandedContentHeight=0;expandedScroll=0;resetScroll(api)
     end
@@ -343,6 +342,7 @@ end
 local function newRoleDraft(T,roles,role)
     local value=copyDraft(role)
     value.id="";value.name=nextCustomName(T,roles);value.version=0
+    value.builtin=false;value.initial=nil
     return value
 end
 
@@ -350,12 +350,6 @@ local function createRole(api,T,roles,role)
     draft=newRoleDraft(T,roles,role)
     capturingName=false;search.blur();view="edit";expandedContentHeight=0;expandedScroll=0
     resetScroll(api)
-end
-
-local function drawCompactHeading(api,T,width,titleKey)
-    local y=78
-    api.label(0,y,titleKey and T(titleKey) or T("role_assignment_title"),20,width)
-    return y+43
 end
 
 local function drawPlayerSelector(api,T,player,width,y)
@@ -381,36 +375,34 @@ end
 local function drawRoleActions(api,T,roles,role,width,y)
     local proposal=newRoleDraft(T,roles,role)
     local createDisabled=isPending(api) or not can(api,"role_create",0,proposal) or not canSaveRole(api,proposal)
-    local editDisabled=role.builtin or isPending(api) or not canSaveRole(api,role)
+    local editDisabled=isPending(api) or not canSaveRole(api,role)
+    local resetPayload={id=role.id,version=role.version}
+    local resetDisabled=isPending(api) or not can(api,"role_reset",0,resetPayload)
     local deleteDisabled=role.builtin or isPending(api) or not can(api,"role_delete",0,{id=role.id,version=role.version})
-    local createLabel=T(width<760 and "role_copy_short" or "role_create_custom")
-    local editLabel=T(width<760 and "role_edit_short" or "role_edit_custom")
-    local deleteLabel=T(width<760 and "role_delete_short" or "role_editor_delete")
+    local half=(width-4)/2
     local function drawCreate(x,w,buttonY)
-        if api.button("role_create_custom",x,buttonY,w,36,createLabel,"plain",createDisabled) then createRole(api,T,roles,role) end
+        if api.button("role_create_custom",x,buttonY,w,36,T("role_copy_short"),"plain",createDisabled) then createRole(api,T,roles,role) end
     end
     local function drawEdit(x,w,buttonY)
-        if api.button("role_edit_custom",x,buttonY,w,36,editLabel,"plain",editDisabled) then enterExistingEdit(role,api) end
+        if api.button("role_edit_custom",x,buttonY,w,36,T("role_edit_short"),"plain",editDisabled) then enterExistingEdit(role,api) end
+    end
+    local function drawReset(x,w,buttonY)
+        if api.button("role_reset",x,buttonY,w,36,T("role_reset_short"),"plain",resetDisabled) then
+            search.blur();capturingName=false
+            api.ask("role_reset",0,resetPayload,T("confirm_role_reset",P.name(role)))
+        end
     end
     local function drawDelete(x,w,buttonY)
-        if api.button("role_delete",x,buttonY,w,36,deleteLabel,"danger",deleteDisabled) then
+        if api.button("role_delete",x,buttonY,w,36,T("role_delete_short"),"danger",deleteDisabled) then
             search.blur();capturingName=false
             api.ask("role_delete",0,{id=role.id,version=role.version},T("confirm_role_delete",P.name(role)))
         end
     end
-    if width<340 then
-        local half=(width-4)/2
-        drawCreate(0,width,y)
-        drawEdit(0,half,y+40)
-        drawDelete(half+4,half,y+40)
-        return y+82
-    end
-    local gap=4
-    local buttonWidth=(width-gap*2)/3
-    drawCreate(0,buttonWidth,y)
-    drawEdit(buttonWidth+gap,buttonWidth,y)
-    drawDelete((buttonWidth+gap)*2,buttonWidth,y)
-    return y+42
+    drawCreate(0,half,y)
+    drawEdit(half+4,half,y)
+    drawReset(0,half,y+40)
+    drawDelete(half+4,half,y+40)
+    return y+80
 end
 
 local function currentRole(roles,player)
@@ -424,8 +416,8 @@ local function drawPlayerCurrent(api,T,roles,player,width,y)
     return current,y+30
 end
 
-local function drawRoleAssignment(api,T,player,current,role,width,y)
-    if api.button("role_apply",0,y,width,36,T("role_apply"),"active",
+local function drawRoleAssignment(api,T,player,current,role,width,y,x)
+    if api.button("role_apply",x or 0,y,width,36,T("role_apply"),"active",
         isPending(api) or not player or player.host or player.profileReady==false or (current and current.id==role.id)
             or not can(api,"role_assign",player and player.id,{id=role.id})) then
         search.blur();capturingName=false
@@ -452,20 +444,6 @@ local function drawAssignmentManagement(api,T,roles,player,width,y,includeApply)
     y=y+29
     y=drawRoleActions(api,T,roles,role,width,y)
     return role,y
-end
-
-local function drawAssignment(api,T,roles,player,width,role)
-    local y=drawCompactHeading(api,T,width,"role_assignment_title")
-    role,y=drawAssignmentManagement(api,T,roles,player,width,y,true)
-    if role.builtin then
-        api.label(0,y,T("permission_builtin_readonly"),14,width)
-        y=y+20
-    end
-    api.label(0,y,T("role_preview_title",P.name(role)),17,width)
-    y=y+27
-    y=drawSearch(api,T,0,y,width)
-    y=y+drawPermissionGroups(api,T,role,width,false,isPending(api),y)
-    return y+8
 end
 
 local function discardDraft(api)
@@ -496,39 +474,45 @@ local function drawEditActions(api,T,role,width,y,fixedY)
             resetScroll(api)
         end
         if api.button("role_editor_delete",half+8,reloadY,half,36,T("role_editor_delete"),"danger",
-            waiting or not can(api,"role_delete",0,{id=role.id,version=role.version})) then
+            role.builtin or waiting or not can(api,"role_delete",0,{id=role.id,version=role.version})) then
             capturingName=false;search.blur()
             api.ask("role_delete",0,{id=role.id,version=role.version},T("confirm_role_delete",P.name(role)))
         end
-        if not fixedY then y=reloadY+42 end
+        local resetY=fixedY and fixedY+84 or reloadY+42
+        local resetPayload={id=role.id,version=role.version}
+        if api.button("role_editor_reset",0,resetY,width,36,T("role_reset_short"),"plain",
+            waiting or not can(api,"role_reset",0,resetPayload)) then
+            capturingName=false;search.blur()
+            api.ask("role_reset",0,resetPayload,T("confirm_role_reset",P.name(role)))
+        end
+        if not fixedY then y=resetY+42 end
     end
     if fixedY then return false end
     local helpHeight=api.paragraph(0,y,T("permission_host_reserved"),14,width)
     return y+(helpHeight or 18)+16
 end
 
-local function drawCompactEditor(api,T,width,role)
-    local y=drawCompactHeading(api,T,width,draft.id=="" and "role_editor_create_title" or "role_editor_edit_title")
-    if draft.id=="" then api.label(0,y,T("role_editor_based_on",P.name(role)),14,width)
-    else api.label(0,y,T("role_editor_save_effect"),14,width) end
-    y=y+24
-    api.label(0,y,T("role_name_label"),15,width)
-    y=y+20
-    local waiting=isPending(api)
-    if waiting then capturingName=false end
-    local shown=draft.name..(capturingName and "_" or "")
-    if api.button("role_editor_name",0,y,width,36,shown,capturingName and "active" or "plain",
-        waiting or not canSaveRole(api,draft)) then
-        search.blur();capturingName=true
+local function drawCompact(api,T,roles,player,width,role)
+    local y=78
+    if view=="edit" and draft then
+        api.label(0,y,T("role_draft_title"),18,width)
+        api.label(0,y+28,draft.name,16,width)
+        local half=(width-8)/2
+        if api.button("permission_view_resume",0,y+58,half,36,T("role_continue_edit"),"active",false) then UI.openExpanded() end
+        if api.button("role_editor_discard",half+8,y+58,half,36,T("role_editor_discard"),"plain",isPending(api)) then discardDraft(api) end
+        return y+108
     end
-    y=y+43
-    api.label(0,y,T(changed(role) and "role_editor_unsaved" or "role_editor_scope_help"),14,width)
-    y=y+24
-    y=drawSearch(api,T,0,y,width)
-    y=y+drawPermissionGroups(api,T,draft,width,true,waiting,y)
-    local bottom=drawEditActions(api,T,role,width,y)
-    if bottom==true then return 0 end
-    return bottom
+    y=drawPlayerSelector(api,T,player,width,y)
+    local current
+    current,y=drawPlayerCurrent(api,T,roles,player,width,y)
+    if width>=440 then
+        drawRoleDropdown(api,T,roles,width-156,y)
+        role=lookup(roles,selected) or roles[1]
+        return drawRoleAssignment(api,T,player,current,role,148,y+20,width-148)+8
+    end
+    y=drawRoleDropdown(api,T,roles,width,y)
+    role=lookup(roles,selected) or roles[1]
+    return drawRoleAssignment(api,T,player,current,role,width,y)+8
 end
 
 local function drawExpandedEditorIdentity(api,T,role,width,y)
@@ -574,10 +558,6 @@ local function drawExpandedPermissionList(api,T,role,x,y,width,bottom,editing)
     local contentRole=editing and draft or role
     api.label(x,y,T("role_preview_title",P.name(contentRole)),17,width)
     y=y+25
-    if not editing and contentRole.builtin then
-        api.label(x,y,T("permission_builtin_readonly"),13,width)
-        y=y+20
-    end
     drawExpandedViewport(api,x,y,width,bottom,function()
         return drawPermissionGroups(api,T,contentRole,width,editing,isPending(api))
     end)
@@ -604,7 +584,7 @@ local function drawExpandedNarrow(api,T,roles,player,role,width,height,top)
     if view=="edit" and draft then
         local y=drawExpandedEditorIdentity(api,T,role,width,top)
         if drawEditActions(api,T,role,width,y,y) then return end
-        y=y+42+(draft.id=="" and 0 or 42)
+        y=y+42*(draft.id=="" and 1 or 3)
         drawExpandedPermissionList(api,T,role,0,y,width,height,true)
         return
     end
@@ -615,10 +595,6 @@ local function drawExpandedNarrow(api,T,roles,player,role,width,height,top)
         local selectedRole,y=drawAssignmentManagement(api,T,roles,player,width,0,false)
         api.label(0,y,T("role_preview_title",P.name(selectedRole)),17,width)
         y=y+25
-        if selectedRole.builtin then
-            api.label(0,y,T("permission_builtin_readonly"),13,width)
-            y=y+20
-        end
         return y+drawPermissionGroups(api,T,selectedRole,width,false,isPending(api),y)
     end
     drawExpandedViewport(api,0,top,width,math.max(top,applyY),drawManagementAndPermissions)
@@ -640,8 +616,7 @@ function UI.draw(api,roles,player,width)
     if expanded then return 0 end
     local role
     roles,role=prepareRoles(roles)
-    if view=="edit" then return drawCompactEditor(api,T,width,role) end
-    return drawAssignment(api,T,roles,player,width,role)
+    return drawCompact(api,T,roles,player,width,role)
 end
 
 function UI.drawExpanded(api,roles,player,width,height)

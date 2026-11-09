@@ -71,7 +71,7 @@ function OSP.installClient()
         local P=OSP.Permissions;local values=ownPermissions()
         if not P.allows(values,action,target,arg,me) then return false end
         local custom={}
-        for _,r in ipairs(state() and state().templates or {}) do if not r.builtin then custom[r.id]=r end end
+        for _,r in ipairs(state() and state().templates or {}) do custom[r.id]=r end
         local current,proposed,templateId
         if action=="role_assign" or action=="reset_player" then
             local p=findPlayer(target)
@@ -80,7 +80,7 @@ function OSP.installClient()
             if action=="role_assign" then
                 if type(arg)~="table" then return false end
                 proposed=P.resolve(arg.id,custom).permissions
-            end
+            else proposed=P.resolve("guest",custom).permissions end
         elseif action=="role_save" then
             if type(arg)~="table" then return false end
             proposed=P.normalize(arg.permissions)
@@ -89,10 +89,14 @@ function OSP.installClient()
                 local r=custom[arg.id];if not r then return false end
                 current=r.permissions;templateId=arg.id
             end
-        elseif action=="role_delete" then
+        elseif action=="role_delete" or action=="role_reset" then
             local r=type(arg)=="table" and custom[arg.id]
             if not r then return false end
             current=r.permissions;templateId=arg.id
+            if action=="role_reset" then
+                if not r.initial then return false end
+                proposed=r.initial.permissions
+            else proposed=P.resolve("guest",custom).permissions end
         end
         if templateId then
             for _,p in ipairs(roster()) do if p.host and p.role==templateId then return false end end
@@ -566,7 +570,7 @@ function OSP.installClient()
         if not rolesAccess() then setTab("settings");return 0 end
         title(T("permissions"),T("permissions_subtitle"))
         local x=layout.contentW-112
-        if button("permission_view_expand",x,-3,112,32,"","outlined",false) then
+        if button("permission_view_expand",x,0,112,32,"","outlined",false) then
             closeDropdown();OSP.PermissionUI.openExpanded()
         end
         local ix,iy=x+10,6
@@ -713,7 +717,7 @@ function OSP.installClient()
             if e then
                 local actor=math.min(140,w*.21);local result=math.min(105,w*.16);local target=math.min(125,w*.18)
                 local actionW=math.max(100,w-actor-result-target-24)
-                local key=({heal="heal",kill="kill",respawn="respawn",["goto"]="go_to",bring="bring",eject="eject",god="god_mode",fly="fly",fly_speed="fly_normal_action",fly_boost="fly_shift_action",noclip_speed="noclip_normal_action",noclip_boost="noclip_shift_action",noclip="noclip",freeze="freeze",strength="strength",ammo="ammo",ammo_restore="ammo_restore",strength_force="strength_force_label",strength_mass="strength_mass_label",strength_throw="strength_throw",strength_throw_speed="strength_throw_speed_label",speed="speed",admin="admin_access",role_assign="permissions",role_save="permissions",role_delete="permissions",reset_player="reset_player",heal_all="heal_all",bring_all="bring_all",rule="session_rules",reset_rules="reset_rules",restart="restart",announce="announcement",tool="tools",tool_all="tools",tools="tools",tools_all="tools",tool_policy="global_rules",tool_policy_bulk="global_rules",tool_policy_selection="global_rules",tools_selection="tools",tools_selection_all="tools",tools_filtered="tools",tools_filtered_all="tools"})[e.action] or "status"
+                local key=({heal="heal",kill="kill",respawn="respawn",["goto"]="go_to",bring="bring",eject="eject",god="god_mode",fly="fly",fly_speed="fly_normal_action",fly_boost="fly_shift_action",noclip_speed="noclip_normal_action",noclip_boost="noclip_shift_action",noclip="noclip",freeze="freeze",strength="strength",ammo="ammo",ammo_restore="ammo_restore",strength_force="strength_force_label",strength_mass="strength_mass_label",strength_throw="strength_throw",strength_throw_speed="strength_throw_speed_label",speed="speed",admin="admin_access",role_assign="permissions",role_save="permissions",role_delete="permissions",role_reset="permissions",reset_player="reset_player",heal_all="heal_all",bring_all="bring_all",rule="session_rules",reset_rules="reset_rules",restart="restart",announce="announcement",tool="tools",tool_all="tools",tools="tools",tools_all="tools",tool_policy="global_rules",tool_policy_bulk="global_rules",tool_policy_selection="global_rules",tools_selection="tools",tools_selection_all="tools",tools_filtered="tools",tools_filtered_all="tools"})[e.action] or "status"
                 local detail=T(key)
                 if type(e.argument)=="table" then
                     local a=e.argument
@@ -1143,7 +1147,7 @@ function OSP.installClient()
         local msg=T(names[code] or "result_error")
         if details and details.skipped and details.skipped>0 then msg=msg.."  "..T("skipped",details.skipped) end
         if ok and lastAction=="rule" then msg=T("rules_saved") elseif ok and lastAction=="reset_rules" then msg=T("rules_reset") end
-        if ok and lastAction=="role_save" and details then OSP.PermissionUI.saved(details.template) end
+        if ok and (lastAction=="role_save" or lastAction=="role_reset") and details then OSP.PermissionUI.saved(details.template) end
         if ok and lastAction=="role_delete" and details then OSP.PermissionUI.deleted(details.deleted) end
         if shortcutRequest then
             local own=findPlayer(me);local request=shortcutRequest;shortcutRequest=nil

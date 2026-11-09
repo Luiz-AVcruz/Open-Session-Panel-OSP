@@ -97,6 +97,12 @@ local function world(width,height,previousRegistry)
         return env.OSP.UI.getState()
     end
     function w:scrollTo(id)
+        local current=self:draw()
+        local advanced=id:match("^role_editor_") or id:match("^role_scope_") or id:match("^permission_group_")
+            or id=="role_create_custom" or id=="role_edit_custom" or id=="role_delete" or id=="role_reset" or id=="permission_view_search" or id=="permission_view_search_clear"
+        if advanced and current.tab=='permissions' and not current.permissionExpanded and not current.controls[id] then
+            self:clickControl('permission_view_expand')
+        end
         for _=1,40 do
             local st=self:draw();local r=st.controls[id]
             if r and r.w>=20 and r.h>=20 then return r end
@@ -298,6 +304,7 @@ for _,size in ipairs({{1280,720},{1920,1080},{2560,1440},{1024,768},{2560,1080}}
     local d=world(size[1],size[2]);local de=d.api
     de.IsPlayerHost=function() return false end
     de.shared.osp.players[1].host=false;de.shared.osp.players[1].admin=true
+    de.shared.osp.players[1].permissions=de.OSP.Permissions.resolve("moderator").permissions
     de.shared.osp.players[2].host=true;de.shared.osp.players[2].admin=true
     d:tick('p');d:clickControl('tab_tools');local ds=d:draw()
     eq(ds.toolMode,'player','delegated admin receives temporary mode')
@@ -464,7 +471,7 @@ for _,size in ipairs({{1024,768},{1920,1080}}) do
     eq(st.controls.role_create_custom,nil,'editor hides custom-role browser actions')
     eq(w:scrollTo('role_editor_save').disabled,false,'new custom role can be saved')
     w:clickControl('role_editor_name');check(e.OSP.PermissionUI.capturing(),'name capture starts')
-    w:clickControl('close');eq(e.OSP.PermissionUI.capturing(),false,'Close cancels name capture')
+    w:clickControl('permission_view_close');eq(e.OSP.PermissionUI.capturing(),false,'closing editor cancels name capture')
     e.OSP.UI.open(true);w:clickControl('role_editor_name');check(e.OSP.PermissionUI.capturing())
     e.OSP.UI.open(false);eq(e.OSP.PermissionUI.capturing(),false,'programmatic close cancels name capture')
     e.OSP.UI.open(true);w:clickControl('role_editor_name');w:tick('x')
@@ -486,7 +493,7 @@ for _,size in ipairs({{1024,768},{1920,1080}}) do
     -- keep the new role selected after the editor returns to assignment.
     st=w:draw()
     eq(st.controls.role_editor_name,nil,'ACK returns to assignment view')
-    eq(st.controls.role_create_custom~=nil,true,'ACK returns to custom-role actions')
+    eq(st.controls.role_create_custom,nil,'ACK returns to compact assignment without advanced controls')
     eq(w:scrollTo('role_edit_custom').disabled,false,'saved copy survives delayed shared state')
     w:clickControl('role_apply');eq(e.OSP.UI.getState().confirm.arg.id,'c1')
     w:clickControl('confirm_cancel')
@@ -538,10 +545,13 @@ do
     e.OSP.UI.open(true);w:draw()
     eq(e.OSP.UI.getState().selected,23,'delegated panel defaults to its own player')
     eq(w:scrollTo('player_action_heal').disabled,false)
-    eq(w:scrollTo('player_action_kill').disabled,true)
+    eq(w:scrollTo('player_action_kill').disabled,false,'Self role exposes suicide')
+    w:clickControl('player_action_kill');check(w:draw().confirm~=nil,'suicide requires confirmation')
+    w:clickControl('confirm_accept');eq(w.sent[#w.sent].args[2],'kill');eq(w.sent[#w.sent].args[3],23);w:ack()
     eq(w:scrollTo('heal_all').disabled,true)
     w:clickControl('player_11')
     eq(w:scrollTo('player_action_heal').disabled,true,'self permission cannot edit another player')
+    check(w:scrollTo('player_action_kill').disabled,'Self cannot kill another player')
     eq(w:scrollTo('tab_permissions').disabled,true,'old presets have no delegated template management')
     w:clickControl('tab_session')
     eq(w:scrollTo('rule_rain_up').disabled,true)
@@ -550,7 +560,7 @@ do
     w:clickControl('tab_players');w:clickControl('player_23')
     e.shared.osp.players[2].permissions=e.OSP.Permissions.resolve('admin').permissions
     w:clickControl('player_action_kill')
-    e.shared.osp.players[2].permissions=e.OSP.Permissions.resolve('self').permissions
+    e.shared.osp.players[2].permissions=e.OSP.Permissions.resolve('guest').permissions
     local before=#w.sent;w:clickControl('confirm_accept')
     eq(#w.sent,before,'revocation prevents a stale confirmation from sending')
 end
@@ -1250,9 +1260,10 @@ do
     local w=world(1920,1080);local e=w.api
     e.IsPlayerHost=function() return false end
     local own=e.shared.osp.players[1];own.host=false;own.admin=true
+    own.permissions=e.OSP.Permissions.resolve("moderator").permissions
     e.OSP.ViewMode.set("single");w:tick("p");w:clickControl("tab_tools")
-    check(w:scrollTo("tool_sledge").disabled,"global tool action remains host-only")
-    check(w:scrollTo("tool_more_sledge").disabled,"global tool popup remains host-only")
+    check(w:scrollTo("tool_sledge").disabled,"panel mode does not grant global policy access")
+    check(w:scrollTo("tool_more_sledge").disabled,"panel mode does not grant global popup access")
     eq(#w.sent,0,"presentation cannot grant authority")
 end
 
@@ -1514,13 +1525,21 @@ do
     w:tick('1');w:tick('2');w:tick('.');w:tick('5');w:tick('return')
     eq(w.sent[#w.sent].args[4],12.5,'throw speed accepts fractional values')
 end
+-- Compact Permissions keeps assignment visible and the expand button unclipped.
+for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
+    local w=world(unpack(size));w:tick('p');w:clickControl('tab_permissions');local st=w:draw()
+    eq(st.controls.permission_view_expand.h,32,'expand button is fully inside the content viewport')
+    check(st.controls.permission_view_role_select and st.controls.role_apply,'compact assignment controls are visible')
+    check(not st.controls.role_create_custom and not st.controls.permission_group_players,'advanced controls stay outside compact view')
+    eq(st.maxScroll,0,'compact assignment needs no scroll in supported canvases')
+end
 -- Expanded Permissions draws outside the normal panel and preserves local work.
 for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
  for _,language in ipairs({'en','pt'}) do
     local w=world(unpack(size));local e=w.api;w.reg['savegame.mod.osp_beta.language']=language
     e.shared.osp.templates=e.OSP.Permissions.list({})
-    w:tick('p');w:clickControl('tab_permissions');w:clickControl('role_create_custom')
-    w:clickControl('permission_view_expand');local st=w:draw();local b=st.layout.permissionModalBounds
+    w:tick('p');w:clickControl('tab_permissions');w:clickControl('permission_view_expand')
+    w:clickControl('role_create_custom');local st=w:draw();local b=st.layout.permissionModalBounds
     check(st.permissionExpanded,'Expand opens the larger editor')
     check(b and b.x>=0 and b.y>=0 and b.x+b.w<=size[1] and b.y+b.h<=size[2],'expanded editor fits canvas')
     check(b.w<=1320 and b.h<=900 and b.w<=size[1]*.94 and b.h<=size[2]*.90,'expanded editor respects size limits')
@@ -1560,7 +1579,7 @@ end
 -- The enlarged list owns wheel input; header/actions remain fixed.
 do
     local w=world(640,480);local e=w.api
-    w:tick('p');w:clickControl('tab_permissions');w:clickControl('role_create_custom');w:clickControl('permission_view_expand')
+    w:tick('p');w:clickControl('tab_permissions');w:clickControl('permission_view_expand');w:clickControl('role_create_custom')
     w:clickControl('permission_view_search');for c in ('movement'):gmatch('.') do w:tick(c) end
     w:clickControl('permission_group_movement');local st=w:draw()
     local searchTop=st.controls.permission_view_search.y;local saveTop=st.controls.role_editor_save.y
@@ -1627,6 +1646,17 @@ do
     check(w:scrollTo('role_create_custom').disabled,'delete-only role cannot create')
     w:clickControl('role_delete');w:clickControl('confirm_accept')
     eq(w.sent[#w.sent].args[2],'role_delete','delete is available directly from preview');w:ack(false,'conflict')
+    local guest=e.OSP.Permissions.default('guest');guest.permissions.restart=2
+    local custom=e.shared.osp.templates[#e.shared.osp.templates]
+    e.shared.osp.templates=e.OSP.Permissions.list({guest=guest,c1=custom})
+    check(w:scrollTo('role_delete').disabled,'delete rejects a stronger Guest fallback in the UI')
+    w:clickControl('permission_view_close');w:clickControl('tab_players');w:clickControl('player_11')
+    own.permissions=e.OSP.Permissions.normalize({reset_player=1,heal=1})
+    eq(w:draw().controls.reset_player,nil,'player reset rejects a stronger Guest fallback in the UI')
+    for _,role in ipairs(e.shared.osp.templates) do if role.id=='guest' then role.permissions.restart=0 end end
+    check(not w:scrollTo('reset_player').disabled,'safe Guest fallback keeps player reset available')
+    own.permissions=e.OSP.Permissions.normalize({role_delete=2,heal=1})
+    w:clickControl('tab_permissions');w:clickControl('permission_view_expand')
     w:clickControl('permission_view_role_select');own.permissions={};w:tick()
     check(not w:draw().roleDropdown,'revoking management closes its dropdown')
     check(e.OSP.UI.getState().tab~='permissions','revoking management leaves Permissions')
@@ -1764,6 +1794,29 @@ do
     w:clickControl('player_action_ammo');backend.tick()
     eq(backend.players[23].ammo.gun,9999)
     w:clickControl('player_action_ammo');eq(backend.players[23].ammo.gun,41,'UI disable restores captured stock')
+
+    backend.players[23].ammo.gun=0
+    w:clickControl('player_action_ammo')
+    eq(backend.players[23].ammo.gun,9999,'UI immediately primes an empty gun')
+    w:clickControl('player_action_ammo')
+    eq(backend.players[23].ammo.gun,1,'UI restore keeps an originally empty gun selectable')
+
+    w:clickControl('tab_permissions');w:chooseRole('self');w:clickControl('role_edit_custom')
+    w:clickControl('permission_group_players');w:clickControl('role_scope_heal_2')
+    w:clickControl('role_editor_save')
+    check(replies[#replies][1],'server accepts an edited preset from the actual editor')
+    local function selfRole()
+        for _,role in ipairs(e.shared.osp.templates) do if role.id=='self' then return role end end
+    end
+    eq(selfRole().version,1);eq(selfRole().permissions.heal,2)
+    eq(w:draw().permissionExpanded,false,'preset save ACK returns to compact assignment')
+    w:clickControl('role_reset');eq(e.OSP.UI.getState().confirm.action,'role_reset')
+    eq(e.OSP.UI.getState().confirm.arg.version,1)
+    w:clickControl('confirm_accept')
+    check(replies[#replies][1],'server accepts reset produced by UI confirmation')
+    eq(selfRole().version,2);eq(selfRole().permissions.heal,1)
+    eq(w:draw().permissionExpanded,false,'reset ACK closes expanded view')
+    w:clickControl('tab_players')
 
     r=w:scrollTo('player_speed_value');before=#w.sent
     w:pressAt(r.x+5,r.y+r.h/2)

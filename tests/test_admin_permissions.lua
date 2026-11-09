@@ -32,13 +32,13 @@ local function denied(w,action,target,arg,reason)
     eq(ok,false,action);eq(code,reason or 'denied',action)
 end
 
--- Existing presets and legacy custom templates gain no new authority.
+-- Administrator is complete; legacy custom templates keep their stored grants.
 do
     local w,make=fresh();local P=w.api.OSP.Permissions
     local admin=P.resolve('admin').permissions
     local count=0
     for _,spec in ipairs(P.spec) do
-        if spec.category=='admin' then eq(admin[spec.id],0,'preset preserves former access');count=count+1 end
+        if spec.category=='admin' then eq(admin[spec.id],2,'Administrator includes every administrative capability');count=count+1 end
     end
     eq(count,7,'administrative actions are independent')
     eq(P.normalize({role_create=1}),nil,'global authority cannot use self scope')
@@ -53,9 +53,9 @@ do
         end
     end
     grant(w,P.resolve('admin').permissions)
-    denied(w,'restart',0)
-    denied(w,'tool_policy',0,{id='gun',mode='disabled'})
-    denied(w,'role_save',0,{id='',name='Forbidden',version=0,permissions={}})
+    eq(w.command(23,'restart',0),true)
+    eq(w.command(23,'tool_policy',0,{id='gun',mode='disabled'}),true)
+    eq(save(w,23,{}),true,'Administrator can create roles')
 end
 
 -- Assignment is persistent but cannot change the host or exceed the delegate.

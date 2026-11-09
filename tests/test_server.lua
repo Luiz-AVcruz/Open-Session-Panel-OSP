@@ -322,6 +322,7 @@ w.command(11,'tool',47,{id='gun',enabled=false});w.api.RespawnPlayer(47);w.tick(
 w.players[47].tools.gun=true;w.now=w.now+1/60;w.api.server.tick(1/60)
 eq(w.players[47].tools.gun,false,'no 200 ms pickup window')
 -- Effects are immediate/frame based; movement stops only while frozen.
+w.players[47].vehicle=0
 w.command(11,'god',47,true);w.command(11,'noclip',47,true);w.command(11,'speed',47,2)
 w.players[47].inputs={up=true,jump=true};w.tick();check(w.players[47].velocity[3]<0,'noclip logical forward');check(w.players[47].velocity[2]>0,'noclip logical jump');eq(w.players[47].speed,7)
 w.command(11,'freeze',47,true);w.tick();eq(w.players[47].disabled,true);eq(w.players[47].velocity[3],0)
@@ -354,8 +355,8 @@ w2.players[23].health=0
 ok,code=w2.command(11,'goto',23);eq(ok,false);eq(code,'unavailable')
 ok,code,details=w2.command(11,'bring_all',0);eq(ok,true);eq(details.affected,1);eq(details.skipped,2)
 w2.players[11].health=0;ok,code=w2.command(11,'bring_all',0);eq(ok,false);eq(code,'unavailable');w2.players[11].health=1
--- Specific tool bulk operations and host-only restart.
-w2.command(11,'admin',23,true)
+-- Tool delegates without the restart capability cannot restart.
+w2.command(11,'role_assign',23,{id='moderator'})
 w2.command(23,'tool_all',0,{id='sledge',enabled=false})
 eq(w2.players[11].tools.sledge,true);eq(w2.players[47].tools.sledge,false)
 ok,code=w2.command(23,'restart',0);eq(ok,false);eq(w2.restarted,false)
@@ -374,7 +375,7 @@ eq(#w2.api.shared.osp.log,100);check(w2.api.shared.osp.log[1].seq<w2.api.shared.
 eq(w2.api.OSP.validKey('w'),false);eq(w2.api.OSP.validKey('f8'),true);eq(w2.api.OSP.validKey('mousewheel'),false)
 -- Host policies survive a new mission, not a player's recycled runtime ID.
 local pworld=world({catalog={'sledge','gun','modlaser'}})
-pworld.command(11,'admin',23,true)
+pworld.command(11,'role_assign',23,{id='moderator'})
 ok,code=pworld.command(23,'tool_policy',0,{id='gun',mode='disabled'})
 eq(ok,false);eq(code,'denied')
 ok,code=pworld.command(11,'tool_policy',0,{id='gun',mode='wat'});eq(ok,false)
@@ -472,7 +473,8 @@ local calls=#restored.calls
 restored.api.server.ospIdentify(99,'wrong-host',0,identity)
 eq(#restored.calls,calls,'wrong host namespace ignored')
 -- Delegates can make temporary changes without overwriting the host's profile.
-restored.command(11,'admin',23,true)
+local _,_,playerControls=restored.command(11,'role_save',0,{id='',name='Player controls',version=0,permissions={god=2,speed=2,tools=2}})
+restored.command(11,'role_assign',23,{id=playerControls.template.id})
 restored.command(23,'god',47,false);restored.command(23,'speed',47,1)
 restored.command(23,'tool',47,{id='gun',enabled=true})
 restored.command(11,'admin',47,false)
@@ -530,7 +532,11 @@ assign(23,'self')
 eq(access.api.shared.osp.players[2].role,'self')
 eq(access.command(23,'heal',23),true)
 denied(23,'heal',47)
-denied(23,'kill',23)
+denied(23,'kill',47)
+ok,code=access.command(23,'kill',11);eq(ok,false);eq(code,'protected')
+eq(access.command(23,'kill',23),true,'Self role allows suicide')
+eq(access.players[23].health,0,'self kill reaches the server')
+eq(access.command(23,'respawn',23),true,'Self can respawn after suicide')
 for _,action in ipairs({'tool','tools','tools_filtered'}) do
     local value=action=='tool' and {id='gun',enabled=false} or action=='tools' and false or {category='vanilla',enabled=false}
     if action=='tools' then value=false end
@@ -566,7 +572,7 @@ eq(nextSession.api.shared.osp.players[2].role,custom.id,'assignment survives a n
 ok,code=nextSession.command(23,'heal',47);eq(ok,false);eq(code,'denied')
 eq(nextSession.command(23,'rule',0,{key='rain',value=.4}),true,'custom rule grant survives a new map')
 local bad={
-    {id='admin',name='Overwrite builtin',version=0,permissions={heal=2}},
+    {id='unknown',name='Unknown role',version=0,permissions={heal=2}},
     {id='',name='  padded',version=0,permissions={heal=2}},
     {id='',name=string.rep('x',41),version=0,permissions={heal=2}},
     {id='',name='Bad key',version=0,permissions={admin=2}},
@@ -598,7 +604,7 @@ eq(access.api.shared.osp.players[2].admin,false,'all-zero permissions remove pan
 assign(23,'admin')
 eq(access.command(23,'heal_all',0),true)
 eq(access.command(23,'rule',0,{key='fog',value=200}),true)
-denied(23,'tool_policy',0,{id='gun',mode='enabled'})
+eq(access.command(23,'tool_policy',0,{id='gun',mode='enabled'}),true,'Administrator includes global tool policy')
 access.command(11,'admin',23,false)
 denied(23,'heal',23)
 -- Bounded custom library and exact target scope rules.
@@ -788,6 +794,7 @@ for _,setting in ipairs({{'fly_speed',14.75},{'fly_boost',37.5},{'noclip_speed',
 end
 eq(modes.api.shared.osp.players[2].fly,false,'tuning cannot activate Fly')
 eq(modes.api.shared.osp.players[2].noclip,false,'tuning cannot activate Noclip')
+modes.players[23].vehicle=0
 modes.command(11,'speed',23,3);modes.command(11,'noclip',23,true)
 modes.players[23].inputs={up=true};modes.tick()
 eq(modes.players[23].velocity[3],-5.25);eq(modes.players[23].speed,7,'native walking multiplier is not applied to Noclip')
@@ -1121,7 +1128,7 @@ eq(ammoState(23).ammo,false,'ammo is off by default')
 eq(ammoState(23).ammoRestore,true,'restoration defaults to true')
 eq(ammoMap.command(11,'ammo',23,true),true)
 eq(registry[ammoRoot..'ammo'],true,'host saves ammo by profile')
-eq(ammoMap.players[23].ammo.gun,60,'setting ammo does not act before tick')
+eq(ammoMap.players[23].ammo.gun,9999,'activation supplies ammo before its ACK')
 ammoMap.tick();eq(ammoMap.players[23].ammo.gun,9999,'enabled equipped gun refills on server tick')
 ammoMap.players[23].ammo.gun=4;ammoMap.tick();eq(ammoMap.players[23].ammo.gun,9999,'depletion replenishes to reserve')
 local ammoWriteCount=#ammoMap.ammoWrites
@@ -1138,8 +1145,9 @@ ammoRemembered.tick();eq(ammoRemembered.players[23].ammo.gun,33,'disabled saved 
 -- The preference is consulted when an effect ends. Turning it back on during
 -- the effect restores the original stock, while turning it off does not.
 eq(ammoMap.command(11,'ammo_restore',23,true),true)
+ammoMap.players[23].ammo.gun=80
 eq(ammoMap.command(11,'ammo',23,true),true)
-ammoMap.players[23].ammo.gun=80;ammoMap.tick()
+ammoMap.tick()
 eq(ammoMap.players[23].ammo.gun,9999)
 ammoMap.players[23].ammo.gun=6;ammoMap.tick()
 ammoWriteCount=#ammoMap.ammoWrites
@@ -1157,8 +1165,10 @@ trueAmmoRemembered.tick();eq(trueAmmoRemembered.players[23].ammo.gun,9999,'saved
 
 -- Death, OSP respawns and reset all end transient control without revoking the
 -- ability; explicit respawns restore before the engine respawns the player.
+eq(ammoMap.command(11,'ammo',23,false),true)
+ammoMap.players[23].ammo.gun=51
 eq(ammoMap.command(11,'ammo',23,true),true)
-ammoMap.players[23].ammo.gun=51;ammoMap.tick();eq(ammoMap.players[23].ammo.gun,9999)
+ammoMap.tick();eq(ammoMap.players[23].ammo.gun,9999)
 ammoMap.players[23].ammo.gun=3;ammoMap.tick()
 ammoMap.players[23].health=0;ammoMap.api.server.tick()
 eq(ammoMap.players[23].ammo.gun,51,'observed death restores the current baseline')
@@ -1223,4 +1233,42 @@ delegatedOk,delegatedCode=delegatedAmmo.command(23,'ammo',47,{expected=false,val
 eq(delegatedOk,false);eq(delegatedCode,'invalid','conditional ammo payload remains self-only')
 eq(P.resolve('guest').permissions.ammo,0,'guest receives no implicit ammo grant')
 
+-- Empty, unselected mod tools become selectable through the real tool-command
+-- boundary. Role grants alone do not enable an otherwise blocked tool.
+do
+    local t=world({catalog={'sledge','gun','osp_empty_mod'}});local p=t.players[23]
+    p.tools.osp_empty_mod=false;p.ammo.osp_empty_mod=0;p.tool='none'
+    eq(t.command(11,'role_assign',23,{id='self'}),true)
+    eq(p.tools.osp_empty_mod,false,'permission grant does not unlock mod tools')
+    eq(t.command(11,'ammo',23,true),true)
+    eq(p.ammo.osp_empty_mod,0,'infinite ammo leaves blocked tools alone')
+    eq(t.command(11,'tool',23,{id='osp_empty_mod',enabled=true}),true)
+    eq(p.tools.osp_empty_mod,true)
+    eq(p.ammo.osp_empty_mod,9999,'tool enable supplies empty unselected tool before ACK')
+    eq(p.tool,'none','priming does not force a selection')
+    eq(t.command(11,'ammo',23,false),true)
+    eq(p.ammo.osp_empty_mod,1,'originally empty mod tool remains selectable after restore')
+    eq(t.command(11,'ammo_restore',23,false),true)
+    p.ammo.osp_empty_mod=0;eq(t.command(11,'ammo',23,true),true)
+    eq(t.command(11,'ammo',23,false),true)
+    eq(p.ammo.osp_empty_mod,9999,'restoration disabled keeps supplied stock for an empty tool')
+end
+-- Noclip yields to vehicles and resumes on foot without changing the grant.
+do
+    local t=world();local p=t.players[23];p.vehicle=0
+    eq(t.command(11,'noclip',23,true),true)
+    p.vehicle=333;p.velocity={4,0,2};p.inputs={up=true,shift=true};t.tick()
+    eq(p.vehicle,333,'Noclip does not eject a driver every tick')
+    eq(p.params.flyMode,false,'native Noclip is suspended inside a vehicle')
+    eq(p.velocity[1],4,'Noclip does not overwrite seated movement');eq(p.velocity[3],2)
+    eq(t.api.shared.osp.players[2].noclip,true,'the Noclip grant is kept while driving')
+    eq(t.command(11,'noclip',23,false),true)
+    eq(p.vehicle,333,'disabling Noclip does not eject a driver')
+    eq(t.command(11,'noclip',23,true),true)
+    eq(p.vehicle,333,'granting Noclip while seated keeps the vehicle')
+    eq(p.params.flyMode,false)
+    p.vehicle=0;p.inputs={up=true};t.tick()
+    eq(p.params.flyMode,true,'native Noclip resumes after leaving the vehicle')
+    eq(p.velocity[3],-t.api.shared.osp.players[2].noclipSpeed,'configured Noclip movement resumes')
+end
 print('PASS server boundary: '..count..' assertions')

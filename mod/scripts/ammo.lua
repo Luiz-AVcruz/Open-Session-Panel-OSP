@@ -40,7 +40,7 @@ function OSP.Ammo.new()
                     -- Negative and non-finite values are native sentinels (or
                     -- invalid data); do not overwrite them.
                     if finite(current) and current>=0 then
-                        SetToolAmmo(tool,snapshot.original,p)
+                        SetToolAmmo(tool,math.max(1,snapshot.original),p)
                     end
                 end
             end
@@ -48,9 +48,27 @@ function OSP.Ammo.new()
         entries[p]=nil
     end
 
+    local function snapshotFor(entry,tool,ammo)
+        local snapshot=entry.tools[tool]
+        if not snapshot then
+            snapshot={original=ammo,touched=false}
+            entry.tools[tool]=snapshot
+        end
+        return snapshot
+    end
+    local function primeEmptyTools(p,entry)
+        if type(ListKeys)~="function" then return end
+        for _,tool in ipairs(ListKeys("game.tool")) do
+            if registered(tool) and IsToolEnabled(tool,p) and GetToolAmmo(tool,p)==0 then
+                local snapshot=snapshotFor(entry,tool,0)
+                SetToolAmmo(tool,math.max(snapshot.original,9999),p)
+                snapshot.touched=true
+            end
+        end
+    end
     local controller={}
 
-    function controller:tick(p,e)
+    function controller:tick(p,e,refresh)
         if type(e)~="table" then self:remove(p);return end
         local previous=entries[p]
         if previous and previous.challenge~=e.challenge then
@@ -69,18 +87,15 @@ function OSP.Ammo.new()
         if type(GetPlayerTool)~="function" or type(IsToolEnabled)~="function"
             or type(GetToolAmmo)~="function" or type(SetToolAmmo)~="function" then return end
 
+        if not entry.primed or refresh then
+            primeEmptyTools(p,entry);entry.primed=true
+        end
         local tool=GetPlayerTool(p)
         if not registered(tool) or not IsToolEnabled(tool,p) then return end
         local ammo=GetToolAmmo(tool,p)
         if not finite(ammo) or ammo<0 then return end
 
-        local snapshot=entry.tools[tool]
-        if not snapshot then
-            -- Capture at first eligible observation, before a later depletion
-            -- can make the original reserve impossible to infer.
-            snapshot={original=ammo,touched=false}
-            entry.tools[tool]=snapshot
-        end
+        local snapshot=snapshotFor(entry,tool,ammo)
         local reserve=math.max(snapshot.original,9999)
         if ammo<reserve then
             SetToolAmmo(tool,reserve,p)

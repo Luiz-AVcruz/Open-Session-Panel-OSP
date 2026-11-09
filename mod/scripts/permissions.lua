@@ -22,7 +22,7 @@ P.spec = {
 }
 -- Legacy all-or-nothing assignment remains host-only for older clients.
 P.reserved = {admin=true}
-local aliases = {tool_policy_bulk="tool_policy",tool_policy_selection="tool_policy",ammo_restore="ammo",tool="tools",tools_filtered="tools",tool_all="tools_all",tools_filtered_all="tools_all",
+local aliases = {role_reset="role_edit",tool_policy_bulk="tool_policy",tool_policy_selection="tool_policy",ammo_restore="ammo",tool="tools",tools_filtered="tools",tool_all="tools_all",tools_filtered_all="tools_all",
     tools_selection="tools",tools_selection_all="tools_all",
     fly_speed="fly",fly_boost="fly",noclip_speed="noclip",noclip_boost="noclip",
     strength_force="strength",strength_mass="strength",strength_throw="strength",strength_throw_speed="strength"}
@@ -40,25 +40,35 @@ function P.normalize(values)
     return result
 end
 local function preset(id,values)
-    return {id=id,nameKey="role_"..id,builtin=true,version=0,permissions=P.normalize(values)}
+    local permissions=P.normalize(values)
+    return {id=id,nameKey="role_"..id,builtin=true,version=0,permissions=permissions,
+        initial={nameKey="role_"..id,permissions=OSP.copy(permissions)}}
 end
 local all={}
-for _,spec in ipairs(P.spec) do all[spec.id]=spec.category=="admin" and 0 or 2 end
+for _,spec in ipairs(P.spec) do all[spec.id]=2 end
 P.builtins={
     preset("guest",{}),
-    preset("self",{heal=1,respawn=1,["goto"]=2,eject=1,god=1,fly=1,noclip=1,speed=1,strength=1,ammo=1,tools=1}),
+    preset("self",{heal=1,respawn=1,kill=1,["goto"]=2,eject=1,god=1,fly=1,noclip=1,speed=1,strength=1,ammo=1,tools=1}),
     preset("helper",{heal=2,respawn=2,["goto"]=2,bring=2,announce=2}),
     preset("moderator",{heal=2,respawn=2,["goto"]=2,bring=2,eject=2,freeze=2,speed=2,tools=2,heal_all=2,bring_all=2,tools_all=2,announce=2}),
     preset("admin",all),
 }
+function P.isPreset(id)
+    for _,role in ipairs(P.builtins) do if role.id==id then return true end end
+    return false
+end
+function P.default(id)
+    for _,role in ipairs(P.builtins) do if role.id==id then return OSP.copy(role) end end
+end
 function P.resolve(id,custom)
-    for _,role in ipairs(P.builtins) do if role.id==id then return role end end
-    return (custom and custom[id]) or P.builtins[1]
+    if custom and custom[id] then return custom[id] end
+    return P.default(id) or custom and custom.guest or P.default("guest")
 end
 function P.list(custom)
-    local out=OSP.copy(P.builtins)
+    local out={}
+    for _,role in ipairs(P.builtins) do out[#out+1]=OSP.copy(custom and custom[role.id] or role) end
     local ids={}
-    for id in pairs(custom or {}) do ids[#ids+1]=id end
+    for id in pairs(custom or {}) do if not P.isPreset(id) then ids[#ids+1]=id end end
     table.sort(ids)
     for _,id in ipairs(ids) do out[#out+1]=OSP.copy(custom[id]) end
     return out

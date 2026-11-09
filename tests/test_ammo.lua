@@ -20,6 +20,7 @@ local function world()
         for _,tool in ipairs(w.catalog) do if tool==id then return true end end
         return false
     end
+    env.ListKeys=function(key) assert(key=="game.tool");return w.catalog end
     env.GetPlayerHealth=function(p) w.apiCalls=w.apiCalls+1;return w.players[p].health end
     env.GetPlayerTool=function(p) w.apiCalls=w.apiCalls+1;return w.players[p].tool end
     env.IsToolEnabled=function(tool,p) w.apiCalls=w.apiCalls+1;return w.players[p].enabled[tool]==true end
@@ -161,4 +162,16 @@ do
     controller:stop(1,false);eq(w.players[1].ammo.gun,9999)
 end
 
+-- Empty enabled tools can be selected immediately, with restorable stock.
+do
+    local w=world();local c=w.api.OSP.Ammo.new();local e={ammo=true,ammoRestore=true,challenge=1}
+    w.players[1].tool="none";w.players[1].ammo.gun=0;w.players[1].ammo.sledge=0;w.players[1].enabled.sledge=false
+    c:tick(1,e);eq(w.players[1].ammo.gun,9999,"unselected empty weapon is supplied")
+    eq(w.players[1].ammo.sledge,0,"blocked empty tool stays unchanged")
+    w.players[1].tool="gun";w.players[1].ammo.gun=9998
+    c:tick(1,e);eq(w.players[1].ammo.gun,9999,"equipped tool keeps the existing replenishment behavior")
+    w.catalog[#w.catalog+1]="late";w.players[1].enabled.late=true;w.players[1].ammo.late=0
+    c:tick(1,e,true);eq(w.players[1].ammo.late,9999,"newly registered empty tool is supplied on refresh")
+    c:stop(1,true);eq(w.players[1].ammo.gun,1);eq(w.players[1].ammo.late,1)
+end
 print("PASS ammo controller behavior: "..count.." assertions")
