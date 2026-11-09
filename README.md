@@ -1,6 +1,6 @@
 # Open Session Panel Beta
 
-An independently written Teardown administration panel for solo and multiplayer. Development version **1.5.0**, by **Luiz-AVcruz**, uses Lua 5.1 and multiplayer scripting version 2. English is the default; Brazilian Portuguese is available.
+An independently written Teardown administration panel for solo and multiplayer. Development version **1.5.1**, by **Luiz-AVcruz**, uses Lua 5.1 and multiplayer scripting version 2. English is the default; Brazilian Portuguese is available.
 
 This is the separate **beta** branch and Workshop item. The original release and its `main` branch remain unchanged. Beta preferences, player profiles, rules and roles use `savegame.mod.osp_beta.*`; no game saves or preferences were copied. Keep only one of the two panels enabled at a time.
 
@@ -44,9 +44,9 @@ Restoration returns each affected tool to the amount captured before its first r
 
 The **Permissions** tab assigns a role to each player. It is available to the host and to delegates with role-management permissions. Built-in roles are Guest, Self only, Helper, Moderator and Administrator. **Self only** offers healing, confirmed self-kill, respawning, leaving vehicles, invincibility, Fly, Noclip, speed, Super strength, infinite ammo and tools for the caller; going to another player moves only the caller. Other players and the host are protected from changes by that role.
 
-The compact view selects a player and assigns a role through a dropdown. **Expand** opens the permission preview and role editor, with search and collapsible categories. Closing with X or clicking outside keeps an unfinished draft; **Continue editing** and **Discard** remain available in the compact view. Saving or a confirmed reset returns to assignment. On wide screens, role management sits beside the permission list; smaller screens use scrolling.
+The compact view selects a player and assigns a role through a dropdown. **Manage roles**, beside the Role selector, opens the permission preview and role editor, with search and collapsible categories. Closing with X or clicking outside keeps an unfinished draft; **Continue editing** and **Discard** remain available in the compact view. Saving or a confirmed reset returns to assignment. On wide screens, role management sits beside the permission list; smaller screens use scrolling.
 
-Every role can be edited under its existing ID. Up to **16 custom roles** are supported, with ASCII names of up to 40 characters. Targeted actions allow **Blocked / Self only / Any player**; bulk actions and session rules have separate on/off permissions. **Reset role** restores OSP defaults for supplied roles, or the name and permissions saved when a custom role was created. For older custom roles, the first state loaded by this update becomes that baseline. Supplied roles cannot be deleted.
+**Create role** starts a custom role using the selected role as a base. Every role can be edited under its existing ID. Up to **16 custom roles** are supported, with ASCII names of up to 40 characters. Targeted actions allow **Blocked / Self only / Any player**; bulk actions and session rules have separate on/off permissions. **Reset role** restores OSP defaults for supplied roles, or the name and permissions saved when a custom role was created. For older custom roles, the first state loaded by this update becomes that baseline. Supplied roles cannot be deleted.
 
 Assignments and role changes are saved on the host across missions and restarts. Editing or resetting a role updates everyone assigned to it, including offline players when they reconnect. Deleting a custom role returns its linked players to Guest. Guests retain personal settings and appearance. Existing full-admin grants remain Administrator assignments.
 
@@ -102,9 +102,9 @@ Custom lets you choose each interface color with the previous/next role arrows, 
 
 ## Install and develop
 
-The original **1.4.0 release is complete**. This separate Beta branch carries its **1.5.0** development bundle.
+The stable **1.5.0 release is complete**. This separate Beta branch carries the **1.5.1** development bundle. Promotion to `main` requires the author's explicit approval.
 
-Players do not need Python or LuaJIT. Extract `dist/OpenSessionPanelBeta-1.5.0.zip` as its own folder in Teardown's local mods directory and enable **Open Session Panel Beta**. After updating an already loaded mod, reload the map to load the new scripts. Keep only one administration panel active while testing conflicting gameplay controls.
+Players do not need Python or LuaJIT. Extract `dist/OpenSessionPanelBeta-1.5.1.zip` as its own folder in Teardown's local mods directory and enable **Open Session Panel Beta**. After updating an already loaded mod, reload the map to load the new scripts. Keep only one administration panel active while testing conflicting gameplay controls.
 
 Before disabling or removing the mod, restore session/tool defaults as desired, then reload the map to clear temporary effects. A global mod's `server.destroy` callback is not guaranteed cleanup. Remove only this mod's folder; no game files or campaign saves are included.
 
@@ -115,7 +115,7 @@ python3 tools/check.py
 python3 tools/package.py
 ```
 
-Packaging creates `OpenSessionPanelBeta-1.5.0.zip`, `OpenSessionPanelBeta-1.5.0-source.zip` and `SHA256SUMS`. Both contain readable source and licensing notices; there is no compilation or minification. Source repository: [Luiz-AVcruz/Open-Session-Panel-OSP, beta branch](https://github.com/Luiz-AVcruz/Open-Session-Panel-OSP/tree/beta).
+Packaging creates `OpenSessionPanelBeta-1.5.1.zip`, `OpenSessionPanelBeta-1.5.1-source.zip` and `SHA256SUMS`. Both contain readable source and licensing notices; there is no compilation or minification. Source repository: [Luiz-AVcruz/Open-Session-Panel-OSP, beta branch](https://github.com/Luiz-AVcruz/Open-Session-Panel-OSP/tree/beta).
 
 Workshop assets are included in both archives. `preview.jpg` (512 × 512, below 1 MB) and `preview-menu.png` (512 × 292) use the logo supplied by Luiz-AVcruz, fitted with black padding. `WORKSHOP-DESCRIPTION.txt` keeps the complete Steam description and one-paragraph AI disclosure; `info.txt` contains only a short Mod Manager summary, without the source link or disclosure. The descriptions are validated independently as nonempty. The new Workshop item receives its own ID when the author publishes it; no ID is stored in this project or its archives.
 
@@ -157,6 +157,6 @@ Ao desligar explicitamente um efeito em si mesmo, o jogador salva esse desligame
 
 Em **Configurações → Efeitos ao carregar mapa**, o host pode ativar **Começar mapas com efeitos desligados**, desativado por padrão. No próximo carregamento/reinício, os efeitos ficam desligados e a velocidade volta a 1× para todos, inclusive quem entrar depois. Roles, ajustes de voo/Superforça, preferência de restauração de munição e regras de ferramentas são preservados. É possível reativar efeitos durante a partida; reaparecer não os desliga novamente.
 
-Em **Permissões**, a visão compacta serve para selecionar jogador e atribuir uma Role pelo dropdown. **Ampliar** abre consulta, busca, categorias e editor. Todas as Roles podem ser editadas; **Restaurar Role** recupera os padrões do OSP para as prontas ou o nome e as permissões da criação para as customizadas. Nas customizadas antigas, o primeiro estado carregado nesta atualização vira a base. As prontas não podem ser excluídas; há limite de 16 customizadas. Fechar pelo X ou por clique fora preserva o rascunho, com Continuar edição/Descartar na tela compacta. Editar ou restaurar altera todos os vinculados, inclusive após reconexão. Admin separa os poderes de gerenciamento e o Administrador recebe todos por padrão. Delegados não podem gerenciar Roles mais fortes, conceder permissões que não possuem ou alterar o acesso do host. Apenas em si permite morte confirmada somente do próprio jogador.
+Em **Permissões**, a visão compacta serve para selecionar jogador e atribuir uma Role pelo dropdown. **Gerenciar Roles**, junto ao seletor de Role, abre consulta, busca, categorias e editor. **Criar Role** inicia uma Role customizada com base na selecionada. Todas as Roles podem ser editadas; **Restaurar Role** recupera os padrões do OSP para as prontas ou o nome e as permissões da criação para as customizadas. Nas customizadas antigas, o primeiro estado carregado nesta atualização vira a base. As prontas não podem ser excluídas; há limite de 16 customizadas. Fechar pelo X ou por clique fora preserva o rascunho, com Continuar edição/Descartar na tela compacta. Editar ou restaurar altera todos os vinculados, inclusive após reconexão. Admin separa os poderes de gerenciamento e o Administrador recebe todos por padrão. Delegados não podem gerenciar Roles mais fortes, conceder permissões que não possuem ou alterar o acesso do host. Apenas em si permite morte confirmada somente do próprio jogador.
 
 Os controles de ferramentas ficam em **Ferramentas**, com filtros Vanilla e Mods; ações de categoria abrangem os IDs registrados naquele momento. Restaurar padrões não muda os desbloqueios da campanha. Recarregue o mapa após atualizar. Persistência dos perfis e multiplayer real ainda precisam ser observados no jogo com os mesmos arquivos em todos os participantes.

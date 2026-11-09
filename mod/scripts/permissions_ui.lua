@@ -360,16 +360,24 @@ local function drawPlayerSelector(api,T,player,width,y)
     return y+38
 end
 
-local function drawRoleDropdown(api,T,roles,width,y)
+local function drawRoleDropdown(api,T,roles,width,y,manage)
     local items={}
     for _,candidate in ipairs(roles) do
         items[#items+1]={id=candidate.id,label=P.name(candidate)}
     end
-    api.label(0,y,T("role_select_label"),15,width)
-    api.dropdown("permission_view_role_select",0,y+20,width,36,items,selected,false,function(id)
+    local dropdownY=y+20
+    if manage then
+        local manageWidth=180
+        api.label(0,y+8,T("role_select_label"),15,width-manageWidth-8)
+        if api.button("permission_view_expand",width-manageWidth,y,manageWidth,32,T("permission_view_expand"),"outlined",false) then UI.openExpanded() end
+        dropdownY=y+40
+    else
+        api.label(0,y,T("role_select_label"),15,width)
+    end
+    api.dropdown("permission_view_role_select",0,dropdownY,width,36,items,selected,false,function(id)
         selectRole(roles,id,api)
     end)
-    return y+62
+    return dropdownY+42
 end
 
 local function drawRoleActions(api,T,roles,role,width,y)
@@ -381,7 +389,7 @@ local function drawRoleActions(api,T,roles,role,width,y)
     local deleteDisabled=role.builtin or isPending(api) or not can(api,"role_delete",0,{id=role.id,version=role.version})
     local half=(width-4)/2
     local function drawCreate(x,w,buttonY)
-        if api.button("role_create_custom",x,buttonY,w,36,T("role_copy_short"),"plain",createDisabled) then createRole(api,T,roles,role) end
+        if api.button("role_create_custom",x,buttonY,w,36,T("role_create_short"),"plain",createDisabled) then createRole(api,T,roles,role) end
     end
     local function drawEdit(x,w,buttonY)
         if api.button("role_edit_custom",x,buttonY,w,36,T("role_edit_short"),"plain",editDisabled) then enterExistingEdit(role,api) end
@@ -402,7 +410,8 @@ local function drawRoleActions(api,T,roles,role,width,y)
     drawEdit(half+4,half,y)
     drawReset(0,half,y+40)
     drawDelete(half+4,half,y+40)
-    return y+80
+    local helpHeight=api.paragraph(0,y+84,T("role_create_help",P.name(role)),13,width)
+    return y+84+(helpHeight or 18)+8
 end
 
 local function currentRole(roles,player)
@@ -506,11 +515,11 @@ local function drawCompact(api,T,roles,player,width,role)
     local current
     current,y=drawPlayerCurrent(api,T,roles,player,width,y)
     if width>=440 then
-        drawRoleDropdown(api,T,roles,width-156,y)
+        drawRoleDropdown(api,T,roles,width-156,y,true)
         role=lookup(roles,selected) or roles[1]
-        return drawRoleAssignment(api,T,player,current,role,148,y+20,width-148)+8
+        return drawRoleAssignment(api,T,player,current,role,148,y+40,width-148)+8
     end
-    y=drawRoleDropdown(api,T,roles,width,y)
+    y=drawRoleDropdown(api,T,roles,width,y,true)
     role=lookup(roles,selected) or roles[1]
     return drawRoleAssignment(api,T,player,current,role,width,y)+8
 end

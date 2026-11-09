@@ -40,18 +40,41 @@ Antes de remover o mod, restaurar regras conforme desejado e recarregar o mapa. 
 
 ## Organização e comandos
 
-Lua 5.1, scripting version 2 do Teardown, sem dependências no runtime. Código jogável em `mod/`, teste do contrato do servidor/cliente em `tests/`, ferramentas locais em `tools/`. A versão de produto em desenvolvimento é **1.5.0**; `version = 2` no manifesto continua significando a geração do scripting.
+Lua 5.1, scripting version 2 do Teardown, sem dependências no runtime. Código jogável em `mod/`, teste do contrato do servidor/cliente em `tests/`, ferramentas locais em `tools/`. A versão de produto em desenvolvimento é **1.5.1**; `version = 2` no manifesto continua significando a geração do scripting.
 
 ```sh
 python3 tools/check.py
 python3 tools/package.py
 ```
 
-O usuário encerrou o bundle de desenvolvimento **1.4.0** em 2026-11-07 e confirmou a versão como pronta. As mudanças posteriores integram o bundle **1.5.0**, conforme orientação posterior do usuário. Manter esse número até ele encerrar o bundle. Não reescrever o histórico Git.
+O usuário encerrou o bundle de desenvolvimento **1.4.0** em 2026-11-07 e confirmou a versão como pronta. As mudanças posteriores integram o bundle **1.5.0**, conforme orientação posterior do usuário. O bundle 1.5.0 foi encerrado; o desenvolvimento atual é 1.5.1, até nova orientação. Não reescrever o histórico Git.
 
-O empacotador produz `OpenSessionPanelBeta-1.5.0.zip`, `OpenSessionPanelBeta-1.5.0-source.zip` e hashes determinísticos. A raiz instalável é `Open Session Panel Beta` e a raiz das fontes é `OpenSessionPanelBeta-source`. O pacote não inclui `.git`, identificadores de Workshop, backups, tokens ou assets proprietários. Não é necessário Python para jogar.
+O empacotador produz `OpenSessionPanelBeta-1.5.1.zip`, `OpenSessionPanelBeta-1.5.1-source.zip` e hashes determinísticos. A raiz instalável é `Open Session Panel Beta` e a raiz das fontes é `OpenSessionPanelBeta-source`. O pacote não inclui `.git`, identificadores de Workshop, backups, tokens ou assets proprietários. Não é necessário Python para jogar.
 
-## Bundle 1.5.0 em desenvolvimento
+## Backlog futuro
+
+Solicitações para próximos ciclos, sem ordem de prioridade definida. Planejar, implementar e validar um grupo coeso por vez.
+
+- [ ] Permitir escolher ferramentas específicas para cada Role.
+- [ ] Melhorar o editor da paleta personalizada e a organização e o compartilhamento de presets de cores.
+- [ ] Adicionar mais idiomas; os idiomas ainda serão escolhidos.
+- [ ] Melhorar a aba de regras da sessão e ampliar suas opções de personalização.
+- [ ] Refinar a UX/UI para um acabamento mais coeso e integrado. Incluir a revisão dos botões, de suas funções, textos e disposição, avaliando se cada controle faz sentido.
+- [ ] Adicionar pesquisa e filtros à Atividade, incluindo ação, jogador e ordenação crescente/decrescente.
+- [ ] Adicionar cheats e controles específicos de campanha, disponíveis quando estiver na campanha e não no sandbox.
+
+Pendências já levantadas:
+
+- [ ] Automatizar e padronizar verificação, empacotamento, instalação e promoção da Beta para a main, reaproveitando as ferramentas existentes.
+- [ ] Tratar a compatibilidade do bloqueio com ferramentas que se reabilitam continuamente, como o Air Strike.
+
+## Bundle 1.5.1 em desenvolvimento
+
+As mudanças da **1.5.1** são desenvolvidas, instaladas e avaliadas primeiro na branch e no mod **Beta**. A `main` permanece na versão estável **1.5.0**. Promover uma versão para a principal exige orientação explícita do autor; aprovação de um plano de interface não autoriza essa promoção.
+
+Gerenciar Roles / Manage roles aparece ao lado do rótulo Role, alinhado à direita do seletor. O cabeçalho não repete esse acesso. Rascunhos mantêm Continuar edição/Descartar. Criar Role / Create role abre um rascunho customizado baseado na Role selecionada; uma descrição curta explicita essa função. A janela, as permissões, os dados e os comandos existentes são preservados.
+
+## Bundle 1.5.0
 
 Reúne as mudanças posteriores à entrega 1.4.0, incluindo correções de alvos de jogador e atalhos, adaptação da apresentação ao modo de sessão e aprimoramentos de Settings. Não representa uma nova publicação no Workshop.
 

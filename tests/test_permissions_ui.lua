@@ -21,13 +21,13 @@ local strings={
     custom_role="Custom role",role_assignment_title="Assign access",role_player_target="Selected player",
     role_current="Current role: %s",host="Host",role_apply="Apply role",role_custom_section="Custom roles",
     role_create_custom="Create",role_edit_custom="Edit",role_preview_title="Permissions: %s",
-    role_copy_short="Copy",role_edit_short="Edit",role_reset_short="Reset",role_delete_short="Delete",
+    role_create_short="Create role",role_create_help="Creates a custom role based on %s.",role_edit_short="Edit",role_reset_short="Reset",role_delete_short="Delete",
     role_editor_create_title="Create role",role_editor_edit_title="Edit role",role_editor_based_on="Based on %s",
     role_editor_save_effect="Changes take effect after save.",role_name_label="Role name",
     role_editor_unsaved="Unsaved changes",role_editor_scope_help="Choose the access for each permission.",
     role_editor_discard="Discard",role_editor_save="Save",role_editor_reload="Reload",role_editor_delete="Delete",
     confirm_role_assign="Assign %s to %s?",confirm_role_delete="Delete %s?",confirm_role_reset="Reset %s?",permission_host_reserved="Host access is reserved.",
-    permission_view_expand="Expand",permission_search="Search permissions by name, ID or category",role_select_label="Role",
+    permission_view_expand="Manage roles",permission_search="Search permissions by name, ID or category",role_select_label="Role",
     permission_search_empty="No matching permissions.",permission_builtin_readonly="Built-in role is read-only.",
     permission_scope_off="Off",permission_scope_self="Self",permission_scope_any="Any",permission_scope_on="On",
     permission_category_players="Players",permission_category_players_help="Health and player control.",
@@ -176,9 +176,14 @@ end
 for _,width in ipairs({400,800}) do
     local w=world();local roles=builtinRoles(w)
     w.api.beginDraw();local height=w.UI.draw(w.api,roles,player,width)
-    check(height<=260,"compact assignment has a short content area")
+    check(height<=282,"compact assignment has a short content area")
     check(w.api.dropdowns.permission_view_role_select~=nil,"compact keeps its Role dropdown")
     check(w.api.controls.role_apply~=nil,"compact keeps assignment")
+    local manage=w.api.controls.permission_view_expand
+    local dropdown=w.api.dropdowns.permission_view_role_select
+    check(manage~=nil,"compact exposes role management beside the selector")
+    eq(manage.x+manage.w,dropdown.x+dropdown.w,"management aligns with dropdown right edge")
+    check(manage.y+manage.h<=dropdown.y,"management is above the dropdown")
     check(not w.api.controls.role_create_custom and not w.api.controls.role_edit_custom,"compact hides custom Role management")
     check(not w.api.controls.permission_view_search and not w.api.controls.permission_group_players,"compact hides detailed permissions")
     w.UI.openExpanded();expanded(w,roles,width,800)
@@ -186,6 +191,7 @@ for _,width in ipairs({400,800}) do
     local before=w.UI.getState().draft
     w.UI.closeExpanded();w.api.beginDraw();w.UI.draw(w.api,roles,player,width)
     check(w.api.controls.permission_view_resume~=nil,"compact exposes resume for an unsaved draft")
+    eq(w.api.controls.permission_view_expand,nil,"unsaved draft has no duplicate management entry")
     check(not w.api.controls.role_editor_name,"compact does not squeeze the advanced editor back in")
     w.api.click="permission_view_resume";w.UI.draw(w.api,roles,player,width)
     check(w.UI.isExpanded(),"resume opens the editor")
@@ -268,7 +274,7 @@ do
     check(api.viewports[1]~=nil,"expanded mode uses a clipped local viewport")
     check(api.controls.role_edit_custom and not api.controls.role_edit_custom.disabled,"preset Edit is enabled in expanded mode")
     check(api.controls.role_delete and api.controls.role_delete.disabled,"built-in role Delete is disabled in expanded mode")
-    eq(api.controls.permission_view_expand,nil,"compact panel leaves expansion control to the tab header")
+    eq(api.controls.permission_view_expand,nil,"expanded editor does not repeat compact management entry")
     check(api.dropdowns.permission_view_role_select~=nil,"expanded assignment uses the shared Role dropdown")
     eq(buttonLabel(api,"Built-in role is read-only."),nil,"preview no longer describes presets as read-only")
     api=clickExpanded(w,roles,"role_edit_custom")
@@ -417,7 +423,10 @@ for _,width in ipairs({400,800,1200}) do
     eq(api.controls.role_create_custom.y,api.controls.role_edit_custom.y,"Copy and Edit share the first preview row")
     eq(api.controls.role_reset.y,api.controls.role_delete.y,"Reset and Delete share the second preview row")
     check(api.controls.role_reset.y>api.controls.role_create_custom.y,"preview actions use a two-row grid")
-    eq(api.controls.role_create_custom.text,"Copy","preview uses a short Copy caption")
+    eq(api.controls.role_create_custom.text,"Create role","preview names role creation")
+    local creationHelp=false
+    for _,help in ipairs(api.paragraphs) do if help.text=="Creates a custom role based on Guest." then creationHelp=true end end
+    check(creationHelp,"preview explains custom role creation and its source")
     eq(api.controls.role_edit_custom.text,"Edit","preview uses a short Edit caption")
     eq(api.controls.role_reset.text,"Reset","preview uses a short Reset caption")
     eq(api.controls.role_delete.text,"Delete","preview uses a short Delete caption")
