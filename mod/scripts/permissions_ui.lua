@@ -508,11 +508,15 @@ local function drawCompact(api,T,roles,player,width,role)
     if width>=440 then
         drawRoleDropdown(api,T,roles,width-156,y)
         role=lookup(roles,selected) or roles[1]
-        return drawRoleAssignment(api,T,player,current,role,148,y+20,width-148)+8
+        y=drawRoleAssignment(api,T,player,current,role,148,y+20,width-148)+8
+    else
+        y=drawRoleDropdown(api,T,roles,width,y)
+        role=lookup(roles,selected) or roles[1]
+        y=drawRoleAssignment(api,T,player,current,role,width,y)+8
     end
-    y=drawRoleDropdown(api,T,roles,width,y)
-    role=lookup(roles,selected) or roles[1]
-    return drawRoleAssignment(api,T,player,current,role,width,y)+8
+    local buttonWidth=math.min(260,width)
+    if api.button("permission_view_expand",(width-buttonWidth)/2,y,buttonWidth,36,T("permission_view_expand"),"outlined",false) then UI.openExpanded() end
+    return y+48
 end
 
 local function drawExpandedEditorIdentity(api,T,role,width,y)

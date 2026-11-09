@@ -27,7 +27,7 @@ local strings={
     role_editor_unsaved="Unsaved changes",role_editor_scope_help="Choose the access for each permission.",
     role_editor_discard="Discard",role_editor_save="Save",role_editor_reload="Reload",role_editor_delete="Delete",
     confirm_role_assign="Assign %s to %s?",confirm_role_delete="Delete %s?",confirm_role_reset="Reset %s?",permission_host_reserved="Host access is reserved.",
-    permission_view_expand="Expand",permission_search="Search permissions by name, ID or category",role_select_label="Role",
+    permission_view_expand="Manage roles",permission_search="Search permissions by name, ID or category",role_select_label="Role",
     permission_search_empty="No matching permissions.",permission_builtin_readonly="Built-in role is read-only.",
     permission_scope_off="Off",permission_scope_self="Self",permission_scope_any="Any",permission_scope_on="On",
     permission_category_players="Players",permission_category_players_help="Health and player control.",
@@ -176,9 +176,13 @@ end
 for _,width in ipairs({400,800}) do
     local w=world();local roles=builtinRoles(w)
     w.api.beginDraw();local height=w.UI.draw(w.api,roles,player,width)
-    check(height<=260,"compact assignment has a short content area")
+    check(height<=310,"compact assignment and management entry have a short content area")
     check(w.api.dropdowns.permission_view_role_select~=nil,"compact keeps its Role dropdown")
     check(w.api.controls.role_apply~=nil,"compact keeps assignment")
+    local manage=w.api.controls.permission_view_expand
+    check(manage~=nil,"compact exposes management")
+    check(manage.y>=w.api.controls.role_apply.y+36,"management follows assignment")
+    eq(manage.x+manage.w/2,width/2,"single entry is centered")
     check(not w.api.controls.role_create_custom and not w.api.controls.role_edit_custom,"compact hides custom Role management")
     check(not w.api.controls.permission_view_search and not w.api.controls.permission_group_players,"compact hides detailed permissions")
     w.UI.openExpanded();expanded(w,roles,width,800)
@@ -186,6 +190,7 @@ for _,width in ipairs({400,800}) do
     local before=w.UI.getState().draft
     w.UI.closeExpanded();w.api.beginDraw();w.UI.draw(w.api,roles,player,width)
     check(w.api.controls.permission_view_resume~=nil,"compact exposes resume for an unsaved draft")
+    eq(w.api.controls.permission_view_expand,nil,"draft does not duplicate management entry")
     check(not w.api.controls.role_editor_name,"compact does not squeeze the advanced editor back in")
     w.api.click="permission_view_resume";w.UI.draw(w.api,roles,player,width)
     check(w.UI.isExpanded(),"resume opens the editor")
@@ -268,7 +273,7 @@ do
     check(api.viewports[1]~=nil,"expanded mode uses a clipped local viewport")
     check(api.controls.role_edit_custom and not api.controls.role_edit_custom.disabled,"preset Edit is enabled in expanded mode")
     check(api.controls.role_delete and api.controls.role_delete.disabled,"built-in role Delete is disabled in expanded mode")
-    eq(api.controls.permission_view_expand,nil,"compact panel leaves expansion control to the tab header")
+    eq(api.controls.permission_view_expand,nil,"expanded editor does not repeat the compact management entry")
     check(api.dropdowns.permission_view_role_select~=nil,"expanded assignment uses the shared Role dropdown")
     eq(buttonLabel(api,"Built-in role is read-only."),nil,"preview no longer describes presets as read-only")
     api=clickExpanded(w,roles,"role_edit_custom")
