@@ -970,7 +970,11 @@ function OSP.installClient()
         return n
     end
     local function toolChoice(p,tool)
-        if tool.policy=="disabled" then return false end
+        if tool.policy=="disabled" then
+            if not p.toolGrants or p.toolGrants[tool.id]~=true then return false end
+            if p.toolRules and p.toolRules[tool.id]~=nil then return p.toolRules[tool.id] end
+            return true
+        end
         if p.toolRules and p.toolRules[tool.id]~=nil then return p.toolRules[tool.id] end
         if tool.policy=="enabled" then return true end
         return IsToolEnabled(tool.id,p.id)
@@ -1037,16 +1041,21 @@ function OSP.installClient()
             local tool=items[(pg-1)*per+row]
             if tool then
                 local ry=y+(row-1)*45;local policy=tool.policy or "default"
-                local locked=policy=="disabled" and toolMode=="player"
+                local exception=p and p.toolGrants and p.toolGrants[tool.id]==true
+                local canGrant=p and allowed("tool_policy",0) and allowed("tool",p.id)
+                local locked=policy=="disabled" and toolMode=="player" and not exception and not canGrant
                 local enabled=false
                 if p then
-                    if toolConflict(p,tool.id) then enabled=toolChoice(p,tool)
+                    if policy=="disabled" or toolConflict(p,tool.id) then enabled=toolChoice(p,tool)
                     else enabled=IsToolEnabled(tool.id,p.id) end
                 end
                 local active=enabled
                 if toolMode=="global" and not solo() then active=policy=="default" and IsToolEnabled(tool.id,me) or policy=="enabled" end
                 local meta=locked and T("blocked_by_host") or toolMode=="global" and T("policy_"..policy) or T(enabled and "tool_enabled" or "tool_disabled")
                 if solo() then meta=T(enabled and "tool_enabled" or "tool_disabled") end
+                if toolMode=="player" and policy=="disabled" and exception and not toolConflict(p,tool.id) then
+                    meta=T(enabled and "tool_exception_enabled" or "tool_exception_paused")
+                end
                 local conflicts=toolConflictCount(tool.id)
                 if toolMode=="global" and conflicts>0 then
                     meta=T(policy=="disabled" and "tool_use_block_count" or "tool_inventory_conflict",conflicts)
@@ -1055,7 +1064,7 @@ function OSP.installClient()
                 end
                 label(0,ry+3,toolName(tool),17,C.text,w-204)
                 label(0,ry+24,meta,13,C.muted,w-204)
-                if button("tool_"..tool.id,w-194,ry+3,144,34,T(active and "deactivate" or "activate"),active and "active" or "plain",not p or (toolMode=="global" and not allowed("tool_policy",0)) or (toolMode=="player" and (blocked or locked and not enabled))) then
+                if button("tool_"..tool.id,w-194,ry+3,144,34,T(active and "deactivate" or "activate"),active and "active" or "plain",not p or (toolMode=="global" and not allowed("tool_policy",0)) or (toolMode=="player" and (blocked or not allowed("tool",p.id) or locked and not enabled))) then
                     if toolMode=="global" then
                         local mode=active and "disabled" or "enabled"
                         if active then ask("tool_policy",0,{id=tool.id,mode=mode},T("confirm_tool_global",toolName(tool)))
@@ -1393,7 +1402,10 @@ function OSP.installClient()
             if button(id,x+18+(column=="right" and half+8 or column=="center" and (w-36-half)/2 or 0),py,half,34,T(caption),danger and "danger" or nil,disabled,true) then
                 closeTools()
                 local count=arg.value.ids and #arg.value.ids or 1
-                if danger then ask(verb,arg.target,arg.value,T("tools_confirm_selection",count).." "..T(caption).." · "..(arg.scope or "").." · "..(v.tool and utf8clip(toolName(v.tool),40) or T("filter_"..v.category)..(query and " · "..query or "")))
+                if danger then
+                    local message=T("tools_confirm_selection",count).." "..T(caption).." · "..(arg.scope or "").." · "..(v.tool and utf8clip(toolName(v.tool),40) or T("filter_"..v.category)..(query and " · "..query or ""))
+                    if v.mode=="global" and verb=="tool_policy_selection" and arg.value.mode=="disabled" then message=message.." "..T("global_block_clears_exceptions") end
+                    ask(verb,arg.target,arg.value,message)
                 else command(verb,arg.target,arg.value) end
             end
         end
@@ -1422,7 +1434,7 @@ function OSP.installClient()
             label(x+18,py,T(host() and "tools_present" or "tools_present_except_host"),14,C.text,w-36);py=py+24
             local args=function(on) return v.tool and {id=v.tool.id,enabled=on} or {category=v.category,ids=v.ids,enabled=on} end
             local verb=v.tool and "tool_all" or "tools_selection_all"
-            action("tools_enable_everyone",v.tool and "enable_everyone" or "enable_category","left",verb,{target=0,value=args(true)},false,not allowed("tools_all",0) or v.tool and v.tool.policy=="disabled")
+            action("tools_enable_everyone",v.tool and "enable_everyone" or "enable_category","left",verb,{target=0,value=args(true)},false,not allowed("tools_all",0))
             action("tools_disable_everyone",v.tool and "disable_everyone" or "disable_category","right",verb,{target=0,scope=T(host() and "tools_present" or "tools_present_except_host"),value=args(false)},true,not allowed("tools_all",0));py=py+44
             if searching then
                 action("tools_enable_results_everyone","tools_enable_results","left","tools_selection_all",{target=0,value={category=v.category,ids=v.resultIds,enabled=true}},false,not allowed("tools_all",0) or #v.resultIds==0,v.query)

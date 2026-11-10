@@ -383,8 +383,11 @@ ok,code=pworld.command(11,'tool_policy_bulk',0,{category='any',mode='disabled'})
 eq(pworld.command(11,'tool_policy',0,{id='gun',mode='disabled'}),true)
 eq(pworld.players[11].tools.gun,false,'global includes host')
 eq(pworld.players[47].tools.gun,false)
-ok,code=pworld.command(11,'tool',47,{id='gun',enabled=true});eq(ok,false);eq(code,'protected')
-pworld.command(23,'tools',47,true);eq(pworld.players[47].tools.gun,false,'bulk cannot lift host block')
+ok,code=pworld.command(11,'tool',47,{id='gun',enabled=true});eq(ok,true);eq(pworld.players[47].tools.gun,true,'host opens an individual exception')
+eq(pworld.api.shared.osp.players[3].toolGrants.gun,true)
+pworld.command(11,'tool_policy',0,{id='gun',mode='disabled'})
+ok,code=pworld.command(23,'tool',47,{id='gun',enabled=true});eq(ok,false);eq(code,'protected','delegate cannot create an exception')
+pworld.command(23,'tools',47,true);eq(pworld.players[47].tools.gun,false,'bulk cannot lift an ungranted host block')
 pworld.api.RespawnPlayer(47);pworld.tick();eq(pworld.players[47].tools.gun,false)
 pworld.command(11,'tool_policy',0,{id='modlaser',mode='disabled'})
 local mission=world({catalog={'sledge','gun'}})
@@ -415,15 +418,16 @@ eq(nextMap.players[47].tools.sledge,true,'a new identity at the same ID does not
 nextMap.command(11,'tools_filtered',47,{category='vanilla',enabled=false})
 eq(nextMap.players[47].tools.sledge,false)
 ok,code,details=nextMap.command(11,'tools_filtered',47,{category='mod',enabled=true})
-eq(details.affected,0,'blocked category affects nobody');eq(details.skipped,1)
-eq(nextMap.api.IsToolEnabled('modlaser',47),false,'filtered cannot lift global block')
+eq(details.affected,1,'host can open an exception through filtered tools');eq(details.skipped,0)
+eq(nextMap.api.IsToolEnabled('modlaser',47),true,'filtered host change opens the exception')
 nextMap.command(11,'tool_policy_bulk',0,{category='all',mode='default'})
 local fresh=world();eq(fresh.api.shared.osp.toolPolicies.gun,nil)
 eq(fresh.players[11].tools.gun,true,'reset policies releases next mission defaults')
 ok,code,details=fresh.command(11,'tools_filtered',47,{category='mod',enabled=true})
 eq(details.affected,0,'empty category affects nobody');eq(details.skipped,1)
 fresh.command(11,'tool_policy_bulk',0,{category='all',mode='disabled'})
-ok,code,details=fresh.command(11,'tools',47,true);eq(details.affected,0);eq(details.skipped,1)
+ok,code,details=fresh.command(11,'tools',47,true);eq(details.affected,1,'host can open a set of personal exceptions');eq(details.skipped,0)
+eq(fresh.players[47].tools.gun,true);eq(fresh.players[47].tools.sledge,true)
 eq(fresh.api.OSP.toolOrigin('camera'),'vanilla');eq(fresh.api.OSP.toolOrigin('snowball'),'vanilla')
 eq(fresh.api.OSP.toolOrigin('minigunmall'),'vanilla');eq(fresh.api.OSP.toolOrigin('modlaser'),'mod')
 registry={}
@@ -957,13 +961,14 @@ selectionPolicyMap.tick()
 eq(selectionPolicyMap.players[23].tools.tool01,true,'selected global policy takes effect')
 eq(selectionPolicyMap.players[23].tools.tool02,true,'other profile keeps its own default')
 eq(selectionPolicyMap.players[47].tools.tool02,false,'unselected offline override survives')
--- A globally blocked ID stays blocked when a later explicit selection requests
--- enable; the server never falls back to applying the whole category.
+-- A host can grant a selected exception without affecting the rest of the
+-- category; the server never falls back to applying unselected tools.
 selectionPolicyMap.command(11,'tool_policy_selection',0,
     {category='all',ids={'tool03'},mode='disabled'})
 ok,code=selectionPolicyMap.command(11,'tools_selection',23,
     {category='all',ids={'tool03'},enabled=true})
-eq(ok,true);eq(selectionPolicyMap.players[23].tools.tool03,false,'global block dominates explicit enable')
+eq(ok,true);eq(selectionPolicyMap.players[23].tools.tool03,true,'selected global exception is enabled')
+eq(selectionPolicyMap.api.shared.osp.players[2].toolGrants.tool03,true)
 -- Conditional self toggles reject stale expectations before any gameplay write.
 for _,action in ipairs({'god','fly','noclip'}) do
     registry={}
