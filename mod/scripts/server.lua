@@ -97,7 +97,9 @@ function OSP.installServer()
             if #key>0 and #key%2==0 and not key:find("[^0-9a-f]") then
                 local tool=key:gsub("..",function(hex) return string.char(tonumber(hex,16)) end)
                 local value=GetInt(root.."tools."..key)
-                if value==1 then e.toolRules[tool]=true elseif value==2 then e.toolRules[tool]=false end
+                if value==1 then e.toolRules[tool]=true
+                elseif value==2 then e.toolRules[tool]=false
+                elseif value==3 then e.toolRules[tool]=true;e.toolGrants[tool]=true end
             end
         end
         if resetEffectsOnEntry then
@@ -127,7 +129,7 @@ function OSP.installServer()
             baseGod=GetPlayerParam("godMode", p),
             baseFly=GetPlayerParam("flyMode", p),
             baseRegen=GetPlayerParam("healthRegeneration", p),
-            toolRules={}, toolBase={}, toolProbes={}, toolConflicts={}, alive=GetPlayerHealth(p)>0,challenge=join,
+            toolRules={}, toolGrants={}, toolBase={}, toolProbes={}, toolConflicts={}, alive=GetPlayerHealth(p)>0,challenge=join,
         }
         if resetEffectsOnEntry then clearEntryEffects(e) end
         if isHost(p) then loadProfile(p,e,"host") end
@@ -152,7 +154,7 @@ function OSP.installServer()
                     strength=e.strength,strengthForce=e.strengthForce,strengthMass=e.strengthMass,
                     strengthThrow=e.strengthThrow,strengthThrowSpeed=e.strengthThrowSpeed,
                     strengthHolding=strengthController:heldBody(p)~=0,
-                    ammo=e.ammo,ammoRestore=e.ammoRestore,toolRules=OSP.copy(e.toolRules),toolConflicts=OSP.copy(e.toolConflicts),
+                    ammo=e.ammo,ammoRestore=e.ammoRestore,toolRules=OSP.copy(e.toolRules),toolGrants=OSP.copy(e.toolGrants),toolConflicts=OSP.copy(e.toolConflicts),
                     freeze=e.freeze,speed=e.speed,role=playerRole(p).id,permissions=OSP.copy(playerRole(p).permissions),profileReady=e.profile~=nil,profileChallenge=e.challenge}
             end
         end
@@ -226,12 +228,16 @@ function OSP.installServer()
         end
     end
     local function desiredTool(e,id)
-        local want=e.toolRules[id]
-        if policies[id]==false then want=false
-        elseif want==nil then want=policies[id] end
-        return want
+        if policies[id]==false then
+            if e.toolGrants[id]~=true then return false end
+            if e.toolRules[id]~=nil then return e.toolRules[id] end
+            return true
+        end
+        if e.toolRules[id]~=nil then return e.toolRules[id] end
+        return policies[id]
     end
     local function deselectTool(p,id)
+        if players[p].toolConflicts[id] then return end
         if GetPlayerTool(p)~=id then return end
         local replacement=""
         for _,tool in ipairs(tools) do
@@ -266,17 +272,30 @@ function OSP.installServer()
                 probe.writtenAt=GetTime();e.toolProbes[id]=probe
             end
         end
-        -- An external writer may keep the inventory entry visible. Preserve
-        -- the usage restriction without fighting its enabled flag every frame.
+        -- Best-effort deselection only: another script can process a queued
+        -- firing call before this tick. This is not a reliable use restriction.
         if not on then deselectTool(p,id) end
         return not on and e.toolConflicts[id]==true
     end
+    local function managesToolExceptions(actor)
+        return isHost(actor) or P.allows(playerRole(actor).permissions,"tool_policy",0,nil,actor)
+    end
+    local function canEnableTool(actor,p,id)
+        if policies[id]~=false or players[p].toolGrants[id]==true then return true end
+        return managesToolExceptions(actor)
+    end
     local function setTool(actor,p,id,on)
-        local conflict=applyTool(p,id,on)
         local e=players[p]
+        local blocked=policies[id]==false
+        local managesExceptions=managesToolExceptions(actor)
+        if on and blocked and not canEnableTool(actor,p,id) then return 0 end
+        if on and blocked then e.toolGrants[id]=true
+        elseif not on and blocked and managesExceptions then e.toolGrants[id]=nil end
         e.toolRules[id]=on
+        local conflict=applyTool(p,id,desiredTool(e,id))
         if isHost(actor) and e.profile then
-            SetInt(profileSave..e.profile..".tools."..encoded(id),on and 1 or 2)
+            local value=blocked and e.toolGrants[id]==true and 3 or on and 1 or 2
+            SetInt(profileSave..e.profile..".tools."..encoded(id),value)
         end
         return conflict and 1 or 0
     end
@@ -323,6 +342,7 @@ function OSP.installServer()
         for _,p in ipairs(roster()) do
             local e=players[p]
             e.toolRules[id]=nil
+            e.toolGrants[id]=nil
             local conflict=false
             if value~=nil then conflict=applyTool(p,id,value)
             elseif e.toolBase[id]~=nil then conflict=applyTool(p,id,e.toolBase[id]) end
@@ -571,7 +591,7 @@ function OSP.installServer()
         SetBool(profileSave..e.profile..".exists",true)
         -- Restoring is an explicit choice; future defaults must not undo it.
         SetBool(profileSave..e.profile..".collective_optout",true)
-        e.admin=false;e.role="guest";e.god=nil;e.fly=false;e.noclip=nil;stopFlight(e);e.freeze=false;e.anchor=nil;e.speed=1;e.toolRules={}
+        e.admin=false;e.role="guest";e.god=nil;e.fly=false;e.noclip=nil;stopFlight(e);e.freeze=false;e.anchor=nil;e.speed=1;e.toolRules={};e.toolGrants={}
         e.flySpeed=OSP.flight.normal;e.flyBoost=OSP.flight.shift
         e.noclipSpeed=OSP.flight.normal;e.noclipBoost=OSP.flight.shift
         e.strength=false;e.strengthForce=OSP.strength.force;e.strengthMass=OSP.strength.mass
@@ -598,8 +618,9 @@ function OSP.installServer()
             moveTo(p,c)
         end)
     end,{aliveCaller=true})
-    local function toolGuard(v)
-        if v.enabled and policies[v.id]==false then return "protected" end
+    local function toolGuard(v,actor,target,action)
+        if action=="tool" and v.enabled and policies[v.id]==false
+            and players[target].toolGrants[v.id]~=true and not managesToolExceptions(actor) then return "protected" end
     end
     local function toolDetails(applied,conflicts)
         return {affected=applied and 1 or 0,skipped=applied and 0 or 1,inventoryConflicts=conflicts or 0}
@@ -616,7 +637,7 @@ function OSP.installServer()
         if isHost(c) and not players[p].profile then return false end
         local applied,conflicts=0,0
         for _,id in ipairs(selectedIds or chooseCategory(category or "all")) do
-            if not on or policies[id]~=false then conflicts=conflicts+setTool(c,p,id,on);applied=applied+1 end
+            if not on or canEnableTool(c,p,id) then conflicts=conflicts+setTool(c,p,id,on);applied=applied+1 end
         end
         return applied>0,conflicts
     end
@@ -625,8 +646,9 @@ function OSP.installServer()
     end,{target=true,persistent=true})
     add("tool_all",toolArg,function(c,_,v) return toolEach(c,function(p)
         if isHost(c) and not players[p].profile then return false end
+        if v.enabled and not canEnableTool(c,p,v.id) then return false end
         return true,setTool(c,p,v.id,v.enabled)
-    end) end,{guard=toolGuard})
+    end) end)
     add("tools_all",boolean,function(c,_,v) return toolEach(c,function(p) return allTools(c,p,v) end) end)
     local function category(v) return v=="all" or v=="vanilla" or v=="mod" end
     local function filteredArg(v) return type(v)=="table" and category(v.category) and boolean(v.enabled) end
@@ -914,7 +936,7 @@ function OSP.installServer()
         local administrationCode=administrationGuard(actor,action,target,arg)
         if administrationCode then deny(administrationCode);return end
         if def.noSelf and actor==target then deny("invalid");return end
-        if def.guard then local code=def.guard(arg); if code then deny(code);return end end
+        if def.guard then local code=def.guard(arg,actor,target,action); if code then deny(code);return end end
         if conditional then
             local e=players[target]
             local current

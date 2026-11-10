@@ -7,7 +7,7 @@ local function eq(a,b,msg) check(a==b,(msg or 'equality')..': '..tostring(a)..' 
 local function world(width,height,previousRegistry)
     local w={reg=previousRegistry or {},sent={},identitySent={},flightReports={},strengthReports={},texts={},now=0,input='',wheel=0,mouse={x=0,y=0},click=false,held=false,released=false,armed={},
         width=width,height=height,t={x=0,y=0,s=1},stack={},drawn=false,hp=1,vehicle=0,screen=0}
-    local env=setmetatable({client={},shared={osp={ready=true,version='1.5.1',profileHost=string.rep('a',32),effectsOffOnLoad=false,rules={},log={},
+    local env=setmetatable({client={},shared={osp={ready=true,version='1.5.2',profileHost=string.rep('a',32),effectsOffOnLoad=false,rules={},log={},
         tools={{id='gun',name='gun',nameKey='TOOL_NAME_GUN',origin='vanilla',policy='default'},
                {id='sledge',name='Sledge',origin='vanilla',policy='enabled'},
                {id='mytool',name=string.rep('X',90),origin='mod',policy='disabled'}},
@@ -2064,5 +2064,60 @@ for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
     eq(st.viewMode,'single');check(st.controls.settings_section_collective==nil,'singleplayer Settings stay unchanged')
     eq(#w.sent,1,'the setting uses one host command')
  end
+end
+-- Individual exceptions stay visible through global blocks, and only a
+-- host/policy admin can create them. Exercise narrow and wide layouts in both
+-- translations, including the single-tool everyone action.
+for _,language in ipairs({'en','pt'}) do
+    for _,size in ipairs({{640,480},{1920,1080}}) do
+        local w=world(size[1],size[2],{['savegame.mod.osp.language']=language});local e=w.api
+        local target=e.shared.osp.players[2]
+        target.toolRules={};target.toolGrants={}
+        e.shared.osp.tools[1].policy='enabled'
+        e.IsToolEnabled=function() return true end
+        w:tick('p');w:clickControl('tab_tools');w:clickControl('tool_gun')
+        local confirm=e.OSP.UI.getState().confirm
+        eq(confirm.action,'tool_policy')
+        eq(confirm.message,e.OSP.L('confirm_tool_global','Pistol'),'global block warns that exceptions will be cleared')
+        w:clickControl('confirm_cancel')
+
+        e.shared.osp.tools[1].policy='disabled'
+        e.IsToolEnabled=function() return false end
+        w:clickControl('tool_mode_player');w:clickControl('tool_player_next')
+        local activate=w:scrollTo('tool_gun')
+        eq(activate.disabled,false,'host can activate for the selected player under a global block')
+        w:clickControl('tool_gun')
+        eq(w.sent[#w.sent].args[2],'tool');eq(w.sent[#w.sent].args[3],23)
+        eq(w.sent[#w.sent].args[4].enabled,true)
+        w:ack()
+        target.toolGrants={gun=true};target.toolRules={gun=true}
+        local st=w:draw()
+        check(table.concat(w.texts,'|'):find(e.OSP.L('tool_exception_enabled'),1,true),'individual exception status is localized')
+        eq(st.controls.tool_gun.disabled,false,'effective exception state overrides conflicting native state')
+        w:clickControl('tool_more_gun');st=w:draw()
+        check(st.controls.tools_enable_everyone and not st.controls.tools_enable_everyone.disabled,
+            'single-tool everyone activation remains available to an exception administrator')
+        w:clickControl('tools_enable_everyone')
+        eq(w.sent[#w.sent].args[2],'tool_all');eq(w.sent[#w.sent].args[3],0)
+        eq(w.sent[#w.sent].args[4].enabled,true)
+        w:ack()
+
+        local selfUI=world(size[1],size[2],{['savegame.mod.osp.language']=language});local se=selfUI.api
+        se.GetLocalPlayer=function() return 23 end;se.client.init()
+        local own=se.shared.osp.players[2]
+        own.admin=true;own.role='self';own.permissions=se.OSP.Permissions.resolve('self').permissions
+        own.toolRules={};own.toolGrants={}
+        se.shared.osp.tools[1].policy='disabled'
+        se.IsToolEnabled=function() return false end
+        selfUI:tick('p');selfUI:clickControl('tab_tools')
+        eq(selfUI:scrollTo('tool_gun').disabled,true,'Self cannot create an ungranted exception')
+        own.toolGrants={gun=true};own.toolRules={gun=true}
+        st=selfUI:draw()
+        check(table.concat(selfUI.texts,'|'):find(se.OSP.L('tool_exception_enabled'),1,true),'granted Self status is localized')
+        eq(st.controls.tool_gun.disabled,false,'Self can toggle an existing grant')
+        selfUI:clickControl('tool_gun')
+        eq(selfUI.sent[#selfUI.sent].args[2],'tool');eq(selfUI.sent[#selfUI.sent].args[3],23)
+        eq(selfUI.sent[#selfUI.sent].args[4].enabled,false,'Self can pause its existing exception')
+    end
 end
 print('PASS client interaction, viewport and translation contracts: '..assertions..' assertions (mock UI)')

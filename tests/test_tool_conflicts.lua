@@ -59,7 +59,9 @@ do
     eq(w.players[23].tools.airstrike,true,'tool remains externally enabled')
     for _=1,8 do
         w.players[23].tool='airstrike';external(w,23)
-        check(w.players[23].tool~='airstrike','blocked tool is deselected even after inventory control stops')
+        eq(w.players[23].tool,'airstrike','suspended conflict does not fight selecting Air Strike')
+        w.players[23].tool='othermod';external(w,23)
+        eq(w.players[23].tool,'othermod','suspended conflict does not interfere with other inventory items')
     end
     eq(offWrites(w,23),before,'selection restriction does not resume inventory flicker')
     check(not suspended(w,11),'host is independently controlled')
@@ -106,7 +108,7 @@ do
     -- Never choose another forbidden tool as the fallback, even if an
     -- external writer keeps several blocked inventory entries enabled.
     w.command(11,'tool_policy_bulk',0,{category='all',mode='disabled'})
-    w.players[23].tools.othermod=true;w.players[23].tool='airstrike';external(w,23)
+    w.players[23].tools.othermod=true;w.players[23].tool='othermod';external(w,23)
     eq(w.players[23].tool,'','no permitted replacement leaves an empty selection')
     for _,id in ipairs({11,47}) do
         for _=1,4 do external(w,id) end
@@ -150,7 +152,7 @@ for _,language in ipairs({'en','pt'}) do
         check(found,'popup explains suspension and saved rules')
         w:clickControl('tools_popup_close')
         e.shared.osp.players[1].toolConflicts={}
-        w:scrollTo('tool_gun');st=w:draw();check(not st.controls.tool_gun.disabled,'partial global action remains possible')
+        w:scrollTo('tool_gun');st=w:draw();check(not st.controls.tool_gun.disabled,'global tool action remains available')
         w:clickControl('tool_mode_player');w:clickControl('tool_player_next')
         w:scrollTo('tool_gun');st=w:draw();check(not st.controls.tool_gun.disabled,'usage control remains available for affected player')
         e.shared.osp.players[2].toolRules={gun=false}

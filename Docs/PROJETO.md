@@ -28,7 +28,7 @@ A identidade de remetente do `ServerCall` não é autenticada pela API documenta
 
 Idioma, atalho e paleta são preferências locais. Tempo, chuva, neblina, regeneração e políticas de ferramentas ficam na área própria do mod no host. Preferências anteriores são preservadas; política de ferramenta ausente significa padrão do jogo. Nenhum dado em `savegame.tool` é escrito.
 
-Políticas de ferramentas são indexadas por ID codificado, sem depender do ID temporário do jogador. Aplicam-se ao host, participantes presentes, novos participantes, respawns e ferramentas registradas mais tarde. Ferramentas ausentes mantêm sua preferência. Bloqueio geral domina habilitação individual. Mudar uma política geral remove as substituições pessoais daquele ID, inclusive perfis salvos de jogadores offline; depois disso, uma restrição individual pode limitar uma política habilitada. O estado padrão remove a política e restaura o valor capturado antes da primeira intervenção no mapa atual; a próxima missão usa seus próprios padrões. Ações de categoria abrangem os IDs registrados no momento, sem criar uma regra para futuros IDs desconhecidos.
+Políticas de ferramentas são indexadas por ID codificado, sem depender do ID temporário do jogador. Aplicam-se ao host, participantes presentes, novos participantes, respawns e ferramentas registradas mais tarde. Ferramentas ausentes mantêm sua preferência. O bloqueio geral impede habilitações pessoais comuns; uma exceção administrativa explícita pode liberar a ferramenta para um perfil. Reaplicar uma política geral remove as regras pessoais e exceções daquele ID, inclusive nos perfis salvos de jogadores offline; com a política geral habilitada, uma restrição individual ainda pode desativar a ferramenta. O estado padrão remove a política e restaura o valor capturado antes da primeira intervenção no mapa atual; a próxima missão usa seus próprios padrões. Ações de categoria abrangem os IDs registrados no momento, sem criar uma regra para futuros IDs desconhecidos.
 
 A classificação Vanilla usa os 17 IDs do catálogo base e camera/minigunmall/snowball, confirmados na instalação. Não usa grupos de inventário e não incorpora código do jogo. Outros IDs são Mods, inclusive exemplos opcionais fornecidos pelo jogo. Reutilizar um ID vanilla implica compartilhar sua classificação.
 
@@ -40,7 +40,7 @@ Antes de remover o mod, restaurar regras conforme desejado e recarregar o mapa. 
 
 ## Organização e comandos
 
-Lua 5.1, scripting version 2 do Teardown, sem dependências no runtime. Código jogável em `mod/`, teste do contrato do servidor/cliente em `tests/`, ferramentas locais em `tools/`. A versão estável desta branch é **1.5.1**; `version = 2` no manifesto continua significando a geração do scripting.
+Lua 5.1, scripting version 2 do Teardown, sem dependências no runtime. Código jogável em `mod/`, teste do contrato do servidor/cliente em `tests/`, ferramentas locais em `tools/`. A versão estável desta branch é **1.5.2**; `version = 2` no manifesto continua significando a geração do scripting.
 
 ```sh
 python3 tools/check.py
@@ -49,7 +49,7 @@ python3 tools/package.py
 
 O usuário encerrou o bundle de desenvolvimento **1.4.0** em 2026-11-07 e confirmou a versão como pronta. As mudanças posteriores integraram o bundle **1.5.0**. Em 2026-11-09, a versão estável **1.5.1** foi promovida da branch Beta no commit de origem `9b75fc8`, conforme autorização explícita do autor. Não reescrever o histórico Git.
 
-O empacotador produz `OpenSessionPanel-1.5.1.zip`, `OpenSessionPanel-1.5.1-source.zip` e hashes determinísticos. A raiz instalável é `Open Session Panel` e a raiz das fontes é `OpenSessionPanel-source`. O pacote não inclui `.git`, identificadores de Workshop, backups, tokens ou assets proprietários. Não é necessário Python para jogar.
+O empacotador produz `OpenSessionPanel-1.5.2.zip`, `OpenSessionPanel-1.5.2-source.zip` e hashes determinísticos. A raiz instalável é `Open Session Panel` e a raiz das fontes é `OpenSessionPanel-source`. O pacote não inclui `.git`, identificadores de Workshop, backups, tokens ou assets proprietários. Não é necessário Python para jogar.
 
 ## Backlog futuro
 
@@ -67,8 +67,20 @@ Solicitações para próximos ciclos, sem ordem de prioridade definida. Planejar
 Pendências já levantadas:
 
 - [ ] Automatizar e padronizar verificação, empacotamento, instalação e promoção da Beta para a main, reaproveitando as ferramentas existentes.
-- [x] Detectar ferramentas que se reativam continuamente, como o Air Strike, e suspender a disputa pelo inventário preservando o bloqueio de seleção.
-- [ ] Investigar a restauração de munição com ferramentas nativas e de mods; a restauração ao desligar permanece suspensa nesta 1.5.1.
+- [x] Detectar ferramentas que se reativam continuamente, como o Air Strike, e suspender o bloqueio incompatível e a troca forçada de seleção para não interferir na navegação pelo inventário.
+- [ ] Investigar a restauração de munição com ferramentas nativas e de mods; a restauração ao desligar permanece suspensa desde a 1.5.1.
+
+## Bundle 1.5.2
+
+Em 2026-11-10, a versão estável **1.5.2** foi promovida com autorização explícita a partir do commit Beta `dfa8065`. A distribuição principal mantém `savegame.mod.osp.*` e o próprio ID instalado; a Beta continua independente em `savegame.mod.osp_beta.*`. Não há migração de preferências, perfis, regras ou IDs.
+
+### Exceções individuais nas regras de ferramentas
+
+Uma ferramenta pode ser bloqueada para a sessão nas Regras gerais e liberada para perfis escolhidos em Jogador selecionado. O host e quem tem a capacidade `tool_policy` podem criar essas exceções, respeitando também a autorização sobre o alvo. Permissões apenas para ferramentas próprias ou de outros jogadores não permitem criar exceções. Quem já recebeu uma exceção pode desligar e religar a ferramenta dentro do seu alcance. As exceções feitas pelo host persistem por perfil entre missões; as mudanças feitas por delegados são temporárias. Reaplicar uma regra global limpa as exceções daquele ID, inclusive as salvas para jogadores offline; restaurar um jogador também remove as exceções dele. Um perfil legado com a ferramenta habilitada não passa a ignorar o bloqueio global automaticamente.
+
+### Conflitos no inventário
+
+Após detectar uma ferramenta que outro mod reativa continuamente, o OSP suspende tanto o comando de desligamento quanto a troca forçada da ferramenta selecionada para aquele par jogador/ferramenta. Isso evita que o bloqueio interfira na navegação do inventário; os demais bloqueios sem conflito continuam aplicados normalmente. A ferramenta conflitante ainda pode ser usada, pois o outro mod pode processar um disparo antes da atualização do OSP ou por sua própria chamada de disparo. A interface informa que o bloqueio está suspenso e não promete impedir o uso. Nenhum arquivo do Air Strike foi alterado.
 
 ## Bundle 1.5.1
 
