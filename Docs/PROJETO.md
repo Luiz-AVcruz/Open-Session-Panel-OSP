@@ -76,6 +76,8 @@ Pendências já levantadas:
 
 Debug oferece um diagnóstico local, desativado por padrão, para investigar o desaparecimento do OSP após quickloads repetidos em multiplayer. Ative-o, recarregue o mapa e crie um novo salvamento rápido antes do teste. O registro fica em `savegame.mod.osp_beta.diagnostics`, com heartbeats em campos fixos separados entre cliente e servidor, eventos em um anel de 96 entradas e o último erro preservado entre mapas. Desativar o diagnóstico mantém os registros existentes. A instrumentação apenas encadeia callbacks, registra exceções e as relança; não corrige nem presume a causa do problema.
 
+Quickload restaurava a tabela global `OSP` sem seus campos de função, causando `OSP.NumberInput.sample` e `OSP.Theme.colors` nil em `client.tick`/`client.draw`. `OSP.nonserializable` mantém esse namespace transitório em memória; perfis e regras continuam em `savegame.mod`/`shared`. O teste cobre a omissão de funções em um mock, não toda a semântica nativa; a flag ainda precisa de novo Quickload real na Beta local.
+
 ### Tratamento configurável de conflitos
 
 Para ferramentas que se reativam continuamente, o host ou alguém com a capacidade de administrar regras gerais pode escolher Suspender bloqueio (padrão) ou Continuar tentando bloquear. A escolha vale por ferramenta para todos na sessão e fica salva no host entre mapas. Não altera a disponibilidade desejada, as exceções individuais, as Roles ou outros mods. Suspender evita novas desativações e trocas de seleção após detectar o conflito; continuar tentando retoma o mecanismo normal, que pode provocar piscadas e atrapalhar o inventário, sem garantir impedir disparos.
