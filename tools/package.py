@@ -54,6 +54,7 @@ def required_install_files() -> list[Path]:
         MOD / "scripts" / "permissions.lua",
         MOD / "scripts" / "collective.lua",
         MOD / "scripts" / "permissions_ui.lua",
+        MOD / "scripts" / "diagnostics.lua",
         MOD / "SOURCE.md",
         ROOT / "LICENSE",
         ROOT / "ADDITIONAL-PERMISSION",

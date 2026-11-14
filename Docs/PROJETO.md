@@ -67,7 +67,7 @@ Solicitações para próximos ciclos, sem ordem de prioridade definida. Planejar
 Pendências já levantadas:
 
 - [ ] Automatizar e padronizar verificação, empacotamento, instalação e promoção da Beta para a main, reaproveitando as ferramentas existentes.
-- [x] Detectar ferramentas que se reativam continuamente, como o Air Strike, e suspender o bloqueio incompatível e a troca forçada de seleção para não interferir na navegação pelo inventário.
+- [x] Detectar ferramentas que se reativam continuamente, como o Air Strike, e deixar o administrador escolher por ferramenta e sessão entre suspender o bloqueio ou continuar tentando desativá-la e desselecioná-la.
 - [ ] Investigar a restauração de munição com ferramentas nativas e de mods; a restauração ao desligar permanece suspensa desde a 1.5.1.
 
 ## Bundle 1.5.2
@@ -80,7 +80,11 @@ Uma ferramenta pode ser bloqueada para a sessão nas Regras gerais e liberada pa
 
 ### Conflitos no inventário
 
-Após detectar uma ferramenta que outro mod reativa continuamente, o OSP suspende tanto o comando de desligamento quanto a troca forçada da ferramenta selecionada para aquele par jogador/ferramenta. Isso evita que o bloqueio interfira na navegação do inventário; os demais bloqueios sem conflito continuam aplicados normalmente. A ferramenta conflitante ainda pode ser usada, pois o outro mod pode processar um disparo antes da atualização do OSP ou por sua própria chamada de disparo. A interface informa que o bloqueio está suspenso e não promete impedir o uso. Nenhum arquivo do Air Strike foi alterado.
+Após detectar uma ferramenta que outro mod reativa continuamente, o host escolhe o tratamento por ferramenta para a sessão, padrão `suspend`. Essa escolha é salva separadamente das políticas de disponibilidade em `savegame.mod.osp.tool_conflict_modes`; o host e delegados com `tool_policy` podem alterá-la. No modo `suspend`, o OSP pausa os comandos de desligamento e a troca forçada de seleção para o par jogador/ferramenta em conflito. No modo `attempt`, continua tentando desligar e desselecionar a ferramenta para todos os jogadores, mantendo a detecção visível. Concessões e exceções de disponibilidade permanecem independentes da escolha. O outro mod ainda pode processar um disparo antes da atualização do OSP ou pela própria chamada de disparo; continuar tentando também pode deixar a ferramenta utilizável e causar oscilação no inventário. A interface explica esses limites sem prometer bloqueio garantido. Nenhum arquivo do Air Strike foi alterado.
+
+### Diagnóstico de quickload
+
+O Debug oferece diagnóstico opt-in, desligado por padrão, para registrar localmente a instalação e os ciclos de callbacks client/server, quickloads e exceções. Os registros ficam em `savegame.mod.osp.diagnostics` para leitura offline; ativar requer recarregar o mapa e criar um novo salvamento rápido para o teste. A marca `OSP.nonserializable` mantém os módulos e métodos de runtime fora da restauração do namespace OSP pelo quickload. Em validação nativa do usuário numa campanha co-op online com o host sozinho, o log interno marcou o modo como `sp`, capturou dois quickloads sem erros e os callbacks seguiram normalmente; o usuário não observou recorrência após vários quicksaves e quickloads. Isso valida apenas esse cenário: o teste com outro jogador conectado e a experiência do convidado permanecem pendentes. O rótulo interno `sp` não deve ser interpretado como confirmação de sessão offline.
 
 ## Bundle 1.5.1
 

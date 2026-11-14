@@ -74,10 +74,14 @@ eq(role,true);eq(roleCode,'ok')
 local roleId=roleDetails.template and roleDetails.template.id
 check(type(roleId)=='string','custom role id is logged')
 eq(w.command(11,'role_assign',23,{id=roleId}),true)
+eq(w.command(23,'tool_conflict_mode',0,{id='gun',mode='attempt'}),true,'global policy delegate may choose compatibility handling')
 ok,code=w.command(23,'tool',47,{id='gun',enabled=true})
 eq(ok,false);eq(code,'denied','tool_policy alone does not grant tools target scope')
 ok,code=w.command(23,'tool_all',0,{id='gun',enabled=true})
 eq(ok,false);eq(code,'denied','tool_policy alone does not grant bulk tool scope')
+eq(w.command(11,'role_assign',47,{id='self'}),true)
+ok,code=w.command(47,'tool_conflict_mode',0,{id='gun',mode='suspend'})
+eq(ok,false);eq(code,'denied','Self and tools-only roles cannot change session compatibility handling')
 
 -- Ordinary Moderator bulk actions may enable an existing exception, but do
 -- not create grants for other tools. All direct and everyone variants share
