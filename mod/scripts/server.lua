@@ -9,6 +9,8 @@ function OSP.installServer()
     local lastRequest, removalSeen = {}, {}
     local policies = {}
     local toolSave = "savegame.mod.osp_beta.tools"
+    local toolConflictSave = "savegame.mod.osp_beta.tool_conflict_modes"
+    local toolConflictModes = {}
     local profileSave = "savegame.mod.osp_beta.players."
     local profileHost
     local effectsOffOnLoad,resetEffectsOnEntry=false,false
@@ -142,7 +144,7 @@ function OSP.installServer()
     end
     local function publish()
         local view={version=OSP.version,ready=true,players={},tools=OSP.copy(tools),
-            rules=OSP.copy(rules),log=OSP.copy(logs),toolPolicies=OSP.copy(policies),profileHost=profileHost,templates=P.list(templates),
+            rules=OSP.copy(rules),log=OSP.copy(logs),toolPolicies=OSP.copy(policies),toolConflictModes=OSP.copy(toolConflictModes),profileHost=profileHost,templates=P.list(templates),
             effectsOffOnLoad=effectsOffOnLoad,collectiveFuture=collectiveFuture}
         for _, p in ipairs(roster()) do
             local e=players[p]
@@ -166,6 +168,7 @@ function OSP.installServer()
         if action=="rule" then arg={key=arg.key,value=arg.value}
         elseif action=="tool" or action=="tool_all" then arg={id=arg.id,enabled=arg.enabled}
         elseif action=="tool_policy" then arg={id=arg.id,mode=arg.mode}
+        elseif action=="tool_conflict_mode" then arg={id=arg.id,mode=arg.mode}
         elseif action=="tool_policy_bulk" then arg={category=arg.category,mode=arg.mode}
         elseif action=="tools_filtered" or action=="tools_filtered_all" then arg={category=arg.category,enabled=arg.enabled}
         elseif action=="tools_selection" or action=="tools_selection_all" then
@@ -237,7 +240,7 @@ function OSP.installServer()
         return policies[id]
     end
     local function deselectTool(p,id)
-        if players[p].toolConflicts[id] then return end
+        if players[p].toolConflicts[id] and toolConflictModes[id]~="attempt" then return end
         if GetPlayerTool(p)~=id then return end
         local replacement=""
         for _,tool in ipairs(tools) do
@@ -249,7 +252,7 @@ function OSP.installServer()
     end
     local function canHideTool(p,id)
         local e=players[p]
-        if e.toolConflicts[id] then return false end
+        if e.toolConflicts[id] then return toolConflictModes[id]=="attempt" end
         -- Only count reversals of our own OFF writes. Do not accumulate
         -- isolated resets or tool restoration on death/respawn.
         if not e.alive or GetPlayerHealth(p)<=0 then e.toolProbes[id]=nil;return true end
@@ -257,7 +260,10 @@ function OSP.installServer()
         if probe and probe.writtenAt and now>probe.writtenAt and IsToolEnabled(id,p) then
             if not probe.firstAt or now-probe.firstAt>1 then probe.firstAt=now;probe.reversals=0 end
             probe.reversals=probe.reversals+1;probe.writtenAt=nil
-            if probe.reversals>=4 then e.toolConflicts[id]=true;e.toolProbes[id]=nil;return false end
+            if probe.reversals>=4 then
+                e.toolConflicts[id]=true;e.toolProbes[id]=nil
+                return toolConflictModes[id]=="attempt"
+            end
         end
         return true
     end
@@ -267,7 +273,7 @@ function OSP.installServer()
         if on or canHideTool(p,id) then
             SetToolEnabled(id,on,p)
             if on then e.toolProbes[id]=nil
-            elseif e.alive and GetPlayerHealth(p)>0 then
+            elseif e.alive and GetPlayerHealth(p)>0 and not e.toolConflicts[id] then
                 local probe=e.toolProbes[id] or {reversals=0}
                 probe.writtenAt=GetTime();e.toolProbes[id]=probe
             end
@@ -313,6 +319,29 @@ function OSP.installServer()
     end
     local function policyKey(id)
         return toolSave.."."..encoded(id)
+    end
+    local function loadToolConflictModes()
+        toolConflictModes={}
+        for _,key in ipairs(ListKeys(toolConflictSave)) do
+            if #key>0 and #key%2==0 and not key:find("[^0-9a-f]") then
+                local id=key:gsub("..",function(hex) return string.char(tonumber(hex,16)) end)
+                local value=GetString(toolConflictSave.."."..key)
+                if value=="suspend" or value=="attempt" then toolConflictModes[id]=value end
+            end
+        end
+    end
+    local function setToolConflictMode(id,mode)
+        toolConflictModes[id]=mode
+        SetString(toolConflictSave.."."..encoded(id),mode)
+        local affected,conflicts=0,0
+        for _,p in ipairs(roster()) do
+            if players[p] then
+                enforceTools(p)
+                affected=affected+1
+                if players[p].toolConflicts[id] then conflicts=conflicts+1 end
+            end
+        end
+        return {affected=affected,skipped=0,tools=1,inventoryConflicts=conflicts}
     end
     local function loadPolicies()
         policies={}
@@ -663,6 +692,12 @@ function OSP.installServer()
         function(_,_,v)
             return policySelection({v.id},v.mode)
         end)
+    add("tool_conflict_mode",function(v)
+        return type(v)=="table" and type(v.id)=="string" and known[v.id]
+            and (v.mode=="suspend" or v.mode=="attempt")
+    end,function(_,_,v)
+        return setToolConflictMode(v.id,v.mode)
+    end)
     add("tool_policy_bulk",function(v) return type(v)=="table" and category(v.category) and mode(v.mode) end,
         function(_,_,v)
             return policySelection(chooseCategory(v.category),v.mode)
@@ -769,7 +804,7 @@ function OSP.installServer()
             SetString("savegame.mod.osp_beta.hostid",profileHost)
         end
         original={rain=GetEnvironmentProperty("rain"),fog={GetEnvironmentProperty("fogparams")}}
-        loadTemplates(); loadPolicies()
+        loadTemplates(); loadPolicies(); loadToolConflictModes()
         collectiveFuture=GetBool(collectiveRoot.."future")
         collectiveDefaults=collectiveFuture and C.load(collectiveRoot.."defaults.",P.list(templates)) or {all={},roles={}}
         syncPlayers(); refreshTools()
@@ -784,7 +819,7 @@ function OSP.installServer()
         publish()
     end
     local administrative={role_assign=true,role_save=true,role_reset=true,role_delete=true,reset_player=true,
-        tool_policy=true,tool_policy_bulk=true,tool_policy_selection=true,restart=true}
+        tool_policy=true,tool_policy_bulk=true,tool_policy_selection=true,tool_conflict_mode=true,restart=true}
     local function administrationGuard(actor,action,target,arg)
         if isHost(actor) then return end
         local ceiling=playerRole(actor).permissions

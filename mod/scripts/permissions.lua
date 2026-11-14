@@ -23,6 +23,7 @@ P.spec = {
 -- Legacy all-or-nothing assignment remains host-only for older clients.
 P.reserved = {admin=true,effects_off_on_load=true}
 local aliases = {role_reset="role_edit",tool_policy_bulk="tool_policy",tool_policy_selection="tool_policy",ammo_restore="ammo",tool="tools",tools_filtered="tools",tool_all="tools_all",tools_filtered_all="tools_all",
+    tool_conflict_mode="tool_policy",
     tools_selection="tools",tools_selection_all="tools_all",
     fly_speed="fly",fly_boost="fly",noclip_speed="noclip",noclip_boost="noclip",
     strength_force="strength",strength_mass="strength",strength_throw="strength",strength_throw_speed="strength"}

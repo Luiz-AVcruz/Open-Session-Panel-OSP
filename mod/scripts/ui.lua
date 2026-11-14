@@ -57,6 +57,15 @@ function OSP.installClient()
     local function state() return shared and shared.osp or nil end
     local function roster() local s=state();return s and s.players or {} end
     local function findPlayer(id) for _,p in ipairs(roster()) do if p.id==id then return p end end end
+    local compatibility={}
+    compatibility.exists=function(id)
+        for _,tool in ipairs(state() and state().tools or {}) do if tool.id==id then return true end end
+        return false
+    end
+    compatibility.detected=function(id)
+        for _,p in ipairs(roster()) do if p.toolConflicts and p.toolConflicts[id]==true then return true end end
+        return false
+    end
     local collectiveRequestEligible
     local roleBatchRequestEligible
     local function captureTargetContext(target)
@@ -118,6 +127,9 @@ function OSP.installClient()
         end
         return (not current or P.within(current,values)) and (not proposed or P.within(proposed,values))
     end
+    compatibility.canChoose=function(id)
+        return host() or admin() and allowed("tool_conflict_mode",0,{id=id,mode="attempt"})
+    end
     local function permittedControl(id)
         if id=="effects_on_load_on" or id=="effects_on_load_off" or id=="collective_future_on" or id=="collective_future_off" then return host() and not pending end
         if id:match("^group_") then
@@ -149,11 +161,21 @@ function OSP.installClient()
         if id=="player_role_manage" then return rolesAccess() end
         if id=="reset_player" then return allowed("reset_player",target) end
         if id=="restart" or id=="reset_rules" then return allowed(id,0) end
+        if id=="compatibility_choice_suspend" or id=="compatibility_choice_attempt" then
+            local s=state();local own=findPlayer(me)
+            return confirm and confirm.compatibility and s and s.profileHost==confirm.host
+                and own and own.profileChallenge==confirm.actorJoin and compatibility.exists(confirm.toolId)
+                and compatibility.detected(confirm.toolId) and compatibility.canChoose(confirm.toolId) and not pending
+        end
+        if id=="tools_popup_compatibility" then
+            return toolsPopup and toolsPopup.tool and compatibility.detected(toolsPopup.tool.id)
+        end
         local key=id:match("^rule_(%a+)_")
         if key then return allowed("rule",0,{key=key}) end
         if id=="regen_on" or id=="regen_off" then return allowed("rule",0,{key="regen"}) end
         if id=="announcement_field" or id=="announcement_send" then return allowed("announce",0) end
-        if id:match("^tool_more_") then return toolMode=="global" and allowed("tool_policy",0) or toolMode~="global" and allowed("tools_all",0) end
+        local moreTool=id:match("^tool_more_(.+)$")
+        if moreTool then return compatibility.detected(moreTool) or toolMode=="global" and allowed("tool_policy",0) or toolMode~="global" and allowed("tools_all",0) end
         if id=="tools_enable_everyone" or id=="tools_disable_everyone" or id=="tools_enable_results_everyone" or id=="tools_disable_results_everyone" or id:match("^tool_everyone_") then return allowed("tools_all",0) end
         if id=="tools_reset_filtered" or id:match("^tool_reset_") then return allowed("tool_policy",0) end
         if id=="tools_enable_filtered" or id=="tools_disable_filtered" or id=="tools_enable_results" or id=="tools_disable_results" then return toolMode=="global" and allowed("tool_policy",0) or toolMode~="global" and allowed("tools",target) end
@@ -961,6 +983,16 @@ function OSP.installClient()
     -- Manually documented causes; detection alone does not identify a writer.
     local compatibilityNotes={airstrike="compatibility_airstrike"}
     local function compatibilityText(id,fallback) return T(compatibilityNotes[id] or fallback) end
+    compatibility.mode=function(id)
+        local modes=state() and state().toolConflictModes
+        return type(modes)=="table" and modes[id]=="attempt" and "attempt" or "suspend"
+    end
+    compatibility.modeText=function(id)
+        return T(compatibility.mode(id)=="attempt" and "compatibility_mode_attempt" or "compatibility_mode_suspend")
+    end
+    compatibility.help=function(id)
+        return T(compatibility.mode(id)=="attempt" and "tool_conflict_attempt_help" or "tool_conflict_suspend_help")
+    end
     local function toolConflict(p,id)
         return p and p.toolConflicts and p.toolConflicts[id]==true
     end
@@ -979,7 +1011,42 @@ function OSP.installClient()
         if tool.policy=="enabled" then return true end
         return IsToolEnabled(tool.id,p.id)
     end
-    local function checkCompatibilityNotice()
+    compatibility.deniedCount=function(tool)
+        local n=0
+        for _,p in ipairs(roster()) do if toolConflict(p,tool.id) and toolChoice(p,tool)==false then n=n+1 end end
+        return n
+    end
+    compatibility.open=function(tool,returnPopup)
+        local s=state();local own=findPlayer(me)
+        if not tool or not s or not s.profileHost or not compatibility.exists(tool.id) or not compatibility.detected(tool.id) then return false end
+        closeTools();closeDropdown();typing=false;capturing=false;OSP.NumberInput.cancel();OSP.PermissionUI.cancelInput();InputClear()
+        confirm={info=true,compatibility=true,target=0,toolId=tool.id,toolName=toolName(tool),
+            message=compatibilityText(tool.id,"compatibility_notice"),warning=T("compatibility_warning"),
+            host=s.profileHost,actorJoin=own and own.profileChallenge,returnPopup=returnPopup and OSP.copy(returnPopup)}
+        return true
+    end
+    compatibility.close=function()
+        local current=confirm;confirm=nil
+        if not current or not current.compatibility or not current.returnPopup then return end
+        local s=state();local own=findPlayer(me);local target=findPlayer(current.returnPopup.player)
+        if menu and tab=="tools" and s and s.profileHost==current.host and own
+            and own.profileChallenge==current.actorJoin and target
+            and target.profileChallenge==current.returnPopup.challenge and compatibility.exists(current.toolId)
+            and compatibility.detected(current.toolId) then toolsPopup=current.returnPopup end
+    end
+    compatibility.validate=function()
+        if not confirm or not confirm.compatibility then return true end
+        local s=state();local own=findPlayer(me)
+        if not menu or tab~="tools" or not s or s.profileHost~=confirm.host or not own
+            or own.profileChallenge~=confirm.actorJoin or not compatibility.exists(confirm.toolId) or not compatibility.detected(confirm.toolId) then
+            confirm=nil;lmbPressed=false;clickConsumed=true;InputClear();return false
+        end
+        for _,tool in ipairs(s.tools or {}) do
+            if tool.id==confirm.toolId then confirm.toolName=toolName(tool);break end
+        end
+        return true
+    end
+    compatibility.checkNotice=function()
         if not menu or tab~="tools" or confirm or pending or toolsPopup or dropdown or search.focused then return end
         local p=selectedPlayer()
         for _,tool in ipairs(state() and state().tools or {}) do
@@ -987,8 +1054,7 @@ function OSP.installClient()
             local key=ROOT.."compatibility.seen."..tool.id:gsub(".",function(c) return string.format("%02x",c:byte()) end)
             if conflict and GetString(key)~="1" then
                 SetString(key,"1")
-                confirm={info=true,target=0,toolName=toolName(tool),message=compatibilityText(tool.id,"compatibility_notice")}
-                typing=false;capturing=false;OSP.NumberInput.cancel();OSP.PermissionUI.cancelInput();InputClear()
+                compatibility.open(tool)
                 return
             end
         end
@@ -1058,9 +1124,14 @@ function OSP.installClient()
                 end
                 local conflicts=toolConflictCount(tool.id)
                 if toolMode=="global" and conflicts>0 then
-                    meta=T(policy=="disabled" and "tool_use_block_count" or "tool_inventory_conflict",conflicts)
+                    local denied=compatibility.deniedCount(tool)
+                    if denied>0 then
+                        meta=T(compatibility.mode(tool.id)=="attempt" and "tool_attempt_count" or "tool_use_block_count",denied)
+                    else meta=T("tool_inventory_conflict") end
                 elseif toolMode=="player" and toolConflict(p,tool.id) then
-                    meta=T(enabled and "tool_inventory_conflict" or "tool_use_block")
+                    if toolChoice(p,tool)==false then
+                        meta=T(compatibility.mode(tool.id)=="attempt" and "tool_attempt" or "tool_use_block")
+                    else meta=T("tool_inventory_conflict") end
                 end
                 label(0,ry+3,toolName(tool),17,C.text,w-204)
                 label(0,ry+24,meta,13,C.muted,w-204)
@@ -1071,7 +1142,9 @@ function OSP.installClient()
                         else command("tool_policy",0,{id=tool.id,mode=mode}) end
                     else command("tool",p.id,{id=tool.id,enabled=not enabled}) end
                 end
-                if button("tool_more_"..tool.id,w-40,ry+3,40,34,"...","plain",toolMode=="global" and (not allowed("tool_policy",0) or not solo() and policy=="default" and conflicts==0)) then openActions(tool) end
+                if button("tool_more_"..tool.id,w-40,ry+3,40,34,"...","plain",
+                    conflicts==0 and (toolMode=="global" and (not allowed("tool_policy",0) or not solo() and policy=="default")
+                        or toolMode~="global" and not allowed("tools_all",0))) then openActions(tool) end
                 rect(0,ry+44,w,1,C.line)
             end
         end
@@ -1088,7 +1161,7 @@ function OSP.installClient()
             if e then
                 local actor=math.min(140,w*.21);local result=math.min(105,w*.16);local target=math.min(125,w*.18)
                 local actionW=math.max(100,w-actor-result-target-24)
-                local key=({heal="heal",kill="kill",respawn="respawn",["goto"]="go_to",bring="bring",eject="eject",god="god_mode",fly="fly",fly_speed="fly_normal_action",fly_boost="fly_shift_action",noclip_speed="noclip_normal_action",noclip_boost="noclip_shift_action",noclip="noclip",freeze="freeze",strength="strength",ammo="ammo",ammo_restore="ammo_restore",strength_force="strength_force_label",strength_mass="strength_mass_label",strength_throw="strength_throw",strength_throw_speed="strength_throw_speed_label",speed="speed",effects_off_on_load="effects_on_load",collective_future="collective_actions",players_group="collective_actions",roles_assign_many="role_assignment_title",admin="admin_access",role_assign="permissions",role_save="permissions",role_delete="permissions",role_reset="permissions",reset_player="reset_player",heal_all="heal_all",bring_all="bring_all",rule="session_rules",reset_rules="reset_rules",restart="restart",announce="announcement",tool="tools",tool_all="tools",tools="tools",tools_all="tools",tool_policy="global_rules",tool_policy_bulk="global_rules",tool_policy_selection="global_rules",tools_selection="tools",tools_selection_all="tools",tools_filtered="tools",tools_filtered_all="tools"})[e.action] or "status"
+                local key=({heal="heal",kill="kill",respawn="respawn",["goto"]="go_to",bring="bring",eject="eject",god="god_mode",fly="fly",fly_speed="fly_normal_action",fly_boost="fly_shift_action",noclip_speed="noclip_normal_action",noclip_boost="noclip_shift_action",noclip="noclip",freeze="freeze",strength="strength",ammo="ammo",ammo_restore="ammo_restore",strength_force="strength_force_label",strength_mass="strength_mass_label",strength_throw="strength_throw",strength_throw_speed="strength_throw_speed_label",speed="speed",effects_off_on_load="effects_on_load",collective_future="collective_actions",players_group="collective_actions",roles_assign_many="role_assignment_title",admin="admin_access",role_assign="permissions",role_save="permissions",role_delete="permissions",role_reset="permissions",reset_player="reset_player",heal_all="heal_all",bring_all="bring_all",rule="session_rules",reset_rules="reset_rules",restart="restart",announce="announcement",tool="tools",tool_all="tools",tools="tools",tools_all="tools",tool_policy="global_rules",tool_policy_bulk="global_rules",tool_policy_selection="global_rules",tool_conflict_mode="compatibility_title",tools_selection="tools",tools_selection_all="tools",tools_filtered="tools",tools_filtered_all="tools"})[e.action] or "status"
                 local detail=T(key)
                 if type(e.argument)=="table" then
                     local a=e.argument
@@ -1119,7 +1192,10 @@ function OSP.installClient()
                         detail=detail.." · "..tostring(value)
                     else
                         if a.enabled~=nil then detail=detail.." · "..T(a.enabled and "on" or "off") end
-                        if a.mode then detail=T("policy_"..a.mode) end
+                        if a.mode then
+                            detail=e.action=="tool_conflict_mode" and T("compatibility_title").." · "..T("compatibility_mode_"..a.mode)
+                                or T("policy_"..a.mode)
+                        end
                         if a.id then
                             local name=a.id
                             for _,tool in ipairs(s.tools or {}) do if tool.id==a.id then name=toolName(tool);break end end
@@ -1252,7 +1328,7 @@ function OSP.installClient()
         end
         y=y+46;paragraph(T("debug_reset_help"))
         if button("debug_preview_notice",0,y,bw,36,T("debug_preview_notice"),"outlined",pending~=nil) then
-            confirm={info=true,target=0,toolName=T("debug_sample_tool"),message=T("compatibility_notice")}
+            confirm={info=true,sample=true,target=0,toolName=T("debug_sample_tool"),message=T("compatibility_notice"),warning=T("compatibility_warning")}
         end
         y=y+46;paragraph(T("debug_preview_help"))
         rect(0,y,w,1,C.line);y=y+18
@@ -1283,8 +1359,9 @@ function OSP.installClient()
             local n=toolConflictCount(tool.id)
             if n>0 then
                 if not hasConflicts then entries[#entries+1]={T("compatibility_title"),C.accent};hasConflicts=true end
-                entries[#entries+1]={T("compatibility_detected",toolName(tool),n),C.text}
-                entries[#entries+1]={compatibilityText(tool.id,"compatibility_detected_help"),C.muted}
+                entries[#entries+1]={T("compatibility_detected",toolName(tool),n,compatibility.modeText(tool.id)),C.text}
+                local cause=compatibilityNotes[tool.id] and compatibilityText(tool.id,"compatibility_detected_help")
+                entries[#entries+1]={cause and (cause.." "..compatibility.help(tool.id)) or T("compatibility_detected_help"),C.muted}
             end
         end
         local y=86
@@ -1388,7 +1465,10 @@ function OSP.installClient()
         if not toolsPopup then return end
         local v=toolsPopup;local p=findPlayer(v.player)
         if tab~="tools" or toolMode~=v.mode or not p or selected~=p.id or p.profileChallenge~=v.challenge then closeTools();return end
-        local w=math.min(layout.w-32,540);local h=math.min(layout.h-24,v.mode=="player" and not v.tool and v.query~="" and 384 or 340);local x,y=(layout.w-w)/2,(layout.h-h)/2
+        if v.tool and not compatibility.exists(v.tool.id) then closeTools();return end
+        local choiceAvailable=v.tool and compatibility.detected(v.tool.id)
+        local w=math.min(layout.w-32,540);local baseH=v.mode=="player" and not v.tool and v.query~="" and 384 or 340
+        local h=math.min(layout.h-24,baseH+(choiceAvailable and 48 or 0));local x,y=(layout.w-w)/2,(layout.h-h)/2
         if not clickConsumed and lmbPressed and not inside(x,y,w,h,mouseX,mouseY) then clickConsumed=true;closeTools();return end
         rect(0,0,layout.w,layout.h,{0,0,0,.65});rect(x,y,w,h,C.side);rect(x,y,w,3,C.accent)
         label(x+18,y+16,T("tools_actions"),20,C.text,w-82,true)
@@ -1441,10 +1521,18 @@ function OSP.installClient()
                 action("tools_disable_results_everyone","tools_disable_results","right","tools_selection_all",{target=0,scope=T(host() and "tools_present" or "tools_present_except_host"),value={category=v.category,ids=v.resultIds,enabled=false}},true,not allowed("tools_all",0) or #v.resultIds==0,v.query)
             end
         end
+        if choiceAvailable and button("tools_popup_compatibility",x+18,y+h-88,w-36,34,T("compatibility_title"),"outlined",false,true) then
+            compatibility.open(v.tool,v);return
+        end
         local incompatible=false
         for _,id in ipairs(v.ids) do if toolConflictCount(id)>0 then incompatible=true;break end end
-        UiPush();UiTranslate(x+18,y+h-40);UiAlign("left top");UiFont("regular.ttf",13);UiWordWrap(w-36);UiTextDisableWildcards(true);rgb(C.accent)
-        UiText(incompatible and compatibilityText(v.tool and v.tool.id,"tool_conflict_help") or T("movement_popup_help"));UiPop()
+        local help=T("movement_popup_help")
+        if v.tool and compatibility.detected(v.tool.id) then
+            local cause=compatibilityNotes[v.tool.id] and compatibilityText(v.tool.id,"compatibility_notice")
+            help=cause and (cause.." "..compatibility.help(v.tool.id)) or compatibility.help(v.tool.id)
+        elseif incompatible then help=T("compatibility_detected_help") end
+        UiPush();UiTranslate(x+18,y+h-44);UiAlign("left top");UiFont("regular.ttf",13);UiWordWrap(w-36);UiTextDisableWildcards(true);rgb(C.accent)
+        UiText(help);UiPop()
     end
     local function drawCollectivePopup()
         local current=collectivePopup
@@ -1478,18 +1566,46 @@ function OSP.installClient()
         if confirm.info then
             local w=math.min(layout.w-32,480);local lines={};local line=""
             UiPush();UiFont("regular.ttf",16)
-            for word in confirm.message:gmatch("%S+") do
-                local nextLine=line=="" and word or line.." "..word
-                if line~="" and UiGetTextSize(nextLine)>w-40 then lines[#lines+1]=line;line=word else line=nextLine end
+            for _,block in ipairs({confirm.message,confirm.warning}) do
+                if block and block~="" then
+                    for word in block:gmatch("%S+") do
+                        local nextLine=line=="" and word or line.." "..word
+                        if line~="" and UiGetTextSize(nextLine)>w-40 then lines[#lines+1]=line;line=word else line=nextLine end
+                    end
+                    if line~="" then lines[#lines+1]=line;line="" end
+                end
             end
-            if line~="" then lines[#lines+1]=line end
             UiPop()
-            local h=154+#lines*22;local x,y=(layout.w-w)/2,(layout.h-h)/2
+            local isChoice=confirm.compatibility==true
+            local h=(isChoice and 202 or 176)+#lines*22;h=math.min(layout.h-24,h)
+            local x,y=(layout.w-w)/2,(layout.h-h)/2
             rect(0,0,layout.w,layout.h,{0,0,0,.65});rect(x,y,w,h,C.side);rect(x,y,w,3,C.accent)
-            label(x+20,y+18,T("compatibility_notice_title"),20,C.text,w-40,true)
+            label(x+20,y+18,T("compatibility_notice_title"),20,C.text,w-86,true)
             label(x+20,y+52,confirm.toolName,18,C.accent,w-40,true)
             for i,value in ipairs(lines) do label(x+20,y+82+(i-1)*22,value,16,C.text,w-40) end
-            if button("compatibility_notice_close",x+w-148,y+h-54,128,36,T("understood"),"outlined",not confirm.ready,true) then confirm=nil;return end
+            if confirm.compatibility then
+                local mode=compatibility.mode(confirm.toolId)
+                local currentY=y+82+#lines*22+6
+                label(x+20,currentY,T("compatibility_current",compatibility.modeText(confirm.toolId)),14,C.muted,w-40)
+                if confirm.result then label(x+20,currentY+22,confirm.result,14,C.accent,w-40) end
+                if button("compatibility_notice_x",x+w-48,y+12,32,32,"X","outlined",not confirm.ready,true) then compatibility.close();return end
+                if compatibility.canChoose(confirm.toolId) then
+                    local half=(w-48)/2;local actionY=y+h-50
+                    local disabled=not confirm.ready or pending~=nil
+                    if button("compatibility_choice_suspend",x+20,actionY,half,36,T("compatibility_suspend"),mode=="suspend" and "active" or "outlined",disabled,true) then
+                        local current=confirm
+                        if command("tool_conflict_mode",0,{id=current.toolId,mode="suspend"}) then current.requestId=pending;current.result=nil end
+                    end
+                    if button("compatibility_choice_attempt",x+28+half,actionY,half,36,T("compatibility_attempt"),mode=="attempt" and "active" or "outlined",disabled,true) then
+                        local current=confirm
+                        if command("tool_conflict_mode",0,{id=current.toolId,mode="attempt"}) then current.requestId=pending;current.result=nil end
+                    end
+                else
+                    if button("compatibility_notice_close",x+w-148,y+h-50,128,36,T("understood"),"outlined",not confirm.ready,true) then compatibility.close();return end
+                end
+            else
+                if button("compatibility_notice_close",x+w-148,y+h-50,128,36,T("understood"),"outlined",not confirm.ready,true) then compatibility.close();return end
+            end
             confirm.ready=true;return
         end
         local w=math.min(layout.w-32,540);local h=math.min(layout.h-32,232);local x=(layout.w-w)/2;local y=(layout.h-h)/2
@@ -1508,7 +1624,8 @@ function OSP.installClient()
     local function render()
         setTab(tab)
         checkConfirmationTarget()
-        checkCompatibilityNotice()
+        compatibility.validate()
+        compatibility.checkNotice()
         refreshViewMode()
         OSP.NumberControl.beginFrame(numericFrame)
         local tabs=navigation.list(eligible);local navCols=math.min(4,#tabs)
@@ -1681,6 +1798,9 @@ function OSP.installClient()
             shortcutMessage(request.action,msg)
             msg=shortcutNotice
         end
+        if confirm and confirm.compatibility and confirm.requestId==id then
+            confirm.requestId=nil;confirm.result=msg
+        end
         pending=nil;lastAction=nil;setStatus(msg)
     end
     function client.ospAnnouncement(actor,message)
@@ -1757,6 +1877,9 @@ function OSP.installClient()
         end
         if pending and GetTime()-sentAt>=8 then
             if shortcutRequest then shortcutMessage(shortcutRequest.action,T("request_unknown"),10);shortcutRequest=nil else setStatus(T("request_unknown"),10) end
+            if confirm and confirm.compatibility and confirm.requestId==pending then
+                confirm.requestId=nil;confirm.result=T("request_unknown")
+            end
             pending=nil;lastAction=nil
         end
         if tab~="permissions" then validateSelection() end

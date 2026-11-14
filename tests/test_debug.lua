@@ -27,8 +27,10 @@ for _,language in ipairs({'en','pt'}) do
         st=w:draw();eq(st.tab,'debug','enabled through existing tab settings')
         check(st.controls.debug_reset_first_entry,'first option is reset first entry')
         w:clickControl('debug_preview_notice');st=w:draw()
-        check(st.confirm and st.confirm.info,'preview opens the real notice renderer')
+        check(st.confirm and st.confirm.info and st.confirm.sample,'preview opens the inert sample notice renderer')
         eq(st.confirm.toolName,e.OSP.L('debug_sample_tool'),'preview is clearly a sample')
+        eq(st.controls.compatibility_choice_suspend,nil,'sample has no real-tool choice')
+        eq(st.controls.compatibility_choice_attempt,nil,'sample cannot send a compatibility mode')
         eq(reg[root..'compatibility.seen.67756e'],'1','preview leaves seen notices alone')
         w:clickControl('compatibility_notice_close')
         w:clickControl('debug_reset_first_entry')
@@ -40,7 +42,7 @@ for _,language in ipairs({'en','pt'}) do
         eq(#w.sent,0,'Debug sends no gameplay commands')
         e.shared.osp.players[1].toolConflicts={gun=true}
         w:clickControl('tab_tools');st=w:draw();check(st.confirm and st.confirm.info,'reset re-arms actual first encounter')
-        w:clickControl('compatibility_notice_close');w:clickControl('tab_debug')
+        w:clickControl('compatibility_notice_x');w:clickControl('tab_debug')
         -- Guests have access to these local actions, even in Singleplayer
         -- presentation. They gain no host permissions by enabling Debug.
         e.IsPlayerHost=function() return false end
