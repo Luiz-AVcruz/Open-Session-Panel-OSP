@@ -15,6 +15,12 @@ for _,language in ipairs({'en','pt'}) do
             [root..'compatibility.seen.67756e']='1',[root..'compatibility.seen.absent']='1',
             ['savegame.mod.osp.compatibility.seen.67756e']='1'}
         local w=world(size[1],size[2],reg);local e=w.api
+        e.SetBool=function(key,value)
+            check(key==root..'diagnostics.enabled','Debug writes only its diagnostic opt-in flag')
+            reg[key]=value
+        end
+        e.GetInt=function(key) return reg[key] or 0 end
+        e.SetInt=function(key,value) reg[key]=value end
         e.ClearKey=function(key)
             eq(key,root..'compatibility.seen','reset is restricted to local first-time notices')
             for k in pairs(reg) do if k==key or k:sub(1,#key+1)==key..'.' then reg[k]=nil end end
@@ -26,6 +32,28 @@ for _,language in ipairs({'en','pt'}) do
         w:clickControl('navigation_debug');w:clickControl('tab_debug')
         st=w:draw();eq(st.tab,'debug','enabled through existing tab settings')
         check(st.controls.debug_reset_first_entry,'first option is reset first entry')
+        w:scrollTo('debug_diagnostics_toggle');st=w:draw()
+        check(st.controls.debug_diagnostics_toggle,'quickload diagnostics control is present')
+        eq(reg[root..'diagnostics.enabled'],nil,'diagnostics are off by default and do not persist a false setting')
+        w:clickControl('debug_diagnostics_toggle');st=w:draw()
+        eq(reg[root..'diagnostics.enabled'],true,'Debug enables only the local diagnostics flag')
+        check(st.controls.debug_diagnostics_toggle,'diagnostics remain available to disable')
+        w:tick()
+        check(reg[root..'diagnostics.client.heartbeat.client_pause_menu_button']:find('|exit|',1,true),'pause button before/after markers are saved on an ordinary tick')
+        local pauseButton=e.PauseMenuButton
+        e.PauseMenuButton=function() error('pause button sentinel',0) end
+        w.now=3
+        local ok,err=pcall(function() w:tick() end)
+        eq(ok,false,'PauseMenuButton exception reaches the callback wrapper')
+        eq(err,'pause button sentinel','PauseMenuButton exception is rethrown unchanged')
+        local pauseTrace=reg[root..'diagnostics.client.heartbeat.client_pause_menu_button']
+        check(pauseTrace and pauseTrace:find('|enter|',1,true),'missing after-marker identifies an interrupted PauseMenuButton call: '..tostring(pauseTrace))
+        check(reg[root..'diagnostics.client.last_error']:find('client.tick|error|pause button sentinel',1,true),'interrupted tick preserves its exception')
+        e.PauseMenuButton=pauseButton;w.input=''
+        w:clickControl('debug_diagnostics_toggle');st=w:draw()
+        eq(reg[root..'diagnostics.enabled'],false,'Debug disables diagnostics')
+        check(reg[root..'diagnostics.client.event.1'],'toggle events are kept in the diagnostics namespace')
+        eq(reg[root..'identity.test'],'keep-identity');eq(reg[root..'players.host.role'],'keep-role')
         w:clickControl('debug_preview_notice');st=w:draw()
         check(st.confirm and st.confirm.info and st.confirm.sample,'preview opens the inert sample notice renderer')
         eq(st.confirm.toolName,e.OSP.L('debug_sample_tool'),'preview is clearly a sample')

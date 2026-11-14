@@ -1331,6 +1331,12 @@ function OSP.installClient()
             confirm={info=true,sample=true,target=0,toolName=T("debug_sample_tool"),message=T("compatibility_notice"),warning=T("compatibility_warning")}
         end
         y=y+46;paragraph(T("debug_preview_help"))
+        local diagnosticsEnabled=OSP.Diagnostics.isEnabled()
+        if button("debug_diagnostics_toggle",0,y,bw,36,T(diagnosticsEnabled and "debug_diagnostics_disable" or "debug_diagnostics_enable"),"outlined",false) then
+            local saved=OSP.Diagnostics.setEnabled(not diagnosticsEnabled)
+            setStatus(T(saved and (diagnosticsEnabled and "debug_diagnostics_disabled" or "debug_diagnostics_enabled") or "debug_diagnostics_storage_error"))
+        end
+        y=y+46;paragraph(T("debug_diagnostics_help"))
         rect(0,y,w,1,C.line);y=y+18
         label(0,y,T("debug_state"),20,C.text,w,true);y=y+34
         local s=state();local own=findPlayer(me);local conflicts=0
@@ -1922,7 +1928,9 @@ function OSP.installClient()
             local delta=InputValue("mousewheel")
             if delta~=0 then scroll=math.max(0,math.min(maxScroll,scroll-delta*48)) end
         end
+        local pauseMarker=OSP.Diagnostics.begin("client.pause_menu_button")
         if PauseMenuButton(T("pause_button"),"bottom_bar",false) then setMenu(true);confirm=nil end
+        OSP.Diagnostics.finish(pauseMarker)
         if not admin() and not personalTab(tab) then setTab("settings") end
         if not wasMenu and not menu and not shortcuts.capture and not typing and not capturing
             and not confirm and not movementSettings and not toolsPopup and not collectivePopupOpen() and not search.focused

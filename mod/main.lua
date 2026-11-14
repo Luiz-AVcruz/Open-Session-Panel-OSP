@@ -17,6 +17,8 @@
 #include "scripts/server.lua"
 #include "scripts/tools_search.lua"
 #include "scripts/ui.lua"
+#include "scripts/diagnostics.lua"
 
 if server then OSP.installServer() end
 if client then OSP.installClient() end
+OSP.Diagnostics.install()
