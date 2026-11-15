@@ -1,6 +1,7 @@
 #version 2
 #include "scripts/common.lua"
 #include "scripts/strings.lua"
+#include "scripts/spanish.lua"
 #include "scripts/navigation.lua"
 #include "scripts/view_mode.lua"
 #include "scripts/settings_sections.lua"
@@ -16,6 +17,7 @@
 #include "scripts/ammo.lua"
 #include "scripts/server.lua"
 #include "scripts/tools_search.lua"
+#include "scripts/activity.lua"
 #include "scripts/ui.lua"
 #include "scripts/diagnostics.lua"
 

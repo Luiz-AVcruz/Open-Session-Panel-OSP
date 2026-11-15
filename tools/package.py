@@ -19,7 +19,7 @@ MOD_ARCHIVE_ROOT = "Open Session Panel Beta"
 SOURCE_ARCHIVE_ROOT = "OpenSessionPanelBeta-source"
 ZIP_TIME = (1980, 1, 1, 0, 0, 0)
 SECTION_ICONS = ("ui/section-down.png", "ui/section-right.png")
-PUBLICATION_FILES = ("preview.jpg", "preview-menu.png", "WORKSHOP-DESCRIPTION.txt")
+PUBLICATION_FILES = ("preview.jpg", "preview-menu.png")
 
 
 def product_version() -> str:
@@ -47,7 +47,9 @@ def required_install_files() -> list[Path]:
         MOD / "scripts" / "settings_sections.lua",
         MOD / "scripts" / "shortcuts.lua",
         MOD / "scripts" / "tools_search.lua",
+        MOD / "scripts" / "activity.lua",
         MOD / "scripts" / "strings.lua",
+        MOD / "scripts" / "spanish.lua",
         MOD / "scripts" / "theme.lua",
         MOD / "scripts" / "number_input.lua",
         MOD / "scripts" / "number_control.lua",
@@ -55,7 +57,6 @@ def required_install_files() -> list[Path]:
         MOD / "scripts" / "collective.lua",
         MOD / "scripts" / "permissions_ui.lua",
         MOD / "scripts" / "diagnostics.lua",
-        MOD / "SOURCE.md",
         ROOT / "LICENSE",
         ROOT / "ADDITIONAL-PERMISSION",
     ]
@@ -70,11 +71,8 @@ def required_install_files() -> list[Path]:
     if not re.search(r"(?m)^preview\s*=\s*preview-menu\.png\s*$", info):
         raise ValueError("mod/info.txt must reference preview-menu.png")
     description = re.search(r"(?m)^description\s*=\s*(.*)$", info)
-    workshop_text = (MOD / "WORKSHOP-DESCRIPTION.txt").read_text(encoding="utf-8")
     if description is None or not description.group(1).strip():
         raise ValueError("mod/info.txt description must not be empty")
-    if not " ".join(workshop_text.split()):
-        raise ValueError("mod/WORKSHOP-DESCRIPTION.txt must not be empty")
     steam_preview = (MOD / "preview.jpg").read_bytes()
     if not steam_preview.startswith(b"\xff\xd8\xff") or len(steam_preview) > 1_000_000:
         raise ValueError("preview.jpg must be a JPEG no larger than 1 MB")
@@ -107,7 +105,7 @@ def add_file(zf: zipfile.ZipFile, path: Path, archive_name: str) -> None:
 
 
 def install_members() -> list[tuple[Path, str]]:
-    files = [MOD / "info.txt", MOD / "main.lua", MOD / "options.lua", MOD / "SOURCE.md"]
+    files = [MOD / "info.txt", MOD / "main.lua", MOD / "options.lua"]
     files.extend(MOD / name for name in PUBLICATION_FILES + SECTION_ICONS)
     files.extend(path for path in (MOD / "scripts").rglob("*.lua") if path.is_file())
     members: list[tuple[Path, str]] = []
@@ -129,13 +127,11 @@ def install_members() -> list[tuple[Path, str]]:
 
 def source_members() -> list[tuple[Path, str]]:
     paths: list[Path] = [
-        ROOT / "README.md",
         ROOT / ".gitignore",
         ROOT / "LICENSE",
         ROOT / "ADDITIONAL-PERMISSION",
-        ROOT / "Docs" / "PROJETO.md",
     ]
-    paths.extend([MOD / "info.txt", MOD / "main.lua", MOD / "options.lua", MOD / "SOURCE.md"])
+    paths.extend([MOD / "info.txt", MOD / "main.lua", MOD / "options.lua"])
     paths.extend(MOD / name for name in PUBLICATION_FILES + SECTION_ICONS)
     paths.extend(path for path in (MOD / "scripts").rglob("*.lua") if path.is_file())
     paths.extend(path for path in (ROOT / "tests").rglob("test_*.lua") if path.is_file())
@@ -180,18 +176,27 @@ def verify_archive(path: Path, expected_root: str, require_license: bool = True)
         names = zf.namelist()
         if len(names) != len(set(names)):
             raise ValueError(f"Duplicate archive paths in {path.name}")
-        required = {f"{expected_root}/main.lua", f"{expected_root}/info.txt"}
+        runtime_root = f"{expected_root}/mod" if expected_root.endswith("-source") else expected_root
+        required = {f"{runtime_root}/main.lua", f"{runtime_root}/info.txt"}
         if require_license:
             required.update({
                 f"{expected_root}/LICENSE",
                 f"{expected_root}/ADDITIONAL-PERMISSION",
-                f"{expected_root}/SOURCE.md",
             })
         missing = sorted(required - set(names))
         if missing:
             raise ValueError(f"{path.name} is missing: {', '.join(missing)}")
         if any(name.lower().endswith("/id.txt") for name in names):
             raise ValueError(f"Workshop IDs must not be packaged in {path.name}")
+        docs = [
+            name for name in names
+            if "Docs" in Path(name).parts
+            or Path(name).name.lower() in {"agents.md", "readme.md", "source.md", "workshop-description.txt"}
+            or name.lower().endswith(".md")
+            or (name.lower().endswith(".txt") and Path(name).name.lower() != "info.txt")
+        ]
+        if docs:
+            raise ValueError(f"Documentation must remain local and out of {path.name}: {', '.join(sorted(docs))}")
 
 
 def main() -> int:
@@ -212,6 +217,7 @@ def main() -> int:
             write_zip(staged_install, install_members())
             write_zip(staged_source, source_members())
             verify_archive(staged_install, MOD_ARCHIVE_ROOT)
+            verify_archive(staged_source, SOURCE_ARCHIVE_ROOT)
             with zipfile.ZipFile(staged_source) as zf:
                 if zf.testzip():
                     raise ValueError("The source archive failed its CRC check")

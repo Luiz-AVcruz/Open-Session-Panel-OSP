@@ -3,6 +3,7 @@
 -- The Mod Manager runs this legacy draw entry point without a map or server.
 #include "scripts/common.lua"
 #include "scripts/strings.lua"
+#include "scripts/spanish.lua"
 #include "scripts/navigation.lua"
 #include "scripts/view_mode.lua"
 #include "scripts/settings_sections.lua"
@@ -27,7 +28,7 @@ local pressed, consumed = false, false
 local numericFrame={time=0}
 
 OSP.getLanguage = function()
-    return GetString(root .. "language") == "pt" and "pt" or "en"
+    return OSP.resolveLanguage(GetString(root .. "language"))
 end
 local function text(key, ...)
     return OSP.L(key, ...)
@@ -177,11 +178,14 @@ function draw()
     OSP.Theme.cancelDrag()
     label(28, 67, text("main_options_help"), 17, 744)
     label(28, 115, text("language"), 20)
-    if button(28, 146, 230, text("english"), OSP.getLanguage() == "en") then
-        SetString(root .. "language", "en")
-    end
-    if button(270, 146, 230, text("portuguese"), OSP.getLanguage() == "pt") then
-        SetString(root .. "language", "pt")
+    local languages=OSP.languageOptions
+    local languageGap=8
+    local languageWidth=(744-languageGap*(#languages-1))/#languages
+    for i,language in ipairs(languages) do
+        if button(28+(i-1)*(languageWidth+languageGap),146,languageWidth,text(language.key),
+            OSP.getLanguage()==language.id) then
+            SetString(root.."language",language.id)
+        end
     end
     label(28, 210, text("menu_key") .. ": " .. string.upper(readKey()), 20)
     local menuCapture=shortcuts.capture=="menu"

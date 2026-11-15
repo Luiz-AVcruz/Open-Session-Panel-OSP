@@ -3,3 +3,10 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .DS_Store
+/Docs/PATCH-NOTES.local.md
+
+# Project notes and supporting documents stay local and out of release archives.
+/Docs/
+*.md
+*.txt
+!/mod/info.txt

@@ -1322,7 +1322,7 @@ for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
     check(not sections.expanded("language"),"header padding collapses")
     w:holdAt(r.x+r.w-2,r.y+r.h/2);w:releaseAt(r.x+r.w-2,r.y+r.h/2)
     check(not sections.expanded("language"),"hold/release keeps state")
-    local st=w:draw();check(not st.controls.language_en and not st.controls.language_pt,"hidden language controls removed")
+    local st=w:draw();check(not st.controls.language_en and not st.controls.language_pt and not st.controls.language_es,"hidden language controls removed")
     check(st.maxScroll<initialMax,"collapse shrinks content")
     w:clickControl("rebind");check(e.OSP.Shortcuts.capture=="menu","capture starts")
     w:clickControl("settings_section_shortcut");check(not e.OSP.Shortcuts.capture,"collapse cancels capture")
@@ -1361,7 +1361,7 @@ do
     local w=world(1920,1080,{});local e=w.api
     w:tick("p");w:clickControl("tab_settings");local st=w:draw()
     for _,id in ipairs(e.OSP.SettingsSections.ids) do check(not e.OSP.SettingsSections.expanded(id),"first-run collapsed") end
-    check(not st.controls.language_en and not st.controls.palette_classic,"first-run bodies hidden")
+    check(not st.controls.language_en and not st.controls.language_pt and not st.controls.language_es and not st.controls.palette_classic,"first-run bodies hidden")
     eq(#w.images,7,"one graphical icon per visible Settings heading")
     for _,id in ipairs({"language","shortcut","view_mode","behavior","navigation","effects_on_load"}) do
         local found=false;for _,value in ipairs(w.texts) do if value==e.OSP.L("settings_help_"..id) then found=true end end

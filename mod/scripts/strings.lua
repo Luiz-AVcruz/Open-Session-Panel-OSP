@@ -132,7 +132,12 @@ OSP.languages = {
         tool_conflict_attempt_help="OSP keeps trying to disable and deselect this tool. It may still be usable, and the inventory may flicker.",
         blocked_by_host="Blocked by the host", tool_exception_enabled="Allowed by exception", tool_exception_paused="Exception paused",
         policy_default="Game default", policy_enabled="Always enabled", policy_disabled="Blocked by default",
-        reset_short="Reset", activity_subtitle="Most recent actions in this session", counts_short="Applied: %d   Skipped: %d",
+        reset_short="Reset", activity_subtitle="Actions recorded in this session.", counts_short="Applied: %d   Skipped: %d",
+        activity_search="Search activity",activity_search_help="Search names, action details, results or IDs.",
+        activity_action_filter="Action type",activity_player_filter="Player",activity_order_newest="Newest first",activity_order_oldest="Oldest first",
+        activity_clear="Clear filters",activity_all_actions="All action types",activity_all_players="All players",
+        activity_entries_count="%d of %d entries",activity_no_history="No activity has been recorded yet.",
+        activity_no_matches="No activity matches these filters.",activity_id="#%s",
         error_short="Failed", settings_subtitle="Personal preferences for this player", preference_saved="Preference saved.",
         about_subtitle="Version, license and source",
         speed_short="Speed",
@@ -147,7 +152,8 @@ OSP.languages = {
 		close = "Close",
 		language = "Language",
 		english = "English",
-		portuguese = "Portuguese",
+		portuguese = "Português",
+		spanish = "Español",
 		host = "HOST",
 		admin = "ADMIN",
 		guest = "GUEST",
@@ -403,7 +409,12 @@ OSP.languages = {
         tool_conflict_attempt_help="O OSP continua tentando desativar e desselecionar esta ferramenta. Ela ainda pode ser usada, e o inventário pode oscilar.",
         blocked_by_host="Bloqueada pelo host", tool_exception_enabled="Liberada por exceção", tool_exception_paused="Exceção pausada",
         policy_default="Padrão do jogo", policy_enabled="Sempre ativada", policy_disabled="Bloqueada por padrão",
-        reset_short="Padrão", activity_subtitle="Ações recentes nesta sessão", counts_short="Aplicadas: %d   Ignoradas: %d",
+        reset_short="Padrão", activity_subtitle="Ações registradas nesta sessão.", counts_short="Aplicadas: %d   Ignoradas: %d",
+        activity_search="Buscar atividade",activity_search_help="Busque nomes, detalhes, resultados ou IDs.",
+        activity_action_filter="Tipo de ação",activity_player_filter="Jogador",activity_order_newest="Mais recentes primeiro",activity_order_oldest="Mais antigas primeiro",
+        activity_clear="Limpar filtros",activity_all_actions="Todos os tipos",activity_all_players="Todos os jogadores",
+        activity_entries_count="%d de %d ações",activity_no_history="Nenhuma atividade foi registrada ainda.",
+        activity_no_matches="Nenhuma atividade corresponde a estes filtros.",activity_id="#%s",
         error_short="Falhou", settings_subtitle="Preferências pessoais deste jogador", preference_saved="Preferência salva.",
         about_subtitle="Versão, licença e código-fonte",
         speed_short="Velocidade",
@@ -417,8 +428,9 @@ OSP.languages = {
 		open_hint = "Pressione %s para abrir o painel",
 		close = "Fechar",
 		language = "Idioma",
-		english = "Inglês",
+		english = "English",
 		portuguese = "Português",
+		spanish = "Español",
 		host = "HOST",
 		admin = "ADMIN",
 		guest = "CONVIDADO",
@@ -549,9 +561,23 @@ OSP.languages = {
 	},
 }
 
+-- Shared by Settings and Mod Manager Options. Unknown saved codes resolve to
+-- English, matching the panel's default and keeping new entries selectable.
+OSP.languageOptions = {
+    {id="en",key="english"},
+    {id="pt",key="portuguese"},
+    {id="es",key="spanish"},
+}
+
+function OSP.resolveLanguage(value)
+    for _,language in ipairs(OSP.languageOptions) do
+        if language.id==value then return language.id end
+    end
+    return "en"
+end
+
 OSP.L = function(key, ...)
-	local lang = "en"
-	if OSP.getLanguage ~= nil then lang = OSP.getLanguage() end
+	local lang = OSP.getLanguage ~= nil and OSP.resolveLanguage(OSP.getLanguage()) or "en"
 	local text = (OSP.languages[lang] and OSP.languages[lang][key]) or OSP.languages.en[key] or key
 	if select("#", ...) > 0 then
 		local ok, formatted = pcall(string.format, text, ...)

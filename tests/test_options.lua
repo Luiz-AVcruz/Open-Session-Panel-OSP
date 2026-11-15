@@ -106,7 +106,11 @@ for _,size in ipairs({{840,760},{1280,720},{1024,768},{1920,1080}}) do
     w.registry[r..'health_hud']=true -- Legacy key is ignored, including on reset.
     w.draw()
     check(#w.windows==0,'ordinary Options labels and buttons do not create clipped fields')
-    w.click(272,148);check(w.registry[r..'language']=='pt','language padding hit')
+    w.click(400,148);check(w.registry[r..'language']=='pt','Português option hit')
+    check(env.OSP.getLanguage()=='pt' and env.OSP.L('portuguese')=='Português','Options resolves Portuguese label')
+    w.click(650,148);check(w.registry[r..'language']=='es','Español option hit')
+    check(env.OSP.getLanguage()=='es' and env.OSP.L('spanish')=='Español','Options resolves Spanish label')
+    w.click(400,148);check(w.registry[r..'language']=='pt','Português remains selectable after Spanish')
     w.click(30,245);w.type('w');check(w.registry[r..'menu_key']==nil,'reject movement key')
     w.type('f8');check(w.registry[r..'menu_key']=='f8','save shortcut without map')
     w.registry[r..'identity.host']='p3';w.registry[r..'hostid']='keep';w.registry[r..'nextprofile']=3
@@ -176,6 +180,12 @@ for _,size in ipairs({{840,760},{1280,720},{1024,768},{1920,1080}}) do
     w.click(30,660);check(w.back,'main Options Back returns to the Mod Manager')
     w.click(30,315);check(w.registry[r..'theme.mode']=='classic','personal reset restores palette')
     w.click(30,660);check(w.back,'back to Mod Manager')
+end
+for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
+    local w,r,env=world(unpack(size));w.registry[r..'language']='unknown'
+    check(env.OSP.getLanguage()=='en' and env.OSP.L('language')=='Language','unknown saved language falls back to English')
+    w.draw();w.click(650,148)
+    check(w.registry[r..'language']=='es','Spanish option remains inside Options at '..size[1]..'x'..size[2])
 end
 for _,size in ipairs({{640,480},{1024,768},{1920,1080}}) do
  for _,language in ipairs({'en','pt'}) do
